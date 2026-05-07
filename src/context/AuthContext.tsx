@@ -15,19 +15,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
 
   const login = async (email: string, _password: string) => {
-    // Mock login — replace with real API later
     await new Promise(r => setTimeout(r, 800));
+    const isAdmin = email.toLowerCase().includes('admin');
+    const isCaregiver = email.toLowerCase().includes('caregiver') || email.toLowerCase().includes('provider');
+    const role: 'family' | 'caregiver' | 'admin' = isAdmin ? 'admin' : isCaregiver ? 'caregiver' : 'family';
     setUser({
       id: 'usr_' + Math.random().toString(36).slice(2, 9),
       email,
-      name: email.split('@')[0],
-      role: 'family',
+      name: isAdmin ? 'Admin User' : email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      role,
       verified: true,
     });
   };
 
   const signup = async (email: string, _password: string, name: string, role: 'family' | 'caregiver') => {
-    // Mock signup — replace with real API later
     await new Promise(r => setTimeout(r, 800));
     setUser({
       id: 'usr_' + Math.random().toString(36).slice(2, 9),

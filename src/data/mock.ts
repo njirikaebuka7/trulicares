@@ -81,6 +81,38 @@ export const mockCaregivers: CaregiverProfile[] = [
     yearsExperience: 4,
     availability: 'Evenings & Weekends',
   },
+  {
+    id: 'cg6',
+    email: 'david@example.com',
+    name: 'David Kim',
+    role: 'caregiver',
+    bio: 'Geriatric care specialist with a warm bedside manner. Fluent in English and Korean. Specialized in dementia support.',
+    specialties: ['senior-care', 'adult-care'],
+    hourlyRate: [24, 36],
+    rating: 4.8,
+    reviewCount: 41,
+    location: 'Flushing, NY',
+    verified: false,
+    backgroundChecked: false,
+    yearsExperience: 9,
+    availability: 'Full-time',
+  },
+  {
+    id: 'cg7',
+    email: 'lisa@example.com',
+    name: 'Lisa Thompson',
+    role: 'caregiver',
+    bio: 'Deep-cleaning expert with 7 years of residential and Airbnb turnover experience. Highly detail-oriented.',
+    specialties: ['cleaning'],
+    hourlyRate: [28, 45],
+    rating: 4.5,
+    reviewCount: 33,
+    location: 'Newark, NJ',
+    verified: false,
+    backgroundChecked: false,
+    yearsExperience: 7,
+    availability: 'Weekdays',
+  },
 ];
 
 export const mockMatches: CareMatch[] = [
@@ -92,7 +124,7 @@ export const mockMatches: CareMatch[] = [
     careType: 'child-care',
     budget: '$18–$25/hr',
     location: 'Brooklyn, NY',
-    messagingUnlocked: false,
+    messagingUnlocked: true,
   },
   {
     id: 'match2',
@@ -157,3 +189,334 @@ export const careCategoryLabels: Record<string, string> = {
   'adult-care': 'Adult Care',
   'cleaning': 'Cleaning Services',
 };
+
+export const mockCareRequests = [
+  {
+    id: 'req1',
+    category: 'child-care' as const,
+    label: 'Child Care',
+    description: '2 children (ages 3 & 6), Mon–Fri, 8am–5pm',
+    status: 'matched' as const,
+    matchCount: 3,
+    postedDate: 'Apr 28, 2026',
+    budget: '$18–$25/hr',
+    location: 'Brooklyn, NY',
+  },
+  {
+    id: 'req2',
+    category: 'senior-care' as const,
+    label: 'Senior Care',
+    description: 'Mother (age 78), part-time companion care, weekdays',
+    status: 'matching' as const,
+    matchCount: 0,
+    postedDate: 'May 2, 2026',
+    budget: '$20–$28/hr',
+    location: 'Manhattan, NY',
+  },
+];
+
+export const mockSchedule = [
+  {
+    id: 's1',
+    caregiverName: 'Sarah Johnson',
+    service: 'Child Care',
+    date: 'Today',
+    time: '8:00 AM – 5:00 PM',
+    location: 'Brooklyn, NY',
+    status: 'confirmed',
+    colorClass: 'bg-brand-500',
+  },
+  {
+    id: 's2',
+    caregiverName: 'Sarah Johnson',
+    service: 'Child Care',
+    date: 'Tomorrow',
+    time: '8:00 AM – 5:00 PM',
+    location: 'Brooklyn, NY',
+    status: 'confirmed',
+    colorClass: 'bg-brand-500',
+  },
+  {
+    id: 's3',
+    caregiverName: 'Maria Santos',
+    service: 'Senior Care',
+    date: 'May 10, 2026',
+    time: '9:00 AM – 1:00 PM',
+    location: 'Manhattan, NY',
+    status: 'pending',
+    colorClass: 'bg-coral-400',
+  },
+];
+
+export const mockPayments = [
+  {
+    id: 'pay1',
+    description: 'Child Care – Sarah Johnson',
+    date: 'May 5, 2026',
+    amount: '$225.00',
+    status: 'paid',
+    method: 'Visa •••• 4242',
+  },
+  {
+    id: 'pay2',
+    description: 'Messaging Unlock – Emma Davis',
+    date: 'Apr 30, 2026',
+    amount: '$9.99',
+    status: 'paid',
+    method: 'Visa •••• 4242',
+  },
+  {
+    id: 'pay3',
+    description: 'Child Care – Sarah Johnson',
+    date: 'Apr 28, 2026',
+    amount: '$225.00',
+    status: 'paid',
+    method: 'Visa •••• 4242',
+  },
+  {
+    id: 'pay4',
+    description: 'Background Check Access',
+    date: 'Apr 20, 2026',
+    amount: '$4.99',
+    status: 'paid',
+    method: 'Visa •••• 4242',
+  },
+];
+
+export const mockJobRequests = [
+  {
+    id: 'jr1',
+    familyName: 'The Henderson Family',
+    service: 'Child Care',
+    children: '2 kids (ages 4 & 7)',
+    schedule: 'Mon–Fri, 7:30am–5:30pm',
+    budget: '$20–$25/hr',
+    location: 'Park Slope, Brooklyn',
+    postedAt: '2 hours ago',
+    status: 'new' as const,
+  },
+  {
+    id: 'jr2',
+    familyName: 'The Williams Family',
+    service: 'Child Care',
+    children: '1 infant (8 months)',
+    schedule: 'Mon, Wed, Fri, 9am–3pm',
+    budget: '$18–$22/hr',
+    location: 'Hoboken, NJ',
+    postedAt: '5 hours ago',
+    status: 'new' as const,
+  },
+  {
+    id: 'jr3',
+    familyName: 'The Patel Family',
+    service: 'Child Care',
+    children: '3 kids (ages 2, 5 & 9)',
+    schedule: 'Tue & Thu, 12pm–6pm',
+    budget: '$22–$28/hr',
+    location: 'Upper East Side, NY',
+    postedAt: 'Yesterday',
+    status: 'viewed' as const,
+  },
+];
+
+export const mockCaregiverClients = [
+  {
+    id: 'cl1',
+    familyName: 'Johnson Family',
+    service: 'Child Care',
+    since: 'Jan 2026',
+    nextSession: 'Today, 8am',
+    totalSessions: 48,
+    status: 'active',
+  },
+  {
+    id: 'cl2',
+    familyName: 'Martinez Family',
+    service: 'Child Care',
+    since: 'Mar 2026',
+    nextSession: 'May 8, 9am',
+    totalSessions: 12,
+    status: 'active',
+  },
+  {
+    id: 'cl3',
+    familyName: 'Lee Family',
+    service: 'Child Care',
+    since: 'Feb 2026',
+    nextSession: 'Completed',
+    totalSessions: 20,
+    status: 'inactive',
+  },
+];
+
+export const mockEarnings = {
+  thisWeek: 540,
+  thisMonth: 2160,
+  lastMonth: 1980,
+  totalAllTime: 14320,
+  weeklyBreakdown: [
+    { day: 'Mon', amount: 180 },
+    { day: 'Tue', amount: 0 },
+    { day: 'Wed', amount: 180 },
+    { day: 'Thu', amount: 180 },
+    { day: 'Fri', amount: 0 },
+    { day: 'Sat', amount: 0 },
+    { day: 'Sun', amount: 0 },
+  ],
+  recentPayouts: [
+    { date: 'May 5, 2026', amount: '$540.00', sessions: 3, status: 'paid' },
+    { date: 'Apr 28, 2026', amount: '$720.00', sessions: 4, status: 'paid' },
+    { date: 'Apr 21, 2026', amount: '$540.00', sessions: 3, status: 'paid' },
+    { date: 'Apr 14, 2026', amount: '$360.00', sessions: 2, status: 'paid' },
+  ],
+};
+
+export const mockCaregiverReviews = [
+  {
+    id: 'rv1',
+    familyName: 'Johnson Family',
+    rating: 5,
+    date: 'May 1, 2026',
+    text: 'Sarah is absolutely wonderful with our kids. They adore her and she always goes above and beyond. Highly recommend!',
+    service: 'Child Care',
+  },
+  {
+    id: 'rv2',
+    familyName: 'Martinez Family',
+    rating: 5,
+    date: 'Apr 20, 2026',
+    text: 'Reliable, professional, and so great with children. Our daughter asks for Sarah every morning!',
+    service: 'Child Care',
+  },
+  {
+    id: 'rv3',
+    familyName: 'Lee Family',
+    rating: 4,
+    date: 'Mar 15, 2026',
+    text: 'Very attentive and caring. Great communication and always on time. Would hire again.',
+    service: 'Child Care',
+  },
+];
+
+export const mockCaregiverSchedule = [
+  {
+    id: 'cs1',
+    familyName: 'Johnson Family',
+    service: 'Child Care',
+    date: 'Today',
+    time: '8:00 AM – 5:00 PM',
+    location: 'Park Slope, Brooklyn',
+    status: 'confirmed',
+  },
+  {
+    id: 'cs2',
+    familyName: 'Johnson Family',
+    service: 'Child Care',
+    date: 'Tomorrow',
+    time: '8:00 AM – 5:00 PM',
+    location: 'Park Slope, Brooklyn',
+    status: 'confirmed',
+  },
+  {
+    id: 'cs3',
+    familyName: 'Martinez Family',
+    service: 'Child Care',
+    date: 'May 8, 2026',
+    time: '9:00 AM – 3:00 PM',
+    location: 'Hoboken, NJ',
+    status: 'confirmed',
+  },
+];
+
+export const mockAdminStats = {
+  totalUsers: 1284,
+  totalFamilies: 847,
+  totalCaregivers: 437,
+  activeMatches: 312,
+  monthlyRevenue: 28640,
+  newSignupsThisMonth: 94,
+  pendingVerifications: 7,
+  openReports: 3,
+  monthlyGrowth: [
+    { month: 'Dec', families: 620, caregivers: 310 },
+    { month: 'Jan', families: 680, caregivers: 340 },
+    { month: 'Feb', families: 720, caregivers: 365 },
+    { month: 'Mar', families: 760, caregivers: 390 },
+    { month: 'Apr', families: 800, caregivers: 415 },
+    { month: 'May', families: 847, caregivers: 437 },
+  ],
+};
+
+export const mockAdminUsers = [
+  { id: 'u1', name: 'Jennifer Martinez', email: 'jennifer.m@email.com', role: 'family', joined: 'Apr 12, 2026', status: 'active', matches: 3 },
+  { id: 'u2', name: 'Robert Kim', email: 'robert.k@email.com', role: 'family', joined: 'Apr 18, 2026', status: 'active', matches: 1 },
+  { id: 'u3', name: 'Sarah Johnson', email: 'sarah@example.com', role: 'caregiver', joined: 'Jan 5, 2026', status: 'active', matches: 8 },
+  { id: 'u4', name: 'Maria Santos', email: 'maria@example.com', role: 'caregiver', joined: 'Feb 12, 2026', status: 'active', matches: 5 },
+  { id: 'u5', name: 'David Kim', email: 'david@example.com', role: 'caregiver', joined: 'Apr 29, 2026', status: 'pending', matches: 0 },
+  { id: 'u6', name: 'Lisa Thompson', email: 'lisa@example.com', role: 'caregiver', joined: 'May 1, 2026', status: 'pending', matches: 0 },
+  { id: 'u7', name: 'Amanda Chen', email: 'amanda.c@email.com', role: 'family', joined: 'May 3, 2026', status: 'active', matches: 2 },
+  { id: 'u8', name: 'Michael Torres', email: 'michael.t@email.com', role: 'family', joined: 'May 5, 2026', status: 'suspended', matches: 0 },
+];
+
+export const mockVerificationQueue = [
+  {
+    id: 'vq1',
+    name: 'David Kim',
+    email: 'david@example.com',
+    specialty: 'Senior Care, Adult Care',
+    experience: '9 years',
+    submittedAt: 'Apr 29, 2026',
+    documents: ['ID Verified', 'References Submitted'],
+    backgroundCheck: 'pending',
+  },
+  {
+    id: 'vq2',
+    name: 'Lisa Thompson',
+    email: 'lisa@example.com',
+    specialty: 'Cleaning Services',
+    experience: '7 years',
+    submittedAt: 'May 1, 2026',
+    documents: ['ID Verified'],
+    backgroundCheck: 'not_started',
+  },
+  {
+    id: 'vq3',
+    name: 'Carlos Rivera',
+    email: 'carlos.r@email.com',
+    specialty: 'Child Care',
+    experience: '5 years',
+    submittedAt: 'May 4, 2026',
+    documents: ['ID Verified', 'References Submitted', 'CPR Certificate'],
+    backgroundCheck: 'in_progress',
+  },
+];
+
+export const mockAdminReports = [
+  {
+    id: 'rp1',
+    type: 'Inappropriate Message',
+    reportedUser: 'Michael Torres',
+    reportedBy: 'Sarah Johnson',
+    date: 'May 5, 2026',
+    status: 'open',
+    priority: 'high',
+  },
+  {
+    id: 'rp2',
+    type: 'Fake Profile',
+    reportedUser: 'Unknown Caregiver',
+    reportedBy: 'Jennifer Martinez',
+    date: 'May 3, 2026',
+    status: 'under_review',
+    priority: 'medium',
+  },
+  {
+    id: 'rp3',
+    type: 'No-show',
+    reportedUser: 'James Williams',
+    reportedBy: 'Robert Kim',
+    date: 'Apr 28, 2026',
+    status: 'resolved',
+    priority: 'low',
+  },
+];
