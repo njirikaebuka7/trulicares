@@ -1,0 +1,39 @@
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from '@/context/AuthContext';
+import ScrollToTop from '@/components/ScrollToTop';
+import Layout from '@/components/layout/Layout';
+import Home from '@/pages/Home';
+import About from '@/pages/About';
+import Services from '@/pages/Services';
+import Resources from '@/pages/Resources';
+import Contact from '@/pages/Contact';
+import FindCare from '@/pages/FindCare';
+import ProvideCare from '@/pages/ProvideCare';
+import Dashboard from '@/pages/Dashboard';
+import Login from '@/pages/Login';
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <ScrollToTop />
+        <Routes>
+          {/* Pages with standard layout (navbar + footer) */}
+          <Route element={<Layout />}>
+            <Route path="/" element={<Home />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/services" element={<Services />} />
+            <Route path="/resources" element={<Resources />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+          </Route>
+
+          {/* Full-screen flows (no navbar/footer) */}
+          <Route path="/find-care" element={<FindCare />} />
+          <Route path="/provide-care" element={<ProvideCare />} />
+          <Route path="/login" element={<Login />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
+  );
+}

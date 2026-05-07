@@ -1,0 +1,126 @@
+import { useState } from 'react';
+import { Star, Shield, MapPin, DollarSign, Check } from 'lucide-react';
+import Button from '@/components/ui/Button';
+import { mockMatches } from '@/data/mock';
+import { cn } from '@/utils/cn';
+
+interface Props {
+  onSelectMatch: (matchId: string) => void;
+}
+
+const avatarColors = ['bg-coral-400', 'bg-brand-400', 'bg-sky-400', 'bg-warm-400', 'bg-purple-400'];
+
+export default function MatchesListStep({ onSelectMatch }: Props) {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const matches = mockMatches.filter(m => m.status === 'accepted');
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-coral-50 flex flex-col">
+      {/* Header */}
+      <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-lg border-b border-gray-100">
+        <div className="max-w-lg mx-auto px-4 py-4">
+          <h1 className="text-xl font-bold text-gray-900">Your Matches</h1>
+          <p className="text-sm text-gray-500">{matches.length} caregivers accepted your request</p>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 max-w-lg mx-auto w-full px-4 py-6 space-y-4">
+        {matches.map((match, i) => {
+          const cg = match.caregiver;
+          const isSelected = selectedId === match.id;
+
+          return (
+            <button
+              key={match.id}
+              onClick={() => setSelectedId(match.id)}
+              className={cn(
+                'w-full bg-white rounded-3xl border-2 p-5 text-left transition-all duration-200',
+                isSelected
+                  ? 'border-brand-500 shadow-lg shadow-brand-500/10'
+                  : 'border-gray-100 hover:border-brand-300 hover:shadow-md'
+              )}
+            >
+              <div className="flex items-start gap-4">
+                {/* Avatar */}
+                <div className={cn(
+                  'w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0',
+                  avatarColors[i % avatarColors.length]
+                )}>
+                  {cg.name.split(' ').map(n => n[0]).join('')}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold text-gray-900">{cg.name}</h3>
+                    {cg.verified && (
+                      <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 text-xs font-bold">
+                        <Shield className="w-3 h-3" /> Verified
+                      </span>
+                    )}
+                    {cg.backgroundChecked && (
+                      <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 text-xs font-bold">
+                        <Check className="w-3 h-3" /> Background
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3 mt-1.5 text-sm text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <Star className="w-4 h-4 text-warm-400 fill-warm-400" />
+                      <span className="font-semibold text-gray-700">{cg.rating}</span>
+                      <span>({cg.reviewCount})</span>
+                    </span>
+                    <span>•</span>
+                    <span>{cg.yearsExperience} yrs exp</span>
+                  </div>
+
+                  <p className="text-sm text-gray-600 mt-2 line-clamp-2">{cg.bio}</p>
+
+                  <div className="flex items-center gap-4 mt-3 text-sm">
+                    <span className="flex items-center gap-1 text-gray-500">
+                      <MapPin className="w-4 h-4" /> {cg.location}
+                    </span>
+                    <span className="flex items-center gap-1 text-brand-600 font-semibold">
+                      <DollarSign className="w-4 h-4" /> ${cg.hourlyRate[0]}–${cg.hourlyRate[1]}/hr
+                    </span>
+                  </div>
+                </div>
+
+                {/* Selection indicator */}
+                <div className={cn(
+                  'w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all',
+                  isSelected ? 'border-brand-500 bg-brand-500' : 'border-gray-300'
+                )}>
+                  {isSelected && <Check className="w-4 h-4 text-white" />}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+
+        {/* Info card */}
+        <div className="bg-brand-50 rounded-2xl p-4 border border-brand-100">
+          <p className="text-sm text-brand-800">
+            <strong>Note:</strong> You'll unlock messaging with your selected caregiver after payment and verification.
+          </p>
+        </div>
+      </div>
+
+      {/* Bottom CTA */}
+      <div className="sticky bottom-0 bg-white/90 backdrop-blur-lg border-t border-gray-100 p-4">
+        <div className="max-w-lg mx-auto">
+          <Button
+            variant="primary"
+            size="xl"
+            fullWidth
+            onClick={() => selectedId && onSelectMatch(selectedId)}
+            disabled={!selectedId}
+          >
+            Continue with Selected Caregiver
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
