@@ -60,7 +60,7 @@ export default function CaregiverDashboard() {
   const cgMsgEndRef = useRef<HTMLDivElement>(null);
 
   const [jobRequests, setJobRequests] = useState<any[]>([]);
-  const [clients, _setClients] = useState<any[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
   const [earnings, setEarnings] = useState<any>({ thisWeek: 0, thisMonth: 0, lastMonth: 0, totalAllTime: 0, weeklyBreakdown: [], recentPayouts: [] });
   const [cgSchedule, setCgSchedule] = useState<any[]>([]);
   const [cgReviews, setCgReviews] = useState<any[]>([]);
@@ -85,6 +85,7 @@ export default function CaregiverDashboard() {
       get('/earnings').then((d: any) => setEarnings(d.earnings || {})).catch(() => {}),
       get('/reviews').then((d: any) => setCgReviews(d.reviews || [])).catch(() => {}),
       get('/conversations').then((d: any) => setConversations(d.conversations || [])).catch(() => {}),
+      get('/clients').then((d: any) => setClients(d.clients || [])).catch(() => {}),
     ]).catch(console.error);
   }, []);
 
@@ -484,7 +485,7 @@ export default function CaregiverDashboard() {
             <div className="space-y-5">
               <h2 className="text-xl font-bold text-gray-900">My Clients</h2>
               {msgClientId ? (() => {
-                const client = clients.find((c: any) => c.id === msgClientId) ?? { familyName: 'Client', status: 'active', service: '' };
+                const client = clients.find((c: any) => c.id === msgClientId) ?? { name: 'Client', active: true, careTypeLabel: '' };
                 const msgs = clientMessages[msgClientId] || [];
                 const sendMsg = () => {
                   if (!clientMsgInput.trim()) return;
@@ -502,11 +503,11 @@ export default function CaregiverDashboard() {
                     <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
                       <button onClick={() => setMsgClientId(null)} className="text-sm text-emerald-600 font-medium hover:underline">← Back</button>
                       <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0', avatarColors[0])}>
-                        {client.familyName.charAt(0)}
+                        {(client.name || 'C').charAt(0)}
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-900 text-sm">{client.familyName}</p>
-                        <p className="text-xs text-green-600">● Active client</p>
+                        <p className="font-semibold text-gray-900 text-sm">{client.name}</p>
+                        <p className="text-xs text-green-600">● {client.active ? 'Active client' : 'Past client'}</p>
                       </div>
                     </div>
                     <div className="px-5 py-5 space-y-3 min-h-48 max-h-72 overflow-y-auto">
@@ -540,21 +541,18 @@ export default function CaregiverDashboard() {
                   <div key={client.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                     <div className="flex items-center gap-4">
                       <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0', avatarColors[i % avatarColors.length])}>
-                        {client.familyName.charAt(0)}
+                        {(client.name || 'F').charAt(0)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5">
-                          <h3 className="font-bold text-gray-900">{client.familyName}</h3>
+                          <h3 className="font-bold text-gray-900">{client.name}</h3>
                           <span className={cn('text-xs px-2.5 py-0.5 rounded-full font-semibold',
-                            client.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>
-                            {client.status}
+                            client.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>
+                            {client.active ? 'active' : client.status}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-500">{client.service} · Since {client.since}</p>
-                        <div className="flex items-center gap-4 mt-1 text-xs text-gray-400">
-                          <span>{client.totalSessions} sessions</span>
-                          <span>Next: {client.nextSession}</span>
-                        </div>
+                        <p className="text-sm text-gray-500">{client.careTypeLabel}{client.matchedAt ? ` · Since ${client.matchedAt}` : ''}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{client.location}</p>
                       </div>
                     </div>
                     <div className="mt-4 pt-4 border-t border-gray-50 flex gap-3">
@@ -565,8 +563,7 @@ export default function CaregiverDashboard() {
                       >
                         <MessageCircle className="w-4 h-4" /> Message
                       </Button>
-                      <Button variant="secondary" size="sm">View Details</Button>
-                      {client.status === 'active' && (
+                      {client.active && (
                         <Button variant="ghost" size="sm">Schedule Session</Button>
                       )}
                     </div>

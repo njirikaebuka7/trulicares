@@ -78,6 +78,12 @@ export const auth = {
   me: () => get('/auth/me'),
   updateProfile: (data: any) => put('/auth/profile', data),
   forgotPassword: (email: string) => post('/auth/forgot-password', { email }),
+  resetPassword: (token: string, password: string) => post('/auth/reset-password', { token, password }),
+};
+
+// ── Clients ───────────────────────────────────────────────────────────────────
+export const clients = {
+  list: () => get('/clients'),
 };
 
 // ── Caregivers ────────────────────────────────────────────────────────────────

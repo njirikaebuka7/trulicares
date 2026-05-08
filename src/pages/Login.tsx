@@ -22,7 +22,10 @@ export default function Login() {
   const handleForgotPassword = async () => {
     if (!forgotEmail.trim()) return;
     setLoading(true);
-    await new Promise(r => setTimeout(r, 1200));
+    try {
+      const { post } = await import('@/lib/api');
+      await post('/auth/forgot-password', { email: forgotEmail.trim() });
+    } catch {}
     setLoading(false);
     setForgotSent(true);
   };

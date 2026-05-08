@@ -182,11 +182,47 @@ router.post('/forgot-password', async (req, res) => {
     if (result.rows.length > 0) {
       const user = result.rows[0];
       const token = crypto.randomBytes(32).toString('hex');
+      const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      await query(
+        'UPDATE users SET reset_token = $1, reset_token_expires = $2 WHERE id = $3',
+        [token, expires, user.id]
+      );
       sendPasswordResetEmail(email, user.name, token).catch(console.error);
     }
   } catch (err) {
     console.error('Forgot password error:', err);
     res.status(500).json({ error: 'Failed to process request' });
+  }
+});
+
+// POST /api/auth/reset-password
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) return res.status(400).json({ error: 'Token and password are required' });
+    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+
+    const result = await query(
+      `SELECT id, name, email FROM users
+       WHERE reset_token = $1 AND reset_token_expires > NOW()`,
+      [token]
+    );
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'Reset link is invalid or has expired.' });
+    }
+
+    const user = result.rows[0];
+    const passwordHash = await bcrypt.hash(password, 12);
+    await query(
+      'UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expires = NULL WHERE id = $2',
+      [passwordHash, user.id]
+    );
+
+    const jwtToken = generateToken({ id: user.id, email: user.email, role: 'family', name: user.name });
+    res.json({ message: 'Password reset successfully.', token: jwtToken, user: { id: user.id, name: user.name, email: user.email } });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    res.status(500).json({ error: 'Failed to reset password' });
   }
 });
 

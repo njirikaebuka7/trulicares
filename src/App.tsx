@@ -18,6 +18,7 @@ import CookiePolicy from '@/pages/CookiePolicy';
 import ResourceArticle from '@/pages/ResourceArticle';
 import CaregiverProfile from '@/pages/CaregiverProfile';
 import CaregiverList from '@/pages/CaregiverList';
+import ResetPassword from '@/pages/ResetPassword';
 
 export default function App() {
   return (
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="/find-care" element={<FindCare />} />
           <Route path="/provide-care" element={<ProvideCare />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* 404 */}
           <Route path="*" element={<NotFound />} />

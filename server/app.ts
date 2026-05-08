@@ -12,6 +12,7 @@ import reviewsRouter from './routes/reviews.js';
 import earningsRouter from './routes/earnings.js';
 import notificationsRouter from './routes/notifications.js';
 import adminRouter from './routes/admin.js';
+import clientsRouter from './routes/clients.js';
 
 const app: Express = express();
 
@@ -68,6 +69,7 @@ app.use('/api/reviews', reviewsRouter);
 app.use('/api/earnings', earningsRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/clients', clientsRouter);
 
 // ── 404 handler ───────────────────────────────────────────────────────────────
 app.use('/api/*path', (_req, res) => {
