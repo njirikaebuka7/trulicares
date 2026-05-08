@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
-import { get, post } from '@/lib/api';
+import { get, post, put } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
 
@@ -526,15 +526,21 @@ export default function FamilyDashboard() {
                       {match.status}
                     </span>
                   </div>
-                  <div className="mt-4 pt-4 border-t border-gray-50 flex gap-3 flex-wrap">
+                  <div className="mt-4 pt-4 border-t border-gray-50 flex gap-3 flex-wrap items-center">
                     {match.messagingUnlocked ? (
                       <Button variant="primary" size="sm" onClick={() => setActiveTab('Messages')}>
                         <MessageCircle className="w-4 h-4" /> Message
                       </Button>
-                    ) : (
-                      <Button variant="coral" size="sm">
-                        <DollarSign className="w-4 h-4" /> Unlock Messaging
+                    ) : match.status === 'accepted' ? (
+                      <Button variant="coral" size="sm" onClick={async () => {
+                        try { await post(`/matches/${match.id}/unlock-messaging`); setMatches(prev => prev.map((m: any) => m.id === match.id ? { ...m, messagingUnlocked: true } : m)); } catch {}
+                      }}>
+                        <DollarSign className="w-4 h-4" /> Pay to Unlock Messaging
                       </Button>
+                    ) : (
+                      <span className="text-xs px-3 py-1.5 rounded-full bg-amber-50 text-amber-600 font-semibold flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5" /> Waiting for caregiver to accept
+                      </span>
                     )}
                     <Button variant="secondary" size="sm" onClick={() => navigate(`/caregivers/${match.caregiver.id}`)}>View Full Profile</Button>
                   </div>
@@ -679,20 +685,33 @@ export default function FamilyDashboard() {
           {activeTab === 'Payments' && (
             <div className="space-y-5">
               <h2 className="text-xl font-bold text-gray-900">Payment History</h2>
-              <div className="grid sm:grid-cols-3 gap-4">
-                <div className="bg-brand-600 text-white rounded-2xl p-5">
-                  <p className="text-brand-200 text-sm mb-1">This Month</p>
-                  <p className="text-3xl font-bold">$464.99</p>
-                </div>
-                <div className="bg-white border border-gray-100 rounded-2xl p-5">
-                  <p className="text-gray-500 text-sm mb-1">Last Month</p>
-                  <p className="text-3xl font-bold text-gray-900">$720.00</p>
-                </div>
-                <div className="bg-white border border-gray-100 rounded-2xl p-5">
-                  <p className="text-gray-500 text-sm mb-1">All Time</p>
-                  <p className="text-3xl font-bold text-gray-900">$2,840</p>
-                </div>
-              </div>
+              {(() => {
+                const now = new Date();
+                const thisMonthCents = payments.filter((p: any) => {
+                  const d = new Date(p.createdAt); return p.status === 'succeeded' && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                }).reduce((s: number, p: any) => s + p.amountCents, 0);
+                const lastMonthCents = payments.filter((p: any) => {
+                  const d = new Date(p.createdAt); const lm = new Date(now.getFullYear(), now.getMonth() - 1); return p.status === 'succeeded' && d.getMonth() === lm.getMonth() && d.getFullYear() === lm.getFullYear();
+                }).reduce((s: number, p: any) => s + p.amountCents, 0);
+                const allTimeCents = payments.filter((p: any) => p.status === 'succeeded').reduce((s: number, p: any) => s + p.amountCents, 0);
+                const fmt = (cents: number) => cents ? `$${(cents / 100).toFixed(2)}` : '$0.00';
+                return (
+                  <div className="grid sm:grid-cols-3 gap-4">
+                    <div className="bg-brand-600 text-white rounded-2xl p-5">
+                      <p className="text-brand-200 text-sm mb-1">This Month</p>
+                      <p className="text-3xl font-bold">{fmt(thisMonthCents)}</p>
+                    </div>
+                    <div className="bg-white border border-gray-100 rounded-2xl p-5">
+                      <p className="text-gray-500 text-sm mb-1">Last Month</p>
+                      <p className="text-3xl font-bold text-gray-900">{fmt(lastMonthCents)}</p>
+                    </div>
+                    <div className="bg-white border border-gray-100 rounded-2xl p-5">
+                      <p className="text-gray-500 text-sm mb-1">All Time</p>
+                      <p className="text-3xl font-bold text-gray-900">{fmt(allTimeCents)}</p>
+                    </div>
+                  </div>
+                );
+              })()}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="px-5 py-4 border-b border-gray-100">
                   <h3 className="font-bold text-gray-900">Transactions</h3>

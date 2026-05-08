@@ -9,7 +9,7 @@ import {
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
 import { detectLocationWithZip } from '@/utils/geolocation';
-import { get, post } from '@/lib/api';
+import { get, post, put } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
 
@@ -48,9 +48,9 @@ export default function CaregiverDashboard() {
   });
   const [moreOpen, setMoreOpen] = useState(false);
   const [cgModal, setCgModal] = useState<null | 'bio' | 'rates' | 'availability' | 'notifications' | 'account' | 'serviceArea'>(null);
-  const [cgBio, setCgBio] = useState('Experienced nanny with 8+ years caring for children of all ages. CPR certified and passionate about early childhood development.');
-  const [cgRate, setCgRate] = useState({ min: 18, max: 25 });
-  const [cgServiceZips, setCgServiceZips] = useState<string[]>(['11201', '11215', '11217', '11231']);
+  const [cgBio, setCgBio] = useState('');
+  const [cgRate, setCgRate] = useState({ min: 15, max: 30 });
+  const [cgServiceZips, setCgServiceZips] = useState<string[]>([]);
   const [cgZipInput, setCgZipInput] = useState('');
   const [cgLocating, setCgLocating] = useState(false);
   const [cgNotifPrefs, setCgNotifPrefs] = useState({ email: true, sms: true, push: true, marketing: false });
@@ -79,19 +79,35 @@ export default function CaregiverDashboard() {
   };
 
   useEffect(() => {
+    if (!user?.id) return;
     Promise.all([
-      get('/care-requests').then((d: any) => setJobRequests(d.requests || [])).catch(() => {}),
+      get('/matches').then((d: any) => setJobRequests(d.matches || [])).catch(() => {}),
       get('/schedule').then((d: any) => setCgSchedule(d.schedule || [])).catch(() => {}),
       get('/earnings').then((d: any) => setEarnings(d.earnings || {})).catch(() => {}),
       get('/reviews').then((d: any) => setCgReviews(d.reviews || [])).catch(() => {}),
       get('/conversations').then((d: any) => setConversations(d.conversations || [])).catch(() => {}),
       get('/clients').then((d: any) => setClients(d.clients || [])).catch(() => {}),
+      get(`/caregivers/${user.id}`).then((d: any) => {
+        if (d?.caregiver) {
+          const cg = d.caregiver;
+          if (cg.bio) setCgBio(cg.bio);
+          if (cg.hourlyRate) setCgRate({ min: cg.hourlyRate[0], max: cg.hourlyRate[1] });
+          if (cg.serviceZips?.length) setCgServiceZips(cg.serviceZips);
+        }
+      }).catch(() => {}),
     ]).catch(console.error);
-  }, []);
+  }, [user?.id]);
 
   const handleLogout = () => { logout(); navigate('/'); };
-  const handleJob = (id: string, action: 'accepted' | 'declined') =>
+  const handleJob = async (id: string, action: 'accepted' | 'declined') => {
     setJobStatuses(prev => ({ ...prev, [id]: action }));
+    try {
+      await put(`/matches/${id}/${action === 'accepted' ? 'accept' : 'decline'}`);
+    } catch (err) {
+      console.error('Failed to update match status:', err);
+      setJobStatuses(prev => ({ ...prev, [id]: null }));
+    }
+  };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -366,11 +382,11 @@ export default function CaregiverDashboard() {
                     {jobRequests.slice(0, 2).map((job: any, i: number) => (
                       <div key={job.id} className="px-5 py-4 flex items-start gap-3">
                         <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-xs shrink-0', avatarColors[i])}>
-                          {job.familyName.charAt(0)}
+                          {(job.familyName || '?').charAt(0)}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-sm text-gray-900">{job.familyName}</p>
-                          <p className="text-xs text-gray-500">{job.schedule}</p>
+                          <p className="text-xs text-gray-500">{job.details?.schedule || job.location || ''}</p>
                           <p className="text-xs text-emerald-600 font-semibold mt-0.5">{job.budget}</p>
                         </div>
                         <span className="text-xs text-gray-400 whitespace-nowrap">{job.postedAt}</span>
@@ -426,28 +442,41 @@ export default function CaregiverDashboard() {
                 <h2 className="text-xl font-bold text-gray-900">Job Requests</h2>
                 <span className="text-sm text-gray-500">{jobRequests.length} requests</span>
               </div>
+              {jobRequests.length === 0 && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center text-gray-400">
+                  <Briefcase className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">No job requests yet</p>
+                  <p className="text-sm mt-1">When families match with you, their requests will appear here.</p>
+                </div>
+              )}
               {jobRequests.map((job: any, i: number) => {
                 const jobAction = jobStatuses[job.id];
+                const careLabel = { 'child-care': 'Child Care', 'senior-care': 'Senior Care', 'adult-care': 'Adult Care', 'cleaning': 'Cleaning Services' }[job.careType as string] || job.careType || 'Care';
+                const childrenInfo = job.details?.numberOfChildren ? `${job.details.numberOfChildren} child${job.details.numberOfChildren > 1 ? 'ren' : ''}` : '';
+                const scheduleInfo = job.details?.schedule || '';
+                const isPending = job.status === 'pending';
                 return (
                   <div key={job.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                     <div className="flex items-start gap-4">
                       <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center text-white font-bold shrink-0', avatarColors[i % avatarColors.length])}>
-                        {job.familyName.charAt(0)}
+                        {(job.familyName || '?').charAt(0)}
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
                           <h3 className="font-bold text-gray-900">{job.familyName}</h3>
                           <span className={cn('text-xs px-2.5 py-0.5 rounded-full font-semibold',
-                            job.status === 'new' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600')}>
-                            {job.status === 'new' ? 'New' : 'Viewed'}
+                            isPending ? 'bg-blue-100 text-blue-700' :
+                            job.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                            'bg-gray-100 text-gray-600')}>
+                            {isPending ? 'New' : job.status === 'accepted' ? 'Accepted' : job.status}
                           </span>
                           <span className="text-xs text-gray-400 ml-auto">{job.postedAt}</span>
                         </div>
-                        <p className="text-sm font-semibold text-gray-700">{job.service} · {job.children}</p>
+                        <p className="text-sm font-semibold text-gray-700">{careLabel}{childrenInfo ? ` · ${childrenInfo}` : ''}</p>
                         <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500">
-                          <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {job.schedule}</span>
-                          <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {job.location}</span>
-                          <span className="flex items-center gap-1 text-emerald-600 font-semibold"><DollarSign className="w-3 h-3" /> {job.budget}</span>
+                          {scheduleInfo && <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {scheduleInfo}</span>}
+                          {job.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {job.location}</span>}
+                          {job.budget && <span className="flex items-center gap-1 text-emerald-600 font-semibold"><DollarSign className="w-3 h-3" /> {job.budget}</span>}
                         </div>
                       </div>
                     </div>
