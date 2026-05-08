@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell, MessageCircle, User, Settings, LogOut, MapPin, DollarSign,
@@ -9,10 +9,7 @@ import {
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
 import { detectLocationWithZip } from '@/utils/geolocation';
-import {
-  mockJobRequests, mockCaregiverClients, mockEarnings,
-  mockCaregiverReviews, mockCaregiverSchedule
-} from '@/data/mock';
+import { get, post } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
 
@@ -59,22 +56,37 @@ export default function CaregiverDashboard() {
   const [cgNotifPrefs, setCgNotifPrefs] = useState({ email: true, sms: true, push: true, marketing: false });
   const [cgSelectedMsg, setCgSelectedMsg] = useState<string | null>(null);
   const [cgMsgInput, setCgMsgInput] = useState('');
-  const [cgMsgAutoReplying, setCgMsgAutoReplying] = useState(false);
-  const [cgFamilyMessages, setCgFamilyMessages] = useState<Record<string, { text: string; fromMe: boolean; time: string }[]>>({
-    fam1: [
-      { text: "Hi! We loved your profile and wanted to reach out about our child care needs.", fromMe: false, time: '10:30 AM' },
-      { text: "Thank you for reaching out! I'd love to learn more about your children.", fromMe: true, time: '10:42 AM' },
-      { text: "We have twins, age 4. Looking for someone reliable 3 days a week. Are you available?", fromMe: false, time: '10:55 AM' },
-    ],
-    fam2: [
-      { text: "Hello! We're looking for senior care support for my mother — 3 days per week.", fromMe: false, time: '9:15 AM' },
-      { text: "I'd be happy to help! Could you tell me more about your mother's daily needs?", fromMe: true, time: '9:28 AM' },
-    ],
-    fam3: [
-      { text: "Can we reschedule Wednesday's session? Something came up at work.", fromMe: false, time: 'Yesterday' },
-    ],
-  });
+  const [cgFamilyMessages, setCgFamilyMessages] = useState<Record<string, { text: string; fromMe: boolean; time: string }[]>>({});
   const cgMsgEndRef = useRef<HTMLDivElement>(null);
+
+  const [jobRequests, setJobRequests] = useState<any[]>([]);
+  const [clients, _setClients] = useState<any[]>([]);
+  const [earnings, setEarnings] = useState<any>({ thisWeek: 0, thisMonth: 0, lastMonth: 0, totalAllTime: 0, weeklyBreakdown: [], recentPayouts: [] });
+  const [cgSchedule, setCgSchedule] = useState<any[]>([]);
+  const [cgReviews, setCgReviews] = useState<any[]>([]);
+  const [conversations, setConversations] = useState<any[]>([]);
+
+  const loadCgMessages = async (convId: string) => {
+    try {
+      const d: any = await get(`/conversations/${convId}/messages`);
+      const msgs = (d.messages || []).map((m: any) => ({
+        text: m.content,
+        fromMe: m.isOwn,
+        time: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }));
+      setCgFamilyMessages(prev => ({ ...prev, [convId]: msgs }));
+    } catch {}
+  };
+
+  useEffect(() => {
+    Promise.all([
+      get('/care-requests').then((d: any) => setJobRequests(d.requests || [])).catch(() => {}),
+      get('/schedule').then((d: any) => setCgSchedule(d.schedule || [])).catch(() => {}),
+      get('/earnings').then((d: any) => setEarnings(d.earnings || {})).catch(() => {}),
+      get('/reviews').then((d: any) => setCgReviews(d.reviews || [])).catch(() => {}),
+      get('/conversations').then((d: any) => setConversations(d.conversations || [])).catch(() => {}),
+    ]).catch(console.error);
+  }, []);
 
   const handleLogout = () => { logout(); navigate('/'); };
   const handleJob = (id: string, action: 'accepted' | 'declined') =>
@@ -85,7 +97,7 @@ export default function CaregiverDashboard() {
     if (file) setPhotoUrl(URL.createObjectURL(file));
   };
 
-  const maxEarning = Math.max(...mockEarnings.weeklyBreakdown.map(d => d.amount), 1);
+  const maxEarning = Math.max(...(earnings.weeklyBreakdown || []).map((d: any) => d.amount), 1);
   const initials = user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() ?? 'C';
   const unread = notificationsRead ? 0 : 2;
 
@@ -307,7 +319,7 @@ export default function CaregiverDashboard() {
                 <p className="text-emerald-200 text-sm font-medium mb-1">Welcome back</p>
                 <h2 className="text-2xl font-bold mb-1">{user?.name || 'Caregiver'}</h2>
                 <p className="text-emerald-200 text-sm mb-5">
-                  You have <strong className="text-white">{mockJobRequests.filter(j => !jobStatuses[j.id]).length} new job requests</strong> waiting.
+                  You have <strong className="text-white">{jobRequests.filter((j: any) => !jobStatuses[j.id]).length} new job requests</strong> waiting.
                 </p>
                 <div className="flex gap-3 flex-wrap">
                   <Button size="sm" onClick={() => setActiveTab('Job Requests')}
@@ -323,9 +335,9 @@ export default function CaregiverDashboard() {
 
               <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
                 {[
-                  { label: 'Active Clients', value: mockCaregiverClients.filter(c => c.status === 'active').length,
+                  { label: 'Active Clients', value: clients.filter((c: any) => c.status === 'active').length,
                     icon: <User className="w-4 h-4" />, sub: '2 ongoing', bg: 'bg-emerald-50', txt: 'text-emerald-600' },
-                  { label: 'This Week', value: `$${mockEarnings.thisWeek}`,
+                  { label: 'This Week', value: `$${earnings.thisWeek || 0}`,
                     icon: <DollarSign className="w-4 h-4" />, sub: '↑ 9% vs last week', bg: 'bg-sky-50', txt: 'text-sky-600' },
                   { label: 'Avg Rating', value: '4.9',
                     icon: <Star className="w-4 h-4" />, sub: 'Top 5% of caregivers', bg: 'bg-amber-50', txt: 'text-amber-600' },
@@ -350,7 +362,7 @@ export default function CaregiverDashboard() {
                     <button onClick={() => setActiveTab('Job Requests')} className="text-sm text-emerald-600 font-medium hover:underline">View all</button>
                   </div>
                   <div className="divide-y divide-gray-50">
-                    {mockJobRequests.slice(0, 2).map((job, i) => (
+                    {jobRequests.slice(0, 2).map((job: any, i: number) => (
                       <div key={job.id} className="px-5 py-4 flex items-start gap-3">
                         <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-xs shrink-0', avatarColors[i])}>
                           {job.familyName.charAt(0)}
@@ -372,7 +384,7 @@ export default function CaregiverDashboard() {
                     <button onClick={() => setActiveTab('Schedule')} className="text-sm text-emerald-600 font-medium hover:underline">View all</button>
                   </div>
                   <div className="divide-y divide-gray-50">
-                    {mockCaregiverSchedule.slice(0, 3).map(session => (
+                    {cgSchedule.slice(0, 3).map((session: any) => (
                       <div key={session.id} className="flex items-center gap-3 px-5 py-3.5">
                         <div className="w-2 h-10 rounded-full bg-emerald-500 shrink-0" />
                         <div className="flex-1 min-w-0">
@@ -389,10 +401,10 @@ export default function CaregiverDashboard() {
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-bold text-gray-900">Earnings This Week</h3>
-                  <span className="text-sm font-bold text-emerald-600">${mockEarnings.thisWeek} total</span>
+                  <span className="text-sm font-bold text-emerald-600">${earnings.thisWeek || 0} total</span>
                 </div>
                 <div className="flex items-end gap-2 h-24">
-                  {mockEarnings.weeklyBreakdown.map(d => (
+                  {(earnings.weeklyBreakdown || []).map((d: any) => (
                     <div key={d.day} className="flex-1 flex flex-col items-center gap-1">
                       <div className="w-full relative flex items-end" style={{ height: '72px' }}>
                         <div className={cn('w-full rounded-t-lg transition-all', d.amount > 0 ? 'bg-emerald-500' : 'bg-gray-100')}
@@ -411,9 +423,9 @@ export default function CaregiverDashboard() {
             <div className="space-y-5">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-900">Job Requests</h2>
-                <span className="text-sm text-gray-500">{mockJobRequests.length} requests</span>
+                <span className="text-sm text-gray-500">{jobRequests.length} requests</span>
               </div>
-              {mockJobRequests.map((job, i) => {
+              {jobRequests.map((job: any, i: number) => {
                 const jobAction = jobStatuses[job.id];
                 return (
                   <div key={job.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
@@ -472,7 +484,7 @@ export default function CaregiverDashboard() {
             <div className="space-y-5">
               <h2 className="text-xl font-bold text-gray-900">My Clients</h2>
               {msgClientId ? (() => {
-                const client = mockCaregiverClients.find(c => c.id === msgClientId)!;
+                const client = clients.find((c: any) => c.id === msgClientId) ?? { familyName: 'Client', status: 'active', service: '' };
                 const msgs = clientMessages[msgClientId] || [];
                 const sendMsg = () => {
                   if (!clientMsgInput.trim()) return;
@@ -524,7 +536,7 @@ export default function CaregiverDashboard() {
                   </div>
                 );
               })() : (
-                mockCaregiverClients.map((client, i) => (
+                clients.map((client: any, i: number) => (
                   <div key={client.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                     <div className="flex items-center gap-4">
                       <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0', avatarColors[i % avatarColors.length])}>
@@ -566,36 +578,24 @@ export default function CaregiverDashboard() {
 
           {/* ── MESSAGES ── */}
           {activeTab === 'Messages' && (() => {
-            const cgFamilies = [
-              { id: 'fam1', name: 'The Martinez Family', care: 'Child Care', color: avatarColors[0], unread: 1 },
-              { id: 'fam2', name: 'Rebecca Thompson', care: 'Senior Care', color: avatarColors[1], unread: 0 },
-              { id: 'fam3', name: 'James Chen', care: 'Adult Care', color: avatarColors[2], unread: 0 },
-            ];
+            const cgFamilies = conversations.map((conv: any, idx: number) => ({
+              id: conv.id,
+              name: conv.otherName || 'Family',
+              care: conv.careType || 'Care',
+              color: avatarColors[idx % avatarColors.length],
+              unread: conv.unreadCount || 0,
+            }));
 
-            const sendCgMsg = () => {
+            const sendCgMsg = async () => {
               if (!cgMsgInput.trim() || !cgSelectedMsg) return;
               const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              const content = cgMsgInput.trim();
               setCgFamilyMessages(prev => ({
                 ...prev,
-                [cgSelectedMsg]: [...(prev[cgSelectedMsg] || []), { text: cgMsgInput.trim(), fromMe: true, time }],
+                [cgSelectedMsg]: [...(prev[cgSelectedMsg] || []), { text: content, fromMe: true, time }],
               }));
               setCgMsgInput('');
-              setCgMsgAutoReplying(true);
-              setTimeout(() => {
-                const replies = [
-                  "That works great for us, thank you!",
-                  "Perfect! We'll confirm the details soon.",
-                  "Sounds good! Looking forward to it.",
-                  "Thanks for getting back to me so quickly!",
-                ];
-                const reply = replies[Math.floor(Math.random() * replies.length)];
-                const replyTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                setCgFamilyMessages(prev => ({
-                  ...prev,
-                  [cgSelectedMsg]: [...(prev[cgSelectedMsg] || []), { text: reply, fromMe: false, time: replyTime }],
-                }));
-                setCgMsgAutoReplying(false);
-              }, 2000);
+              try { await post(`/conversations/${cgSelectedMsg}/messages`, { content }); } catch {}
             };
 
             if (cgSelectedMsg) {
@@ -630,17 +630,6 @@ export default function CaregiverDashboard() {
                           </div>
                         </div>
                       ))}
-                      {cgMsgAutoReplying && (
-                        <div className="flex justify-start">
-                          <div className="bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-3">
-                            <div className="flex gap-1">
-                              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                            </div>
-                          </div>
-                        </div>
-                      )}
                       <div ref={cgMsgEndRef} />
                     </div>
 
@@ -676,7 +665,7 @@ export default function CaregiverDashboard() {
                     return (
                       <button
                         key={family.id}
-                        onClick={() => setCgSelectedMsg(family.id)}
+                        onClick={() => { setCgSelectedMsg(family.id); loadCgMessages(family.id); }}
                         className="w-full flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors text-left"
                       >
                         <div className={cn('w-11 h-11 rounded-2xl flex items-center justify-center text-white font-bold text-sm shrink-0 relative', family.color)}>
@@ -715,7 +704,7 @@ export default function CaregiverDashboard() {
           {activeTab === 'Schedule' && (
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-gray-900">My Schedule</h2>
-              {mockCaregiverSchedule.map(session => (
+              {cgSchedule.map((session: any) => (
                 <div key={session.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
                   <div className="w-1.5 h-16 rounded-full bg-emerald-500 shrink-0" />
                   <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
@@ -742,10 +731,10 @@ export default function CaregiverDashboard() {
               <h2 className="text-xl font-bold text-gray-900">Earnings</h2>
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                  { label: 'This Week', value: `$${mockEarnings.thisWeek}`, highlight: true },
-                  { label: 'This Month', value: `$${mockEarnings.thisMonth.toLocaleString()}` },
-                  { label: 'Last Month', value: `$${mockEarnings.lastMonth.toLocaleString()}` },
-                  { label: 'All Time', value: `$${mockEarnings.totalAllTime.toLocaleString()}` },
+                  { label: 'This Week', value: `$${earnings.thisWeek || 0}`, highlight: true },
+                  { label: 'This Month', value: `$${(earnings.thisMonth || 0).toLocaleString()}` },
+                  { label: 'Last Month', value: `$${(earnings.lastMonth || 0).toLocaleString()}` },
+                  { label: 'All Time', value: `$${(earnings.totalAllTime || 0).toLocaleString()}` },
                 ].map((e, i) => (
                   <div key={i} className={cn('rounded-2xl p-5', e.highlight ? 'bg-emerald-600 text-white' : 'bg-white border border-gray-100')}>
                     <p className={cn('text-sm mb-1', e.highlight ? 'text-emerald-200' : 'text-gray-500')}>{e.label}</p>
@@ -756,7 +745,7 @@ export default function CaregiverDashboard() {
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                 <h3 className="font-bold text-gray-900 mb-4">Weekly Breakdown</h3>
                 <div className="flex items-end gap-2" style={{ height: '100px' }}>
-                  {mockEarnings.weeklyBreakdown.map(d => (
+                  {(earnings.weeklyBreakdown || []).map((d: any) => (
                     <div key={d.day} className="flex-1 flex flex-col items-center gap-1">
                       <div className="w-full relative flex items-end" style={{ height: '72px' }}>
                         <div className={cn('w-full rounded-t-lg', d.amount > 0 ? 'bg-emerald-500' : 'bg-gray-100')}
@@ -771,7 +760,7 @@ export default function CaregiverDashboard() {
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="px-5 py-4 border-b border-gray-100"><h3 className="font-bold text-gray-900">Recent Payouts</h3></div>
                 <div className="divide-y divide-gray-50">
-                  {mockEarnings.recentPayouts.map((payout, i) => (
+                  {(earnings.recentPayouts || []).map((payout: any, i: number) => (
                     <div key={i} className="flex items-center gap-4 px-5 py-4">
                       <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
                         <DollarSign className="w-4 h-4 text-emerald-600" />
@@ -819,7 +808,7 @@ export default function CaregiverDashboard() {
                   })}
                 </div>
               </div>
-              {mockCaregiverReviews.map(review => (
+              {cgReviews.map((review: any) => (
                 <div key={review.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                   <div className="flex items-start justify-between mb-3">
                     <div>

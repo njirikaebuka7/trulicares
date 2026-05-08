@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowLeft, Lock, Check, ExternalLink, ShieldCheck, CreditCard, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { mockMatches } from '@/data/mock';
+import { caregivers as caregiversApi } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
 
@@ -22,8 +22,13 @@ const features = [
 
 export default function PaymentStep({ matchId, onComplete, onBack }: Props) {
   const [state, setState] = useState<PaymentState>('idle');
-  const match = mockMatches.find(m => m.id === matchId);
-  const caregiver = match?.caregiver;
+  const [caregiver, setCaregiver] = useState<any>(null);
+
+  useEffect(() => {
+    if (matchId) {
+      caregiversApi.get(matchId).then(d => setCaregiver(d.caregiver || d)).catch(() => {});
+    }
+  }, [matchId]);
 
   const handleStripeCheckout = async () => {
     setState('redirecting');
@@ -116,7 +121,7 @@ export default function PaymentStep({ matchId, onComplete, onBack }: Props) {
             <img src={caregiver.photoUrl} alt={caregiver.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
           ) : (
             <div className="w-14 h-14 rounded-xl bg-coral-400 flex items-center justify-center text-white font-bold text-lg shrink-0">
-              {caregiver?.name?.split(' ').map(n => n[0]).join('') ?? '?'}
+              {caregiver?.name?.split(' ').map((n: string) => n[0]).join('') ?? '?'}
             </div>
           )}
           <div className="flex-1 min-w-0">

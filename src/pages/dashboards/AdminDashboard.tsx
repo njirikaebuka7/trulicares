@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell, LogOut, Users, Shield, AlertTriangle,
@@ -9,22 +9,39 @@ import {
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
-import {
-  mockAdminStats, mockAdminUsers, mockVerificationQueue, mockAdminReports
-} from '@/data/mock';
+import { get } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
 
 type Tab = 'Overview' | 'Users' | 'Verification Queue' | 'Reports' | 'Analytics';
 
-type AdminUser = typeof mockAdminUsers[0];
-type AdminReport = typeof mockAdminReports[0];
+type AdminUser = {
+  id: string; name: string; email: string; role: string;
+  status: string; photoUrl?: string; joined: string; matches: number;
+};
+type AdminReport = {
+  id: string; type: string; reportedUser: string; reportedBy: string;
+  date: string; status: string; priority: string; description: string;
+  evidence: string[];
+};
+type AdminStats = {
+  totalUsers: number; totalFamilies: number; totalCaregivers: number;
+  activeMatches: number; monthlyRevenue: number; newSignupsThisMonth: number;
+  pendingVerifications: number; openReports: number;
+  monthlyGrowth: Array<{ month: string; families: number; caregivers: number }>;
+};
+
+const defaultStats: AdminStats = {
+  totalUsers: 0, totalFamilies: 0, totalCaregivers: 0,
+  activeMatches: 0, monthlyRevenue: 0, newSignupsThisMonth: 0,
+  pendingVerifications: 0, openReports: 0, monthlyGrowth: [],
+};
 
 const navItems: { id: Tab; label: string; mobileLabel: string; icon: React.ReactNode; badge?: number }[] = [
   { id: 'Overview', label: 'Overview', mobileLabel: 'Overview', icon: <LayoutDashboard className="w-5 h-5" /> },
   { id: 'Users', label: 'Users', mobileLabel: 'Users', icon: <Users className="w-5 h-5" /> },
-  { id: 'Verification Queue', label: 'Verifications', mobileLabel: 'Verify', icon: <UserCheck className="w-5 h-5" />, badge: mockAdminStats.pendingVerifications },
-  { id: 'Reports', label: 'Reports', mobileLabel: 'Reports', icon: <Flag className="w-5 h-5" />, badge: mockAdminStats.openReports },
+  { id: 'Verification Queue', label: 'Verifications', mobileLabel: 'Verify', icon: <UserCheck className="w-5 h-5" /> },
+  { id: 'Reports', label: 'Reports', mobileLabel: 'Reports', icon: <Flag className="w-5 h-5" /> },
   { id: 'Analytics', label: 'Analytics', mobileLabel: 'Analytics', icon: <BarChart2 className="w-5 h-5" /> },
 ];
 
@@ -44,7 +61,7 @@ export default function AdminDashboard() {
   const [reportActions, setReportActions] = useState<Record<string, 'resolved' | 'dismissed' | null>>({});
 
   // Live user state for CRUD
-  const [users, setUsers] = useState<AdminUser[]>(mockAdminUsers);
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [editForm, setEditForm] = useState({ name: '', email: '', role: '' });
@@ -52,6 +69,19 @@ export default function AdminDashboard() {
 
   // Report detail modal
   const [selectedReport, setSelectedReport] = useState<AdminReport | null>(null);
+
+  const [adminStats, setAdminStats] = useState<AdminStats>(defaultStats);
+  const [verificationQueue, setVerificationQueue] = useState<any[]>([]);
+  const [adminReports, setAdminReports] = useState<AdminReport[]>([]);
+
+  useEffect(() => {
+    Promise.all([
+      get('/admin/stats').then((d: any) => setAdminStats(d.stats || defaultStats)).catch(() => {}),
+      get('/admin/users').then((d: any) => setUsers(d.users || [])).catch(() => {}),
+      get('/admin/verification-queue').then((d: any) => setVerificationQueue(d.queue || [])).catch(() => {}),
+      get('/admin/reports').then((d: any) => setAdminReports(d.reports || [])).catch(() => {}),
+    ]).catch(console.error);
+  }, []);
 
   const handleLogout = () => { logout(); navigate('/'); };
 
@@ -93,10 +123,12 @@ export default function AdminDashboard() {
     setEditingUser(null);
   };
 
-  const unread = notificationsRead ? 0 : mockAdminStats.pendingVerifications + mockAdminStats.openReports;
+  const unread = notificationsRead ? 0 : (adminStats.pendingVerifications || 0) + (adminStats.openReports || 0);
   const openNotifications = () => { setNotifOpen(true); setNotificationsRead(true); };
 
-  const maxBarValue = Math.max(...mockAdminStats.monthlyGrowth.map(m => m.families + m.caregivers));
+  const maxBarValue = adminStats.monthlyGrowth.length > 0
+    ? Math.max(...adminStats.monthlyGrowth.map(m => m.families + m.caregivers), 1)
+    : 1;
   const initials = 'AD';
 
   return (
@@ -148,19 +180,19 @@ export default function AdminDashboard() {
         )}
 
         {/* Alerts summary */}
-        {!collapsed && (mockAdminStats.pendingVerifications > 0 || mockAdminStats.openReports > 0) && (
+        {!collapsed && (adminStats.pendingVerifications > 0 || adminStats.openReports > 0) && (
           <div className="mx-3 mt-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
             <p className="text-xs font-semibold text-red-400 mb-1.5">Action Required</p>
-            {mockAdminStats.pendingVerifications > 0 && (
+            {adminStats.pendingVerifications > 0 && (
               <p className="text-xs text-slate-400 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
-                {mockAdminStats.pendingVerifications} pending verifications
+                {adminStats.pendingVerifications} pending verifications
               </p>
             )}
-            {mockAdminStats.openReports > 0 && (
+            {adminStats.openReports > 0 && (
               <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
-                {mockAdminStats.openReports} open reports
+                {adminStats.openReports} open reports
               </p>
             )}
           </div>
@@ -249,8 +281,8 @@ export default function AdminDashboard() {
                     <button onClick={() => setNotifOpen(false)}><X className="w-4 h-4 text-gray-400" /></button>
                   </div>
                   {[
-                    { text: `${mockAdminStats.pendingVerifications} caregivers awaiting verification`, time: 'Ongoing', urgent: true },
-                    { text: `${mockAdminStats.openReports} open reports need review`, time: 'Ongoing', urgent: true },
+                    { text: `${adminStats.pendingVerifications} caregivers awaiting verification`, time: 'Ongoing', urgent: true },
+                    { text: `${adminStats.openReports} open reports need review`, time: 'Ongoing', urgent: true },
                     { text: '94 new sign-ups this month', time: 'This month', urgent: false },
                   ].map((n, i) => (
                     <div key={i} className="px-4 py-3 border-b border-gray-50 last:border-0">
@@ -282,9 +314,9 @@ export default function AdminDashboard() {
                 <p className="text-slate-400 text-sm font-medium mb-1">Admin Console</p>
                 <h2 className="text-2xl font-bold mb-1">Platform Overview</h2>
                 <p className="text-slate-400 text-sm mb-5">
-                  <span className="text-white font-semibold">{mockAdminStats.newSignupsThisMonth} new signups</span> this month ·
-                  <span className="text-amber-400 font-semibold"> {mockAdminStats.pendingVerifications} pending</span> ·
-                  <span className="text-red-400 font-semibold"> {mockAdminStats.openReports} reports</span>
+                  <span className="text-white font-semibold">{adminStats.newSignupsThisMonth} new signups</span> this month ·
+                  <span className="text-amber-400 font-semibold"> {adminStats.pendingVerifications} pending</span> ·
+                  <span className="text-red-400 font-semibold"> {adminStats.openReports} reports</span>
                 </p>
                 <div className="flex gap-3 flex-wrap">
                   <Button size="sm" onClick={() => setActiveTab('Verification Queue')}
@@ -300,10 +332,10 @@ export default function AdminDashboard() {
 
               <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
                 {[
-                  { label: 'Total Users', value: mockAdminStats.totalUsers.toLocaleString(), icon: <Users className="w-4 h-4" />, sub: `+${mockAdminStats.newSignupsThisMonth} this month`, bg: 'bg-blue-50', txt: 'text-blue-600' },
-                  { label: 'Families', value: mockAdminStats.totalFamilies.toLocaleString(), icon: <UserCheck className="w-4 h-4" />, sub: 'Seeking care', bg: 'bg-brand-50', txt: 'text-brand-600' },
-                  { label: 'Caregivers', value: mockAdminStats.totalCaregivers.toLocaleString(), icon: <Shield className="w-4 h-4" />, sub: 'Providing care', bg: 'bg-emerald-50', txt: 'text-emerald-600' },
-                  { label: 'Monthly Revenue', value: `$${mockAdminStats.monthlyRevenue.toLocaleString()}`, icon: <DollarSign className="w-4 h-4" />, sub: `${mockAdminStats.activeMatches} active matches`, bg: 'bg-violet-50', txt: 'text-violet-600' },
+                  { label: 'Total Users', value: adminStats.totalUsers.toLocaleString(), icon: <Users className="w-4 h-4" />, sub: `+${adminStats.newSignupsThisMonth} this month`, bg: 'bg-blue-50', txt: 'text-blue-600' },
+                  { label: 'Families', value: adminStats.totalFamilies.toLocaleString(), icon: <UserCheck className="w-4 h-4" />, sub: 'Seeking care', bg: 'bg-brand-50', txt: 'text-brand-600' },
+                  { label: 'Caregivers', value: adminStats.totalCaregivers.toLocaleString(), icon: <Shield className="w-4 h-4" />, sub: 'Providing care', bg: 'bg-emerald-50', txt: 'text-emerald-600' },
+                  { label: 'Monthly Revenue', value: `$${adminStats.monthlyRevenue.toLocaleString()}`, icon: <DollarSign className="w-4 h-4" />, sub: `${adminStats.activeMatches} active matches`, bg: 'bg-violet-50', txt: 'text-violet-600' },
                 ].map((stat, i) => (
                   <div key={i} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                     <div className="flex items-center justify-between mb-3">
@@ -323,7 +355,7 @@ export default function AdminDashboard() {
                     <button onClick={() => setActiveTab('Verification Queue')} className="text-sm text-slate-600 font-medium hover:underline">View all</button>
                   </div>
                   <div className="divide-y divide-gray-50">
-                    {mockVerificationQueue.slice(0, 3).map(item => (
+                    {verificationQueue.slice(0, 3).map((item: any) => (
                       <div key={item.id} className="flex items-center gap-3 px-5 py-3.5">
                         <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
                           <Clock className="w-4 h-4 text-amber-600" />
@@ -344,7 +376,7 @@ export default function AdminDashboard() {
                     <button onClick={() => setActiveTab('Reports')} className="text-sm text-slate-600 font-medium hover:underline">View all</button>
                   </div>
                   <div className="divide-y divide-gray-50">
-                    {mockAdminReports.filter(r => r.status !== 'resolved').map(report => (
+                    {adminReports.filter((r: any) => r.status !== 'resolved').slice(0, 3).map((report: any) => (
                       <div key={report.id} className="flex items-center gap-3 px-5 py-3.5">
                         <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
                           report.priority === 'high' ? 'bg-red-50' : report.priority === 'medium' ? 'bg-amber-50' : 'bg-gray-50')}>
@@ -374,7 +406,7 @@ export default function AdminDashboard() {
                   </div>
                 </div>
                 <div className="flex items-end gap-4" style={{ height: '110px' }}>
-                  {mockAdminStats.monthlyGrowth.map(m => (
+                  {adminStats.monthlyGrowth.map((m: any) => (
                     <div key={m.month} className="flex-1 flex flex-col items-center gap-1">
                       <div className="w-full flex items-end gap-1" style={{ height: '80px' }}>
                         <div className="flex-1 rounded-t-md bg-brand-500" style={{ height: `${(m.families / maxBarValue) * 100}%` }} />
@@ -523,9 +555,9 @@ export default function AdminDashboard() {
             <div className="space-y-5">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-900">Verification Queue</h2>
-                <span className="text-sm text-gray-500">{mockVerificationQueue.length} pending</span>
+                <span className="text-sm text-gray-500">{verificationQueue.length} pending</span>
               </div>
-              {mockVerificationQueue.map(item => {
+              {verificationQueue.map((item: any) => {
                 const action = verificationActions[item.id];
                 return (
                   <div key={item.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
@@ -588,9 +620,9 @@ export default function AdminDashboard() {
             <div className="space-y-5">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-900">Platform Reports</h2>
-                <span className="text-sm text-gray-500">{mockAdminReports.length} total</span>
+                <span className="text-sm text-gray-500">{adminReports.length} total</span>
               </div>
-              {mockAdminReports.map(report => {
+              {adminReports.map((report: any) => {
                 const action = reportActions[report.id];
                 return (
                   <div key={report.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">

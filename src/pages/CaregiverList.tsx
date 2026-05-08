@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Star, Shield, Check, MapPin, Clock, Filter, X, ChevronRight } from 'lucide-react';
-import { mockCaregivers } from '@/data/mock';
-import type { CareCategory } from '@/types';
+import { caregivers as caregiverApi } from '@/lib/api';
+import type { CareCategory, CaregiverProfile } from '@/types';
 import { cn } from '@/utils/cn';
 import Button from '@/components/ui/Button';
 
@@ -43,9 +43,18 @@ export default function CaregiverList() {
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [bgCheckedOnly, setBgCheckedOnly] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [allCaregivers, setAllCaregivers] = useState<CaregiverProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    caregiverApi.list()
+      .then((d: any) => setAllCaregivers(d.caregivers || []))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
 
   const filtered = useMemo(() => {
-    let results = [...mockCaregivers];
+    let results = [...allCaregivers];
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -73,7 +82,7 @@ export default function CaregiverList() {
     });
 
     return results;
-  }, [search, activeCategory, sortBy, verifiedOnly, bgCheckedOnly]);
+  }, [search, activeCategory, sortBy, verifiedOnly, bgCheckedOnly, allCaregivers]);
 
   const activeFiltersCount = (verifiedOnly ? 1 : 0) + (bgCheckedOnly ? 1 : 0);
 
@@ -83,7 +92,7 @@ export default function CaregiverList() {
       <section className="bg-gradient-to-br from-brand-900 via-brand-800 to-brand-950 pt-28 pb-16 lg:pt-36 lg:pb-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <span className="inline-block px-4 py-1.5 rounded-full bg-white/10 text-brand-200 text-sm font-semibold mb-5 backdrop-blur-sm border border-white/10">
-            {mockCaregivers.length} Verified Caregivers
+            {loading ? '…' : allCaregivers.length} Verified Caregivers
           </span>
           <h1 className="text-4xl sm:text-5xl font-black text-white mb-5 leading-tight">
             Find Your Perfect<br />
@@ -150,7 +159,6 @@ export default function CaregiverList() {
           </p>
 
           <div className="flex items-center gap-3">
-            {/* Filter toggle */}
             <button
               onClick={() => setFiltersOpen(!filtersOpen)}
               className={cn(
@@ -169,7 +177,6 @@ export default function CaregiverList() {
               )}
             </button>
 
-            {/* Sort */}
             <select
               value={sortBy}
               onChange={e => setSortBy(e.target.value)}
@@ -189,15 +196,9 @@ export default function CaregiverList() {
               <label className="flex items-center gap-3 cursor-pointer">
                 <div
                   onClick={() => setVerifiedOnly(!verifiedOnly)}
-                  className={cn(
-                    'w-10 h-6 rounded-full transition-colors relative',
-                    verifiedOnly ? 'bg-brand-600' : 'bg-gray-200'
-                  )}
+                  className={cn('w-10 h-6 rounded-full transition-colors relative', verifiedOnly ? 'bg-brand-600' : 'bg-gray-200')}
                 >
-                  <div className={cn(
-                    'absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform',
-                    verifiedOnly ? 'translate-x-5' : 'translate-x-1'
-                  )} />
+                  <div className={cn('absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform', verifiedOnly ? 'translate-x-5' : 'translate-x-1')} />
                 </div>
                 <span className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
                   <Shield className="w-4 h-4 text-brand-600" /> Verified only
@@ -206,15 +207,9 @@ export default function CaregiverList() {
               <label className="flex items-center gap-3 cursor-pointer">
                 <div
                   onClick={() => setBgCheckedOnly(!bgCheckedOnly)}
-                  className={cn(
-                    'w-10 h-6 rounded-full transition-colors relative',
-                    bgCheckedOnly ? 'bg-brand-600' : 'bg-gray-200'
-                  )}
+                  className={cn('w-10 h-6 rounded-full transition-colors relative', bgCheckedOnly ? 'bg-brand-600' : 'bg-gray-200')}
                 >
-                  <div className={cn(
-                    'absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform',
-                    bgCheckedOnly ? 'translate-x-5' : 'translate-x-1'
-                  )} />
+                  <div className={cn('absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform', bgCheckedOnly ? 'translate-x-5' : 'translate-x-1')} />
                 </div>
                 <span className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
                   <Check className="w-4 h-4 text-emerald-600" /> Background checked
@@ -232,8 +227,14 @@ export default function CaregiverList() {
           </div>
         )}
 
-        {/* Results grid */}
-        {filtered.length === 0 ? (
+        {/* Loading state */}
+        {loading ? (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="bg-white rounded-2xl border border-gray-100 h-64 animate-pulse" />
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="text-center py-20">
             <div className="text-6xl mb-4">🔍</div>
             <h3 className="text-xl font-bold text-gray-900 mb-2">No caregivers found</h3>
@@ -250,16 +251,11 @@ export default function CaregiverList() {
                 to={`/caregivers/${cg.id}`}
                 className="group bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-brand-200 transition-all duration-200 overflow-hidden flex flex-col"
               >
-                {/* Card header */}
                 <div className="relative p-5 pb-0">
                   <div className="flex items-start gap-4">
                     <div className="relative shrink-0">
                       {cg.photoUrl ? (
-                        <img
-                          src={cg.photoUrl}
-                          alt={cg.name}
-                          className="w-16 h-16 rounded-2xl object-cover"
-                        />
+                        <img src={cg.photoUrl} alt={cg.name} className="w-16 h-16 rounded-2xl object-cover" />
                       ) : (
                         <div className={cn('w-16 h-16 rounded-2xl flex items-center justify-center text-white text-xl font-bold', avatarColors[i % avatarColors.length])}>
                           {cg.name.charAt(0)}
@@ -285,7 +281,6 @@ export default function CaregiverList() {
                     </div>
                   </div>
 
-                  {/* Specialties */}
                   <div className="flex flex-wrap gap-1.5 mt-3">
                     {cg.specialties.map(s => (
                       <span key={s} className="px-2.5 py-1 rounded-lg bg-brand-50 text-brand-700 text-[11px] font-semibold capitalize">
@@ -295,12 +290,10 @@ export default function CaregiverList() {
                   </div>
                 </div>
 
-                {/* Bio */}
                 <div className="px-5 py-3 flex-1">
                   <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">{cg.bio}</p>
                 </div>
 
-                {/* Card footer */}
                 <div className="px-5 py-4 border-t border-gray-50 flex items-center justify-between">
                   <div>
                     <span className="text-lg font-bold text-gray-900">${cg.hourlyRate[0]}–${cg.hourlyRate[1]}</span>

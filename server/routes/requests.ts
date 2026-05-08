@@ -1,0 +1,130 @@
+import { Router } from 'express';
+import { query } from '../db.js';
+import { requireAuth, AuthRequest } from '../middleware/auth.js';
+import { createMatchesForRequest } from '../services/matching.js';
+import { sendJobRequestNotification } from '../services/email.js';
+
+const router = Router();
+
+const careTypeLabels: Record<string, string> = {
+  'child-care': 'Child Care',
+  'senior-care': 'Senior Care',
+  'adult-care': 'Adult Care',
+  'cleaning': 'Cleaning Services',
+};
+
+function formatRequest(row: any) {
+  const details = row.details || {};
+  return {
+    id: row.id,
+    category: row.care_type,
+    label: careTypeLabels[row.care_type] || row.care_type,
+    description: details.schedule
+      ? `${details.numberOfChildren ? `${details.numberOfChildren} children, ` : ''}${details.schedule}`
+      : row.location || '',
+    status: row.status,
+    matchCount: parseInt(row.match_count) || 0,
+    postedDate: row.created_at
+      ? new Date(row.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : '',
+    budget: details.budget || '',
+    location: row.location || '',
+    careType: row.care_type,
+    details: row.details || {},
+    createdAt: row.created_at,
+  };
+}
+
+// POST /api/care-requests
+router.post('/', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { careType, details, location, zip } = req.body;
+    if (!careType) return res.status(400).json({ error: 'Care type is required' });
+
+    const result = await query(
+      `INSERT INTO care_requests (family_id, care_type, details, location, zip, status)
+       VALUES ($1, $2, $3, $4, $5, 'matching')
+       RETURNING id, care_type, details, location, zip, status, created_at`,
+      [req.user!.id, careType, details || {}, location || '', zip || '']
+    );
+
+    const careRequest = result.rows[0];
+
+    createMatchesForRequest(careRequest.id, req.user!.id, careType, location, zip)
+      .then(async (matches) => {
+        await query(`UPDATE care_requests SET status = 'matched' WHERE id = $1`, [careRequest.id]);
+
+        const familyResult = await query('SELECT name FROM users WHERE id = $1', [req.user!.id]);
+        const familyName = familyResult.rows[0]?.name || 'A family';
+
+        for (const match of matches.slice(0, 3)) {
+          const r = await query('SELECT email, name FROM users WHERE id = $1', [match.id]);
+          if (r.rows[0]) {
+            sendJobRequestNotification(r.rows[0].email, r.rows[0].name, familyName, careType).catch(console.error);
+          }
+        }
+      })
+      .catch(console.error);
+
+    res.status(201).json({ request: formatRequest(careRequest), message: 'Care request submitted. Finding matches…' });
+  } catch (err) {
+    console.error('Create care request error:', err);
+    res.status(500).json({ error: 'Failed to create care request' });
+  }
+});
+
+// GET /api/care-requests
+router.get('/', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    let result;
+
+    if (req.user!.role === 'family') {
+      result = await query(
+        `SELECT cr.id, cr.care_type, cr.details, cr.location, cr.zip, cr.status, cr.created_at,
+                COUNT(m.id) as match_count
+         FROM care_requests cr
+         LEFT JOIN matches m ON m.request_id = cr.id
+         WHERE cr.family_id = $1
+         GROUP BY cr.id
+         ORDER BY cr.created_at DESC`,
+        [req.user!.id]
+      );
+    } else {
+      result = await query(
+        `SELECT cr.id, cr.care_type, cr.details, cr.location, cr.zip, cr.status, cr.created_at,
+                u.name as family_name
+         FROM care_requests cr
+         JOIN matches m ON m.request_id = cr.id AND m.caregiver_id = $1
+         JOIN users u ON u.id = cr.family_id
+         ORDER BY cr.created_at DESC`,
+        [req.user!.id]
+      );
+    }
+
+    res.json({ requests: result.rows.map(formatRequest) });
+  } catch (err) {
+    console.error('Get care requests error:', err);
+    res.status(500).json({ error: 'Failed to fetch care requests' });
+  }
+});
+
+// GET /api/care-requests/:id
+router.get('/:id', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const result = await query(
+      `SELECT cr.*, u.name as family_name,
+              (SELECT COUNT(*) FROM matches WHERE request_id=cr.id) as match_count
+       FROM care_requests cr
+       JOIN users u ON u.id = cr.family_id
+       WHERE cr.id = $1 AND (cr.family_id = $2 OR $3 = 'admin')`,
+      [req.params.id, req.user!.id, req.user!.role]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Request not found' });
+    res.json({ request: formatRequest(result.rows[0]) });
+  } catch (err) {
+    console.error('Get care request error:', err);
+    res.status(500).json({ error: 'Failed to fetch request' });
+  }
+});
+
+export default router;

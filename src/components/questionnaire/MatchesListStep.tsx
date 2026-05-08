@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Star, Shield, MapPin, DollarSign, Check, ArrowLeft, Navigation } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Button from '@/components/ui/Button';
-import { mockMatches } from '@/data/mock';
+import { caregivers as caregiversApi } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import { extractZip } from '@/utils/geolocation';
 import logoImg from '@/assets/logo.png';
@@ -17,18 +17,23 @@ const avatarColors = ['bg-coral-400', 'bg-brand-400', 'bg-sky-400', 'bg-warm-400
 
 export default function MatchesListStep({ onSelectMatch, onBack, familyLocation }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [caregiverList, setCaregiverList] = useState<any[]>([]);
+
+  useEffect(() => {
+    caregiversApi.list().then(d => setCaregiverList(d.caregivers || [])).catch(() => {});
+  }, []);
 
   const familyZip = familyLocation ? extractZip(familyLocation) : '';
 
-  const matches = [...mockMatches.filter(m => m.status === 'accepted')].sort((a, b) => {
+  const matches = [...caregiverList].sort((a, b) => {
     if (!familyZip) return 0;
-    const aServes = a.caregiver.serviceZips?.includes(familyZip) ? 1 : 0;
-    const bServes = b.caregiver.serviceZips?.includes(familyZip) ? 1 : 0;
+    const aServes = a.serviceZips?.includes(familyZip) ? 1 : 0;
+    const bServes = b.serviceZips?.includes(familyZip) ? 1 : 0;
     return bServes - aServes;
   });
 
   const nearYouCount = familyZip
-    ? matches.filter(m => m.caregiver.serviceZips?.includes(familyZip)).length
+    ? matches.filter(cg => cg.serviceZips?.includes(familyZip)).length
     : 0;
 
   return (
@@ -49,7 +54,7 @@ export default function MatchesListStep({ onSelectMatch, onBack, familyLocation 
         </div>
         <div className="max-w-lg mx-auto px-4 pb-3">
           <h1 className="text-xl font-bold text-gray-900">Your Matches</h1>
-          <p className="text-sm text-gray-500">{matches.length} caregivers accepted your request</p>
+          <p className="text-sm text-gray-500">{matches.length} caregivers available in your area</p>
         </div>
       </div>
 
@@ -70,15 +75,14 @@ export default function MatchesListStep({ onSelectMatch, onBack, familyLocation 
           </div>
         )}
 
-        {matches.map((match, i) => {
-          const cg = match.caregiver;
-          const isSelected = selectedId === match.id;
+        {matches.map((cg, i) => {
+          const isSelected = selectedId === cg.id;
           const servesFamily = Boolean(familyZip && cg.serviceZips?.includes(familyZip));
 
           return (
             <button
-              key={match.id}
-              onClick={() => setSelectedId(match.id)}
+              key={cg.id}
+              onClick={() => setSelectedId(cg.id)}
               className={cn(
                 'w-full bg-white rounded-3xl border-2 p-5 text-left transition-all duration-200',
                 isSelected
@@ -87,7 +91,6 @@ export default function MatchesListStep({ onSelectMatch, onBack, familyLocation 
               )}
             >
               <div className="flex items-start gap-4">
-                {/* Avatar — real photo or initials fallback */}
                 {cg.photoUrl ? (
                   <img
                     src={cg.photoUrl}
@@ -99,7 +102,7 @@ export default function MatchesListStep({ onSelectMatch, onBack, familyLocation 
                     'w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0',
                     avatarColors[i % avatarColors.length]
                   )}>
-                    {cg.name.split(' ').map(n => n[0]).join('')}
+                    {cg.name.split(' ').map((n: string) => n[0]).join('')}
                   </div>
                 )}
 
@@ -144,10 +147,9 @@ export default function MatchesListStep({ onSelectMatch, onBack, familyLocation 
                     </span>
                   </div>
 
-                  {/* Service area chips — show a few */}
                   {cg.serviceZips && cg.serviceZips.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
-                      {cg.serviceZips.slice(0, 3).map(zip => (
+                      {cg.serviceZips.slice(0, 3).map((zip: string) => (
                         <span
                           key={zip}
                           className={cn(
@@ -169,7 +171,6 @@ export default function MatchesListStep({ onSelectMatch, onBack, familyLocation 
                   )}
                 </div>
 
-                {/* Selection indicator */}
                 <div className={cn(
                   'w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all',
                   isSelected ? 'border-brand-500 bg-brand-500' : 'border-gray-300'
@@ -181,7 +182,6 @@ export default function MatchesListStep({ onSelectMatch, onBack, familyLocation 
           );
         })}
 
-        {/* Info card */}
         <div className="bg-brand-50 rounded-2xl p-4 border border-brand-100">
           <p className="text-sm text-brand-800">
             <strong>Note:</strong> You'll unlock messaging with your selected caregiver after payment and verification.

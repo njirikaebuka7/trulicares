@@ -8,12 +8,16 @@ import {
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
-import {
-  mockMatches, mockCaregivers, careCategoryLabels,
-  mockCareRequests, mockSchedule, mockPayments
-} from '@/data/mock';
+import { get, post } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
+
+const careCategoryLabels: Record<string, string> = {
+  'child-care': 'Child Care',
+  'senior-care': 'Senior Care',
+  'adult-care': 'Adult Care',
+  'cleaning': 'Cleaning Services',
+};
 
 type Tab = 'Overview' | 'My Requests' | 'Matches' | 'Schedule' | 'Messages' | 'Payments' | 'Profile';
 
@@ -65,34 +69,48 @@ export default function FamilyDashboard() {
   const [notifPrefs, setNotifPrefs] = useState({ email: true, sms: true, push: false, marketing: false });
   const [privacyPrefs, setPrivacyPrefs] = useState({ profileVisible: true, shareActivity: false, dataAnalytics: true });
   const [chatInput, setChatInput] = useState('');
-  const [chatMessages, setChatMessages] = useState<Record<string, Array<{text: string; fromMe: boolean; time: string}>>>({
-    cg1: [
-      { text: "Hi! Thank you for reaching out. I'd love to learn more about your family's needs.", fromMe: false, time: '2:30 PM' },
-      { text: "Great! We have two kids, ages 3 and 6. Looking for full-time care starting next month.", fromMe: true, time: '2:35 PM' },
-    ],
-    cg2: [
-      { text: "Hello! I saw your care request and I'd be happy to help. When can we chat?", fromMe: false, time: '10:15 AM' },
-    ],
-    cg3: [
-      { text: "Good morning! I'm available for the schedule you mentioned. Let me know!", fromMe: false, time: 'Yesterday' },
-    ],
-  });
+  const [chatMessages, setChatMessages] = useState<Record<string, Array<{text: string; fromMe: boolean; time: string}>>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const [matches, setMatches] = useState<any[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
+  const [schedule, setSchedule] = useState<any[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [conversations, setConversations] = useState<any[]>([]);
+
+  const loadMessages = async (convId: string) => {
+    try {
+      const d: any = await get(`/conversations/${convId}/messages`);
+      const msgs = (d.messages || []).map((m: any) => ({
+        text: m.content,
+        fromMe: m.isOwn,
+        time: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }));
+      setChatMessages(prev => ({ ...prev, [convId]: msgs }));
+    } catch {}
+  };
+
+  useEffect(() => {
+    Promise.all([
+      get('/matches').then((d: any) => setMatches(d.matches || [])).catch(() => {}),
+      get('/care-requests').then((d: any) => setRequests(d.requests || [])).catch(() => {}),
+      get('/schedule').then((d: any) => setSchedule(d.schedule || [])).catch(() => {}),
+      get('/payments').then((d: any) => setPayments(d.payments || [])).catch(() => {}),
+      get('/conversations').then((d: any) => setConversations(d.conversations || [])).catch(() => {}),
+    ]).catch(console.error);
+  }, []);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   useEffect(() => { scrollToBottom(); }, [chatMessages, selectedMessage]);
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!chatInput.trim() || !selectedMessage) return;
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const newMsg = { text: chatInput.trim(), fromMe: true, time };
+    const content = chatInput.trim();
+    const newMsg = { text: content, fromMe: true, time };
     setChatMessages(prev => ({ ...prev, [selectedMessage]: [...(prev[selectedMessage] || []), newMsg] }));
     setChatInput('');
-    const currentId = selectedMessage;
-    setTimeout(() => {
-      const reply = { text: "Thanks for the message! I'll get back to you shortly.", fromMe: false, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
-      setChatMessages(prev => ({ ...prev, [currentId]: [...(prev[currentId] || []), reply] }));
-    }, 2000);
+    try { await post(`/conversations/${selectedMessage}/messages`, { content }); } catch {}
   };
 
   const handleLogout = () => { logout(); navigate('/'); };
@@ -320,7 +338,7 @@ export default function FamilyDashboard() {
               </div>
 
               <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-                <StatCard label="Active Matches" value={mockMatches.filter(m => m.status === 'accepted').length}
+                <StatCard label="Active Matches" value={matches.filter((m: any) => m.status === 'accepted').length}
                   icon={<Shield className="w-4 h-4" />} sub="2 new this week" colorBg="bg-brand-50" colorText="text-brand-600" />
                 <StatCard label="Sessions" value={2} icon={<Calendar className="w-4 h-4" />}
                   sub="Next: Today 8am" colorBg="bg-emerald-50" colorText="text-emerald-600" />
@@ -337,7 +355,7 @@ export default function FamilyDashboard() {
                     <button onClick={() => setActiveTab('Schedule')} className="text-sm text-brand-600 font-medium hover:underline">View all</button>
                   </div>
                   <div className="divide-y divide-gray-50">
-                    {mockSchedule.slice(0, 3).map(session => (
+                    {schedule.slice(0, 3).map((session: any) => (
                       <div key={session.id} className="flex items-center gap-3 px-5 py-3.5">
                         <div className={cn('w-2 h-10 rounded-full shrink-0', session.colorClass)} />
                         <div className="flex-1 min-w-0">
@@ -359,7 +377,7 @@ export default function FamilyDashboard() {
                     <button onClick={() => setActiveTab('My Requests')} className="text-sm text-brand-600 font-medium hover:underline">View all</button>
                   </div>
                   <div className="divide-y divide-gray-50">
-                    {mockCareRequests.map(req => (
+                    {requests.map((req: any) => (
                       <div key={req.id} className="flex items-center gap-3 px-5 py-3.5">
                         <div className="w-9 h-9 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
                           <FileText className="w-4 h-4 text-brand-600" />
@@ -385,10 +403,10 @@ export default function FamilyDashboard() {
                   <button onClick={() => setActiveTab('Matches')} className="text-sm text-brand-600 font-medium hover:underline">View all</button>
                 </div>
                 <div className="divide-y divide-gray-50">
-                  {mockMatches.slice(0, 2).map((match, i) => (
+                  {matches.slice(0, 2).map((match: any, i: number) => (
                     <div key={match.id} className="flex items-center gap-4 px-5 py-4">
                       <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0', avatarColors[i % avatarColors.length])}>
-                        {match.caregiver.name.split(' ').map(n => n[0]).join('')}
+                        {match.caregiver.name.split(' ').map((n: string) => n[0]).join('')}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
@@ -417,7 +435,7 @@ export default function FamilyDashboard() {
                   <Plus className="w-4 h-4" /> New Request
                 </Button>
               </div>
-              {mockCareRequests.map(req => (
+              {requests.map((req: any) => (
                 <div key={req.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 rounded-2xl bg-brand-50 flex items-center justify-center shrink-0">
@@ -466,14 +484,14 @@ export default function FamilyDashboard() {
           {activeTab === 'Matches' && (
             <div className="space-y-5">
               <h2 className="text-xl font-bold text-gray-900">Your Matches</h2>
-              {mockMatches.map((match, i) => (
+              {matches.map((match: any, i: number) => (
                 <div key={match.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                   <div className="flex items-start gap-4">
                     {match.caregiver.photoUrl ? (
                       <img src={match.caregiver.photoUrl} alt={match.caregiver.name} className="w-14 h-14 rounded-2xl object-cover shrink-0" />
                     ) : (
                       <div className={cn('w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0', avatarColors[i % avatarColors.length])}>
-                        {match.caregiver.name.split(' ').map(n => n[0]).join('')}
+                        {match.caregiver.name.split(' ').map((n: string) => n[0]).join('')}
                       </div>
                     )}
                     <div className="flex-1">
@@ -530,7 +548,7 @@ export default function FamilyDashboard() {
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-gray-900">Upcoming Schedule</h2>
               <div className="space-y-3">
-                {mockSchedule.map(session => (
+                {schedule.map((session: any) => (
                   <div key={session.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
                     <div className={cn('w-1.5 h-16 rounded-full shrink-0', session.colorClass)} />
                     <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center shrink-0">
@@ -557,32 +575,26 @@ export default function FamilyDashboard() {
 
           {/* ── MESSAGES ── */}
           {activeTab === 'Messages' && (() => {
-            const activeCg = selectedMessage ? mockCaregivers.find(cg => cg.id === selectedMessage) : null;
+            const activeConv = selectedMessage ? conversations.find((c: any) => c.id === selectedMessage) : null;
             const activeMessages = selectedMessage ? (chatMessages[selectedMessage] || []) : [];
-            const threadList = mockCaregivers.slice(0, 3);
-            const threadPreviews: Record<string, string> = {
-              cg1: "Great! We have two kids, ages 3 and 6.",
-              cg2: "Hello! I saw your care request and I'd be happy to help.",
-              cg3: "Good morning! I'm available for the schedule you mentioned.",
-            };
-            const threadTimes: Record<string, string> = { cg1: '2:35 PM', cg2: '10:15 AM', cg3: 'Yesterday' };
+            const threadList = conversations.slice(0, 3);
             return (
               <div className="space-y-4">
                 <h2 className="text-xl font-bold text-gray-900">Messages</h2>
-                {activeCg ? (
+                {activeConv ? (
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col">
                     {/* Chat header */}
                     <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
                       <button onClick={() => setSelectedMessage(null)} className="text-sm text-brand-600 hover:underline font-medium shrink-0">← Back</button>
-                      {activeCg.photoUrl ? (
-                        <img src={activeCg.photoUrl} alt={activeCg.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
+                      {activeConv?.otherPhoto ? (
+                        <img src={activeConv.otherPhoto} alt={activeConv.otherName} className="w-9 h-9 rounded-full object-cover shrink-0" />
                       ) : (
                         <div className={cn('w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0', avatarColors[0])}>
-                          {activeCg.name.split(' ').map(n => n[0]).join('')}
+                          {(activeConv?.otherName || '?').split(' ').map((n: string) => n[0]).join('')}
                         </div>
                       )}
                       <div>
-                        <span className="font-semibold text-gray-900 block">{activeCg.name}</span>
+                        <span className="font-semibold text-gray-900 block">{activeConv?.otherName}</span>
                         <span className="text-xs text-green-600">● Online</span>
                       </div>
                     </div>
@@ -591,11 +603,11 @@ export default function FamilyDashboard() {
                       {activeMessages.map((msg, i) => (
                         <div key={i} className={cn('flex gap-3', msg.fromMe && 'justify-end')}>
                           {!msg.fromMe && (
-                            activeCg.photoUrl ? (
-                              <img src={activeCg.photoUrl} alt="" className="w-8 h-8 rounded-full object-cover shrink-0 self-end" />
+                            activeConv?.otherPhoto ? (
+                              <img src={activeConv.otherPhoto} alt="" className="w-8 h-8 rounded-full object-cover shrink-0 self-end" />
                             ) : (
                               <div className={cn('w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0 self-end', avatarColors[0])}>
-                                {activeCg.name.split(' ').map(n => n[0]).join('')}
+                                {(activeConv?.otherName || '?').split(' ').map((n: string) => n[0]).join('')}
                               </div>
                             )
                           )}
@@ -627,30 +639,30 @@ export default function FamilyDashboard() {
                     </div>
                   </div>
                 ) : (
-                  threadList.map((cg, i) => {
-                    const msgs = chatMessages[cg.id] || [];
+                  threadList.map((conv: any, i: number) => {
+                    const msgs = chatMessages[conv.id] || [];
                     const lastMsg = msgs[msgs.length - 1];
-                    const unreadDot = i === 0 && msgs.some(m => !m.fromMe);
+                    const unreadDot = (conv.unreadCount || 0) > 0;
                     return (
-                      <div key={cg.id} onClick={() => setSelectedMessage(cg.id)}
+                      <div key={conv.id} onClick={() => { setSelectedMessage(conv.id); loadMessages(conv.id); }}
                         className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4 cursor-pointer hover:border-brand-200 hover:shadow-md transition-all">
                         <div className="relative shrink-0">
-                          {cg.photoUrl ? (
-                            <img src={cg.photoUrl} alt={cg.name} className="w-12 h-12 rounded-full object-cover" />
+                          {conv.otherPhoto ? (
+                            <img src={conv.otherPhoto} alt={conv.otherName} className="w-12 h-12 rounded-full object-cover" />
                           ) : (
                             <div className={cn('w-12 h-12 rounded-full flex items-center justify-center text-white font-bold', avatarColors[i % avatarColors.length])}>
-                              {cg.name.split(' ').map(n => n[0]).join('')}
+                              {(conv.otherName || '?').split(' ').map((n: string) => n[0]).join('')}
                             </div>
                           )}
                           {i === 0 && <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full" />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-0.5">
-                            <h4 className={cn('font-semibold', unreadDot ? 'text-gray-900' : 'text-gray-700')}>{cg.name}</h4>
-                            <span className="text-xs text-gray-400">{threadTimes[cg.id] || ''}</span>
+                            <h4 className={cn('font-semibold', unreadDot ? 'text-gray-900' : 'text-gray-700')}>{conv.otherName}</h4>
+                            <span className="text-xs text-gray-400">{conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
                           </div>
                           <p className="text-sm text-gray-500 truncate">
-                            {lastMsg ? (lastMsg.fromMe ? `You: ${lastMsg.text}` : lastMsg.text) : threadPreviews[cg.id] || ''}
+                            {lastMsg ? (lastMsg.fromMe ? `You: ${lastMsg.text}` : lastMsg.text) : conv.lastMessage || ''}
                           </p>
                         </div>
                         {unreadDot && <span className="w-2.5 h-2.5 bg-brand-500 rounded-full shrink-0" />}
@@ -686,7 +698,7 @@ export default function FamilyDashboard() {
                   <h3 className="font-bold text-gray-900">Transactions</h3>
                 </div>
                 <div className="divide-y divide-gray-50">
-                  {mockPayments.map(pay => (
+                  {payments.map((pay: any) => (
                     <div key={pay.id} className="flex items-center gap-4 px-5 py-4">
                       <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center shrink-0">
                         <CreditCard className="w-4 h-4 text-green-600" />

@@ -1,50 +1,88 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { User } from '@/types';
+import { auth as authApi, setToken, clearToken, getToken } from '@/lib/api';
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name: string, role: 'family' | 'caregiver') => Promise<void>;
+  signup: (email: string, password: string, name: string, role: 'family' | 'caregiver', caregiverData?: any) => Promise<void>;
   logout: () => void;
+  updateUser: (updates: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const login = async (email: string, _password: string) => {
-    await new Promise(r => setTimeout(r, 800));
-    const isAdmin = email.toLowerCase().includes('admin');
-    const isCaregiver = email.toLowerCase().includes('caregiver') || email.toLowerCase().includes('provider');
-    const role: 'family' | 'caregiver' | 'admin' = isAdmin ? 'admin' : isCaregiver ? 'caregiver' : 'family';
+  // Restore session on mount
+  useEffect(() => {
+    const token = getToken();
+    if (!token) { setIsLoading(false); return; }
+
+    authApi.me()
+      .then((data: any) => {
+        setUser({
+          id: data.id,
+          email: data.email,
+          name: data.name,
+          role: data.role,
+          verified: data.status === 'active',
+          photoUrl: data.photoUrl,
+        });
+      })
+      .catch(() => {
+        clearToken();
+      })
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const login = async (email: string, password: string) => {
+    const data: any = await authApi.login(email, password);
+    setToken(data.token);
     setUser({
-      id: 'usr_' + Math.random().toString(36).slice(2, 9),
-      email,
-      name: isAdmin ? 'Admin User' : email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-      role,
+      id: data.user.id,
+      email: data.user.email,
+      name: data.user.name,
+      role: data.user.role,
       verified: true,
+      photoUrl: data.user.photoUrl,
     });
   };
 
-  const signup = async (email: string, _password: string, name: string, role: 'family' | 'caregiver') => {
-    await new Promise(r => setTimeout(r, 800));
+  const signup = async (
+    email: string,
+    password: string,
+    name: string,
+    role: 'family' | 'caregiver',
+    _caregiverData?: any
+  ) => {
+    const data: any = await authApi.register(name, email, password, role);
+    setToken(data.token);
     setUser({
-      id: 'usr_' + Math.random().toString(36).slice(2, 9),
-      email,
-      name,
-      role,
+      id: data.user.id,
+      email: data.user.email,
+      name: data.user.name,
+      role: data.user.role,
       verified: false,
+      photoUrl: data.user.photoUrl,
     });
   };
 
   const logout = () => {
+    clearToken();
     setUser(null);
   };
 
+  const updateUser = (updates: Partial<User>) => {
+    setUser(prev => prev ? { ...prev, ...updates } : null);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, signup, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

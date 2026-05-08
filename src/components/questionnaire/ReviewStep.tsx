@@ -2,8 +2,14 @@ import { ArrowLeft, Edit2, CheckCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Button from '@/components/ui/Button';
 import type { CareCategory } from '@/types';
-import { careCategoryLabels } from '@/data/mock';
 import logoImg from '@/assets/logo.png';
+
+const careCategoryLabels: Record<string, string> = {
+  'child-care': 'Child Care',
+  'senior-care': 'Senior Care',
+  'adult-care': 'Adult Care',
+  'cleaning': 'Cleaning Services',
+};
 
 interface Props {
   careCategory: CareCategory;
@@ -31,7 +37,7 @@ export default function ReviewStep({ careCategory, careData, onSubmit, onBack }:
 
   const getReviewItems = () => {
     const items: { label: string; value: string }[] = [];
-    
+
     items.push({ label: 'Care Type', value: careCategoryLabels[careCategory] });
 
     const keyLabels: Record<string, string> = {

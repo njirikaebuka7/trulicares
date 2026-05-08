@@ -75,6 +75,7 @@ export interface User {
   role: 'family' | 'caregiver' | 'admin';
   verified: boolean;
   avatarUrl?: string;
+  photoUrl?: string;
 }
 
 export interface CaregiverProfile extends User {

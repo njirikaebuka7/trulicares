@@ -1,12 +1,20 @@
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
-  Star, Shield, Check, MapPin, Clock, DollarSign, Calendar,
-  ChevronLeft, MessageCircle, Heart, Award, Briefcase, CheckCircle
+  Star, Shield, Check, MapPin, Clock, DollarSign,
+  Briefcase, CheckCircle, MessageCircle, Award, Calendar, ArrowLeft
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
-import { mockCaregivers } from '@/data/mock';
+import { caregivers } from '@/lib/api';
+import type { CaregiverProfile as CGProfile } from '@/types';
 import { cn } from '@/utils/cn';
-import logoImg from '@/assets/logo.png';
+
+const categoryColors: Record<string, string> = {
+  'child-care': 'bg-brand-100 text-brand-700',
+  'senior-care': 'bg-coral-100 text-coral-700',
+  'adult-care': 'bg-sky-100 text-sky-700',
+  'cleaning': 'bg-violet-100 text-violet-700',
+};
 
 const categoryLabels: Record<string, string> = {
   'child-care': 'Child Care',
@@ -15,110 +23,105 @@ const categoryLabels: Record<string, string> = {
   'cleaning': 'Cleaning Services',
 };
 
-const categoryColors: Record<string, string> = {
-  'child-care': 'bg-coral-100 text-coral-700',
-  'senior-care': 'bg-brand-100 text-brand-700',
-  'adult-care': 'bg-sky-100 text-sky-700',
-  'cleaning': 'bg-violet-100 text-violet-700',
-};
-
-const mockReviews = [
-  { author: 'The Martinez Family', rating: 5, text: 'Absolutely wonderful. Our kids adored her from day one. Punctual, caring, and communicates brilliantly.', date: 'April 2026' },
-  { author: 'Rebecca T.', rating: 5, text: 'Professional and warm. The house was spotless and our grandmother was comfortable and happy all day.', date: 'March 2026' },
-  { author: 'The Chen Family', rating: 4, text: 'Very reliable and great with the kids. We\'ve already rebooked for next month. Highly recommend!', date: 'February 2026' },
-];
-
 export default function CaregiverProfile() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const caregiver = mockCaregivers.find(cg => cg.id === id);
+  const [caregiver, setCaregiver] = useState<CGProfile | null>(null);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
-  if (!caregiver) {
+  useEffect(() => {
+    if (!id) return;
+    caregivers.get(id)
+      .then((d: any) => {
+        setCaregiver(d.caregiver);
+        setReviews(d.caregiver?.sampleReviews || []);
+      })
+      .catch(() => setNotFound(true))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center">
-          <p className="text-2xl font-bold text-gray-900 mb-2">Profile not found</p>
-          <Link to="/" className="text-brand-600 hover:underline font-medium">← Go home</Link>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-full border-4 border-brand-600 border-t-transparent animate-spin" />
+          <p className="text-gray-500 text-sm font-medium">Loading profile…</p>
         </div>
       </div>
     );
   }
 
-  const initials = caregiver.name.split(' ').map(n => n[0]).join('');
+  if (notFound || !caregiver) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4 px-4 text-center">
+        <div className="text-6xl mb-2">😢</div>
+        <h2 className="text-2xl font-bold text-gray-900">Caregiver not found</h2>
+        <p className="text-gray-500">This profile doesn't exist or has been removed.</p>
+        <Link to="/caregivers">
+          <Button variant="primary" size="lg">Browse Caregivers</Button>
+        </Link>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-gray-50 min-h-screen">
+    <div className="min-h-screen bg-gray-50">
       {/* Hero banner */}
-      <div className="bg-gradient-to-br from-brand-900 via-brand-800 to-brand-950 pt-8 pb-24 relative overflow-hidden">
-        <div className="absolute inset-0">
-          <div className="absolute top-0 left-1/3 w-80 h-80 bg-brand-500/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-0 right-1/4 w-60 h-60 bg-coral-500/8 rounded-full blur-3xl" />
-        </div>
-        <div className="relative max-w-4xl mx-auto px-4 sm:px-6">
-          {/* Back nav */}
+      <div className="bg-gradient-to-br from-brand-900 to-brand-800 pt-24 lg:pt-28 pb-20">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-brand-200 hover:text-white transition-colors mb-6 text-sm font-medium"
+            className="flex items-center gap-2 text-brand-200 hover:text-white transition-colors mb-6 group"
           >
-            <ChevronLeft className="w-4 h-4" /> Back
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+            Back to caregivers
           </button>
-          <Link to="/" className="inline-block mb-8">
-            <img src={logoImg} alt="TruliCares" className="h-7 w-auto brightness-0 invert opacity-80" />
-          </Link>
         </div>
       </div>
 
-      {/* Profile card — overlaps hero */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 -mt-16 relative z-10">
-        <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-6 sm:p-8">
-          <div className="flex flex-col sm:flex-row gap-6 items-start">
-            {/* Avatar */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 -mt-12">
+        {/* Profile card */}
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-lg p-6 mb-6">
+          <div className="flex flex-col sm:flex-row items-start gap-6">
             <div className="relative shrink-0">
               {caregiver.photoUrl ? (
                 <img
                   src={caregiver.photoUrl}
                   alt={caregiver.name}
-                  className="w-28 h-28 sm:w-32 sm:h-32 rounded-3xl object-cover shadow-lg"
+                  className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-4 border-white shadow-md"
                 />
               ) : (
-                <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-3xl bg-brand-100 flex items-center justify-center text-brand-600 font-bold text-4xl shadow-lg">
-                  {initials}
+                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-brand-600 flex items-center justify-center text-white text-3xl font-bold border-4 border-white shadow-md">
+                  {caregiver.name.charAt(0)}
                 </div>
               )}
               {caregiver.verified && (
-                <div className="absolute -bottom-2 -right-2 w-9 h-9 bg-brand-600 rounded-full flex items-center justify-center shadow-md border-2 border-white">
-                  <Shield className="w-4 h-4 text-white" />
+                <div className="absolute -bottom-1.5 -right-1.5 w-8 h-8 bg-brand-500 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+                  <Check className="w-4 h-4 text-white" />
                 </div>
               )}
             </div>
 
-            {/* Info */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between flex-wrap gap-3">
-                <div>
-                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{caregiver.name}</h1>
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    {caregiver.verified && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-brand-100 text-brand-700 text-xs font-bold">
-                        <Shield className="w-3 h-3" /> Verified
-                      </span>
-                    )}
-                    {caregiver.backgroundChecked && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-bold">
-                        <Check className="w-3 h-3" /> Background Checked
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <button className="w-10 h-10 rounded-full border border-gray-200 hover:border-red-300 hover:text-red-500 flex items-center justify-center transition-colors text-gray-400 shrink-0">
-                  <Heart className="w-5 h-5" />
-                </button>
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <h1 className="text-2xl sm:text-3xl font-black text-gray-900">{caregiver.name}</h1>
+                {caregiver.verified && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-brand-100 text-brand-700 text-xs font-bold">
+                    <Shield className="w-3 h-3" /> Verified
+                  </span>
+                )}
+                {caregiver.backgroundChecked && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">
+                    <CheckCircle className="w-3 h-3" /> Background Checked
+                  </span>
+                )}
               </div>
 
-              {/* Rating */}
-              <div className="flex items-center gap-2 mt-3">
+              <div className="flex items-center gap-2 mb-3">
                 <div className="flex">
-                  {[1,2,3,4,5].map(i => (
+                  {[1, 2, 3, 4, 5].map(i => (
                     <Star key={i} className={cn('w-4 h-4', i <= Math.round(caregiver.rating) ? 'text-amber-400 fill-amber-400' : 'text-gray-200')} />
                   ))}
                 </div>
@@ -126,8 +129,7 @@ export default function CaregiverProfile() {
                 <span className="text-gray-400 text-sm">({caregiver.reviewCount} reviews)</span>
               </div>
 
-              {/* Quick stats */}
-              <div className="flex flex-wrap gap-4 mt-4 text-sm text-gray-600">
+              <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-600">
                 <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-gray-400" /> {caregiver.location}</span>
                 <span className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-gray-400" /> {caregiver.availability}</span>
                 <span className="flex items-center gap-1.5 font-semibold text-brand-600">
@@ -138,7 +140,6 @@ export default function CaregiverProfile() {
             </div>
           </div>
 
-          {/* CTA buttons */}
           <div className="flex gap-3 mt-6 pt-6 border-t border-gray-100 flex-wrap">
             <Button variant="primary" size="lg" onClick={() => navigate('/find-care')} className="flex-1 sm:flex-none">
               Request Care
@@ -150,7 +151,7 @@ export default function CaregiverProfile() {
         </div>
 
         {/* Body */}
-        <div className="grid lg:grid-cols-3 gap-6 mt-6 pb-16">
+        <div className="grid lg:grid-cols-3 gap-6 pb-16">
           {/* Left column */}
           <div className="lg:col-span-2 space-y-6">
             {/* About */}
@@ -169,29 +170,33 @@ export default function CaregiverProfile() {
                   <span className="text-gray-400 text-sm">· {caregiver.reviewCount} reviews</span>
                 </div>
               </div>
-              <div className="space-y-5">
-                {mockReviews.map((review, i) => (
-                  <div key={i} className="pb-5 border-b border-gray-50 last:border-0 last:pb-0">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center text-brand-600 font-bold text-xs">
-                          {review.author[0]}
+              {reviews.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-6">No reviews yet.</p>
+              ) : (
+                <div className="space-y-5">
+                  {reviews.map((review: any, i: number) => (
+                    <div key={review.id || i} className="pb-5 border-b border-gray-50 last:border-0 last:pb-0">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center text-brand-600 font-bold text-xs">
+                            {(review.author || review.familyName || 'A')[0]}
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-900 text-sm">{review.author || review.familyName}</p>
+                            <p className="text-xs text-gray-400">{review.date}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-semibold text-gray-900 text-sm">{review.author}</p>
-                          <p className="text-xs text-gray-400">{review.date}</p>
+                        <div className="flex">
+                          {[1, 2, 3, 4, 5].map(s => (
+                            <Star key={s} className={cn('w-3.5 h-3.5', s <= review.rating ? 'text-amber-400 fill-amber-400' : 'text-gray-200')} />
+                          ))}
                         </div>
                       </div>
-                      <div className="flex">
-                        {[1,2,3,4,5].map(s => (
-                          <Star key={s} className={cn('w-3.5 h-3.5', s <= review.rating ? 'text-amber-400 fill-amber-400' : 'text-gray-200')} />
-                        ))}
-                      </div>
+                      <p className="text-sm text-gray-600 leading-relaxed">{review.text}</p>
                     </div>
-                    <p className="text-sm text-gray-600 leading-relaxed">{review.text}</p>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { requests as requestsApi } from '@/lib/api';
 import type { CareCategory } from '@/types';
 
 import CareTypeStep from '@/components/questionnaire/CareTypeStep';
@@ -48,7 +49,14 @@ export default function FindCare() {
     setPhase('review');
   };
 
-  const handleSubmitReview = () => {
+  const handleSubmitReview = async () => {
+    try {
+      await requestsApi.create({
+        careType: careCategory,
+        location: (careData.location as string) || '',
+        details: careData,
+      });
+    } catch {}
     setPhase('matching');
   };
 

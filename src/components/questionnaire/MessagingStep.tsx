@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, ArrowRight, Phone, Video, Check, CheckCheck, Smile, Paperclip, Info } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Button from '@/components/ui/Button';
-import { mockMatches } from '@/data/mock';
+import { caregivers as caregiversApi } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
 
@@ -30,9 +30,13 @@ export default function MessagingStep({ matchId, onDashboard }: Props) {
   const [input, setInput] = useState('');
   const [showInfo, setShowInfo] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [caregiver, setCaregiver] = useState<any>(null);
 
-  const match = mockMatches.find(m => m.id === matchId);
-  const caregiver = match?.caregiver;
+  useEffect(() => {
+    if (matchId) {
+      caregiversApi.get(matchId).then(d => setCaregiver(d.caregiver || d)).catch(() => {});
+    }
+  }, [matchId]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -79,7 +83,7 @@ export default function MessagingStep({ matchId, onDashboard }: Props) {
                   <img src={caregiver.photoUrl} alt={caregiver.name} className="w-11 h-11 rounded-full object-cover" />
                 ) : (
                   <div className="w-11 h-11 rounded-full bg-coral-400 flex items-center justify-center text-white font-bold">
-                    {caregiver?.name.split(' ').map(n => n[0]).join('') || 'CG'}
+                    {caregiver?.name.split(' ').map((n: string) => n[0]).join('') || 'CG'}
                   </div>
                 )}
                 <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full" />
@@ -122,7 +126,7 @@ export default function MessagingStep({ matchId, onDashboard }: Props) {
               <img src={caregiver.photoUrl} alt={caregiver.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
             ) : (
               <div className="w-14 h-14 rounded-xl bg-coral-400 flex items-center justify-center text-white font-bold text-lg shrink-0">
-                {caregiver?.name?.split(' ').map(n => n[0]).join('')}
+                {caregiver?.name?.split(' ').map((n: string) => n[0]).join('')}
               </div>
             )}
             <div>
@@ -157,7 +161,7 @@ export default function MessagingStep({ matchId, onDashboard }: Props) {
                       <img src={caregiver.photoUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-coral-400 flex items-center justify-center text-white text-xs font-bold">
-                        {caregiver?.name.split(' ').map(n => n[0]).join('')}
+                        {caregiver?.name.split(' ').map((n: string) => n[0]).join('')}
                       </div>
                     )
                   )}

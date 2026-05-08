@@ -5,6 +5,7 @@ import { detectLocationWithZip } from '@/utils/geolocation';
 import Button from '@/components/ui/Button';
 import SelectCard from '@/components/ui/SelectCard';
 import { useAuth } from '@/context/AuthContext';
+import { caregivers as caregiversApi } from '@/lib/api';
 import type { CareCategory } from '@/types';
 import logoImg from '@/assets/logo.png';
 
@@ -54,9 +55,23 @@ export default function ProvideCare() {
     else handleSubmit();
   };
 
+  const experienceToYears: Record<string, number> = {
+    'Less than 1 year': 0, '1-3 years': 2, '4-6 years': 5, '7-10 years': 8, '10+ years': 12,
+  };
+
   const handleSubmit = async () => {
     setLoading(true);
-    await signup(email, password, name, 'caregiver');
+    try {
+      await signup(email, password, name, 'caregiver');
+      await caregiversApi.updateProfile({
+        specialties,
+        serviceZips,
+        hourlyRateMin: Math.max(10, hourlyRate - 5),
+        hourlyRateMax: hourlyRate,
+        bio,
+        yearsExperience: experienceToYears[experience] ?? 0,
+      });
+    } catch {}
     setLoading(false);
     navigate('/dashboard');
   };

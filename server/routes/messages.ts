@@ -1,0 +1,194 @@
+import { Router } from 'express';
+import { query } from '../db.js';
+import { requireAuth, AuthRequest } from '../middleware/auth.js';
+import { sendMessageNotification } from '../services/email.js';
+
+const router = Router();
+
+// GET /api/conversations
+router.get('/', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { id, role } = req.user!;
+
+    const result = await query(
+      `SELECT c.id, c.family_id, c.caregiver_id, c.created_at, c.updated_at,
+              uf.name as family_name, uf.photo_url as family_photo,
+              uc.name as caregiver_name, uc.photo_url as caregiver_photo,
+              cp.job_title as caregiver_role,
+              (SELECT content FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message,
+              (SELECT created_at FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message_at,
+              (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id AND sender_id != $1 AND created_at > COALESCE(
+                (SELECT MAX(created_at) FROM messages WHERE conversation_id = c.id AND sender_id = $1), '1970-01-01'
+              )) as unread_count
+       FROM conversations c
+       JOIN users uf ON uf.id = c.family_id
+       JOIN users uc ON uc.id = c.caregiver_id
+       LEFT JOIN caregiver_profiles cp ON cp.user_id = c.caregiver_id
+       WHERE c.family_id = $1 OR c.caregiver_id = $1
+       ORDER BY c.updated_at DESC`,
+      [id]
+    );
+
+    const conversations = result.rows.map((row: any) => {
+      const isFamily = role === 'family';
+      const otherId = isFamily ? row.caregiver_id : row.family_id;
+      const otherName = isFamily ? row.caregiver_name : row.family_name;
+      const otherPhoto = isFamily ? row.caregiver_photo : row.family_photo;
+      const otherRole = isFamily ? (row.caregiver_role || 'Caregiver') : 'Family';
+
+      return {
+        id: row.id,
+        familyId: row.family_id,
+        caregiverId: row.caregiver_id,
+        otherId,
+        otherName,
+        otherPhoto: otherPhoto || `https://randomuser.me/api/portraits/women/1.jpg`,
+        otherRole,
+        lastMessage: row.last_message || '',
+        lastMessageAt: row.last_message_at || row.updated_at,
+        unreadCount: parseInt(row.unread_count) || 0,
+        updatedAt: row.updated_at,
+      };
+    });
+
+    res.json({ conversations });
+  } catch (err) {
+    console.error('Get conversations error:', err);
+    res.status(500).json({ error: 'Failed to fetch conversations' });
+  }
+});
+
+// POST /api/conversations — start or get existing
+router.post('/', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { otherUserId } = req.body;
+    if (!otherUserId) return res.status(400).json({ error: 'otherUserId is required' });
+
+    const { id: myId, role } = req.user!;
+
+    const otherUserResult = await query('SELECT id, role FROM users WHERE id = $1', [otherUserId]);
+    if (otherUserResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+    const otherUser = otherUserResult.rows[0];
+
+    let familyId: string, caregiverId: string;
+    if (role === 'family') {
+      familyId = myId;
+      caregiverId = otherUserId;
+    } else {
+      familyId = otherUserId;
+      caregiverId = myId;
+    }
+
+    // Upsert conversation
+    const result = await query(
+      `INSERT INTO conversations (family_id, caregiver_id)
+       VALUES ($1, $2)
+       ON CONFLICT (family_id, caregiver_id) DO UPDATE SET updated_at = NOW()
+       RETURNING id`,
+      [familyId, caregiverId]
+    );
+
+    res.json({ conversationId: result.rows[0].id });
+  } catch (err) {
+    console.error('Start conversation error:', err);
+    res.status(500).json({ error: 'Failed to start conversation' });
+  }
+});
+
+// GET /api/conversations/:id/messages
+router.get('/:id/messages', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { id: userId } = req.user!;
+
+    // Verify user is part of this conversation
+    const convResult = await query(
+      'SELECT id, family_id, caregiver_id FROM conversations WHERE id = $1 AND (family_id = $2 OR caregiver_id = $2)',
+      [req.params.id, userId]
+    );
+    if (convResult.rows.length === 0) return res.status(404).json({ error: 'Conversation not found' });
+
+    const messagesResult = await query(
+      `SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at,
+              u.name as sender_name, u.photo_url as sender_photo
+       FROM messages m
+       JOIN users u ON u.id = m.sender_id
+       WHERE m.conversation_id = $1
+       ORDER BY m.created_at ASC`,
+      [req.params.id]
+    );
+
+    const msgs = messagesResult.rows.map((m: any) => ({
+      id: m.id,
+      conversationId: m.conversation_id,
+      senderId: m.sender_id,
+      senderName: m.sender_name,
+      senderPhoto: m.sender_photo,
+      content: m.content,
+      createdAt: m.created_at,
+      isOwn: m.sender_id === userId,
+    }));
+
+    res.json({ messages: msgs });
+  } catch (err) {
+    console.error('Get messages error:', err);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+// POST /api/conversations/:id/messages
+router.post('/:id/messages', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { content } = req.body;
+    const { id: userId } = req.user!;
+
+    if (!content?.trim()) return res.status(400).json({ error: 'Message content is required' });
+
+    const convResult = await query(
+      'SELECT id, family_id, caregiver_id FROM conversations WHERE id = $1 AND (family_id = $2 OR caregiver_id = $2)',
+      [req.params.id, userId]
+    );
+    if (convResult.rows.length === 0) return res.status(404).json({ error: 'Conversation not found' });
+
+    const conv = convResult.rows[0];
+
+    const msgResult = await query(
+      `INSERT INTO messages (conversation_id, sender_id, content)
+       VALUES ($1, $2, $3)
+       RETURNING id, conversation_id, sender_id, content, created_at`,
+      [req.params.id, userId, content.trim()]
+    );
+
+    await query('UPDATE conversations SET updated_at = NOW() WHERE id = $1', [req.params.id]);
+
+    const msg = msgResult.rows[0];
+
+    // Notify the other person
+    const otherId = conv.family_id === userId ? conv.caregiver_id : conv.family_id;
+    query('SELECT name, email FROM users WHERE id = $1', [otherId])
+      .then(async (r: any) => {
+        if (r.rows[0]) {
+          const senderResult = await query('SELECT name FROM users WHERE id = $1', [userId]);
+          const senderName = senderResult.rows[0]?.name || 'Someone';
+          sendMessageNotification(r.rows[0].email, r.rows[0].name, senderName).catch(console.error);
+        }
+      })
+      .catch(console.error);
+
+    res.status(201).json({
+      message: {
+        id: msg.id,
+        conversationId: msg.conversation_id,
+        senderId: msg.sender_id,
+        content: msg.content,
+        createdAt: msg.created_at,
+        isOwn: true,
+      },
+    });
+  } catch (err) {
+    console.error('Send message error:', err);
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
+export default router;
