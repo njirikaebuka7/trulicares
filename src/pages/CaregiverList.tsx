@@ -1,0 +1,340 @@
+import { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { Search, Star, Shield, Check, MapPin, Clock, Filter, X, ChevronRight } from 'lucide-react';
+import { mockCaregivers } from '@/data/mock';
+import type { CareCategory } from '@/types';
+import { cn } from '@/utils/cn';
+import Button from '@/components/ui/Button';
+
+const CATEGORIES: { id: CareCategory | 'all'; label: string; icon: string }[] = [
+  { id: 'all', label: 'All Caregivers', icon: '🌟' },
+  { id: 'child-care', label: 'Child Care', icon: '👶' },
+  { id: 'senior-care', label: 'Senior Care', icon: '❤️' },
+  { id: 'adult-care', label: 'Adult Care', icon: '🧑' },
+  { id: 'cleaning', label: 'Cleaning', icon: '✨' },
+];
+
+const SORT_OPTIONS = [
+  { value: 'rating', label: 'Highest Rated' },
+  { value: 'rate-low', label: 'Price: Low to High' },
+  { value: 'rate-high', label: 'Price: High to Low' },
+  { value: 'experience', label: 'Most Experienced' },
+];
+
+const avatarColors = ['bg-coral-400', 'bg-brand-400', 'bg-sky-400', 'bg-emerald-400', 'bg-violet-400', 'bg-amber-400', 'bg-pink-400'];
+
+function StarRow({ rating }: { rating: number }) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map(i => (
+        <Star
+          key={i}
+          className={cn('w-3.5 h-3.5', i <= Math.round(rating) ? 'text-amber-400 fill-amber-400' : 'text-gray-200 fill-gray-200')}
+        />
+      ))}
+    </div>
+  );
+}
+
+export default function CaregiverList() {
+  const [search, setSearch] = useState('');
+  const [activeCategory, setActiveCategory] = useState<CareCategory | 'all'>('all');
+  const [sortBy, setSortBy] = useState('rating');
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [bgCheckedOnly, setBgCheckedOnly] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const filtered = useMemo(() => {
+    let results = [...mockCaregivers];
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      results = results.filter(cg =>
+        cg.name.toLowerCase().includes(q) ||
+        cg.bio.toLowerCase().includes(q) ||
+        cg.location.toLowerCase().includes(q) ||
+        cg.specialties.some(s => s.includes(q))
+      );
+    }
+
+    if (activeCategory !== 'all') {
+      results = results.filter(cg => cg.specialties.includes(activeCategory));
+    }
+
+    if (verifiedOnly) results = results.filter(cg => cg.verified);
+    if (bgCheckedOnly) results = results.filter(cg => cg.backgroundChecked);
+
+    results.sort((a, b) => {
+      if (sortBy === 'rating') return b.rating - a.rating;
+      if (sortBy === 'rate-low') return a.hourlyRate[0] - b.hourlyRate[0];
+      if (sortBy === 'rate-high') return b.hourlyRate[0] - a.hourlyRate[0];
+      if (sortBy === 'experience') return b.yearsExperience - a.yearsExperience;
+      return 0;
+    });
+
+    return results;
+  }, [search, activeCategory, sortBy, verifiedOnly, bgCheckedOnly]);
+
+  const activeFiltersCount = (verifiedOnly ? 1 : 0) + (bgCheckedOnly ? 1 : 0);
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Hero */}
+      <section className="bg-gradient-to-br from-brand-900 via-brand-800 to-brand-950 pt-28 pb-16 lg:pt-36 lg:pb-20">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <span className="inline-block px-4 py-1.5 rounded-full bg-white/10 text-brand-200 text-sm font-semibold mb-5 backdrop-blur-sm border border-white/10">
+            {mockCaregivers.length} Verified Caregivers
+          </span>
+          <h1 className="text-4xl sm:text-5xl font-black text-white mb-5 leading-tight">
+            Find Your Perfect<br />
+            <span className="text-coral-400">Caregiver</span>
+          </h1>
+          <p className="text-brand-200 text-lg mb-8 max-w-xl mx-auto">
+            Browse background-checked, verified caregivers for child care, senior care, adult care, and cleaning services.
+          </p>
+
+          {/* Search bar */}
+          <div className="relative max-w-2xl mx-auto">
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by name, location, or specialty…"
+              className="w-full pl-14 pr-5 py-4 rounded-2xl text-gray-900 text-base bg-white shadow-xl border border-white/20 outline-none focus:ring-2 focus:ring-brand-400 placeholder:text-gray-400"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Category chips */}
+      <div className="sticky top-16 lg:top-[72px] z-20 bg-white border-b border-gray-100 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-2 py-3 overflow-x-auto scrollbar-none">
+            {CATEGORIES.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all shrink-0',
+                  activeCategory === cat.id
+                    ? 'bg-brand-600 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                )}
+              >
+                <span>{cat.icon}</span>
+                {cat.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Toolbar */}
+        <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
+          <p className="text-gray-500 text-sm">
+            <span className="font-bold text-gray-900">{filtered.length}</span> caregiver{filtered.length !== 1 ? 's' : ''} found
+            {activeCategory !== 'all' && (
+              <span> in <span className="font-semibold text-brand-700">{CATEGORIES.find(c => c.id === activeCategory)?.label}</span></span>
+            )}
+          </p>
+
+          <div className="flex items-center gap-3">
+            {/* Filter toggle */}
+            <button
+              onClick={() => setFiltersOpen(!filtersOpen)}
+              className={cn(
+                'flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-semibold transition-colors',
+                filtersOpen || activeFiltersCount > 0
+                  ? 'border-brand-600 text-brand-700 bg-brand-50'
+                  : 'border-gray-200 text-gray-700 bg-white hover:bg-gray-50'
+              )}
+            >
+              <Filter className="w-4 h-4" />
+              Filters
+              {activeFiltersCount > 0 && (
+                <span className="ml-1 w-5 h-5 rounded-full bg-brand-600 text-white text-[10px] font-bold flex items-center justify-center">
+                  {activeFiltersCount}
+                </span>
+              )}
+            </button>
+
+            {/* Sort */}
+            <select
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value)}
+              className="px-4 py-2 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 outline-none cursor-pointer hover:bg-gray-50"
+            >
+              {SORT_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Filter panel */}
+        {filtersOpen && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
+            <div className="flex flex-wrap gap-6">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <div
+                  onClick={() => setVerifiedOnly(!verifiedOnly)}
+                  className={cn(
+                    'w-10 h-6 rounded-full transition-colors relative',
+                    verifiedOnly ? 'bg-brand-600' : 'bg-gray-200'
+                  )}
+                >
+                  <div className={cn(
+                    'absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform',
+                    verifiedOnly ? 'translate-x-5' : 'translate-x-1'
+                  )} />
+                </div>
+                <span className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                  <Shield className="w-4 h-4 text-brand-600" /> Verified only
+                </span>
+              </label>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <div
+                  onClick={() => setBgCheckedOnly(!bgCheckedOnly)}
+                  className={cn(
+                    'w-10 h-6 rounded-full transition-colors relative',
+                    bgCheckedOnly ? 'bg-brand-600' : 'bg-gray-200'
+                  )}
+                >
+                  <div className={cn(
+                    'absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform',
+                    bgCheckedOnly ? 'translate-x-5' : 'translate-x-1'
+                  )} />
+                </div>
+                <span className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                  <Check className="w-4 h-4 text-emerald-600" /> Background checked
+                </span>
+              </label>
+            </div>
+            {activeFiltersCount > 0 && (
+              <button
+                onClick={() => { setVerifiedOnly(false); setBgCheckedOnly(false); }}
+                className="mt-4 text-sm text-coral-600 font-semibold hover:underline"
+              >
+                Clear all filters
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Results grid */}
+        {filtered.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="text-6xl mb-4">🔍</div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">No caregivers found</h3>
+            <p className="text-gray-500 mb-6">Try adjusting your search or filters</p>
+            <Button variant="secondary" onClick={() => { setSearch(''); setActiveCategory('all'); setVerifiedOnly(false); setBgCheckedOnly(false); }}>
+              Clear all filters
+            </Button>
+          </div>
+        ) : (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filtered.map((cg, i) => (
+              <Link
+                key={cg.id}
+                to={`/caregivers/${cg.id}`}
+                className="group bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-brand-200 transition-all duration-200 overflow-hidden flex flex-col"
+              >
+                {/* Card header */}
+                <div className="relative p-5 pb-0">
+                  <div className="flex items-start gap-4">
+                    <div className="relative shrink-0">
+                      {cg.photoUrl ? (
+                        <img
+                          src={cg.photoUrl}
+                          alt={cg.name}
+                          className="w-16 h-16 rounded-2xl object-cover"
+                        />
+                      ) : (
+                        <div className={cn('w-16 h-16 rounded-2xl flex items-center justify-center text-white text-xl font-bold', avatarColors[i % avatarColors.length])}>
+                          {cg.name.charAt(0)}
+                        </div>
+                      )}
+                      {cg.verified && (
+                        <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-brand-500 rounded-full flex items-center justify-center border-2 border-white">
+                          <Check className="w-2.5 h-2.5 text-white" />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-gray-900 group-hover:text-brand-700 transition-colors truncate">{cg.name}</h3>
+                      <div className="flex items-center gap-1.5 mt-0.5 mb-1">
+                        <StarRow rating={cg.rating} />
+                        <span className="text-xs text-gray-500">{cg.rating} ({cg.reviewCount})</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-gray-400">
+                        <MapPin className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{cg.location}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Specialties */}
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {cg.specialties.map(s => (
+                      <span key={s} className="px-2.5 py-1 rounded-lg bg-brand-50 text-brand-700 text-[11px] font-semibold capitalize">
+                        {s.replace('-', ' ')}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Bio */}
+                <div className="px-5 py-3 flex-1">
+                  <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">{cg.bio}</p>
+                </div>
+
+                {/* Card footer */}
+                <div className="px-5 py-4 border-t border-gray-50 flex items-center justify-between">
+                  <div>
+                    <span className="text-lg font-bold text-gray-900">${cg.hourlyRate[0]}–${cg.hourlyRate[1]}</span>
+                    <span className="text-xs text-gray-400">/hr</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1 text-xs text-gray-400">
+                      <Clock className="w-3.5 h-3.5" />
+                      {cg.availability}
+                    </div>
+                    {cg.backgroundChecked && (
+                      <span className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center" title="Background checked">
+                        <Check className="w-3 h-3 text-emerald-600" />
+                      </span>
+                    )}
+                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-brand-400 group-hover:translate-x-0.5 transition-all" />
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+
+        {/* CTA banner */}
+        <div className="mt-12 bg-gradient-to-br from-brand-600 to-brand-800 rounded-3xl p-8 text-center text-white">
+          <h2 className="text-2xl font-bold mb-2">Not sure where to start?</h2>
+          <p className="text-brand-200 mb-6">Answer a few quick questions and we'll match you with the best caregivers for your specific needs.</p>
+          <Link to="/find-care">
+            <Button variant="primary" size="lg" className="bg-white text-brand-700 hover:bg-brand-50 font-bold shadow-lg">
+              Get Matched for Free →
+            </Button>
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}

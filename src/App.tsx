@@ -17,6 +17,7 @@ import Terms from '@/pages/Terms';
 import CookiePolicy from '@/pages/CookiePolicy';
 import ResourceArticle from '@/pages/ResourceArticle';
 import CaregiverProfile from '@/pages/CaregiverProfile';
+import CaregiverList from '@/pages/CaregiverList';
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
             <Route path="/services" element={<Services />} />
             <Route path="/resources" element={<Resources />} />
             <Route path="/resources/:id" element={<ResourceArticle />} />
+            <Route path="/caregivers" element={<CaregiverList />} />
             <Route path="/caregivers/:id" element={<CaregiverProfile />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />

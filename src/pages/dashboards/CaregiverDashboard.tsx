@@ -15,11 +15,12 @@ import {
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
 
-type Tab = 'Overview' | 'Job Requests' | 'My Clients' | 'Schedule' | 'Earnings' | 'Reviews' | 'Profile';
+type Tab = 'Overview' | 'Job Requests' | 'Messages' | 'My Clients' | 'Schedule' | 'Earnings' | 'Reviews' | 'Profile';
 
 const navItems: { id: Tab; label: string; icon: React.ReactNode; badge?: number }[] = [
   { id: 'Overview', label: 'Overview', icon: <LayoutDashboard className="w-5 h-5" /> },
   { id: 'Job Requests', label: 'Job Requests', icon: <Briefcase className="w-5 h-5" />, badge: 3 },
+  { id: 'Messages', label: 'Messages', icon: <MessageCircle className="w-5 h-5" />, badge: 2 },
   { id: 'My Clients', label: 'My Clients', icon: <Users className="w-5 h-5" /> },
   { id: 'Schedule', label: 'Schedule', icon: <Calendar className="w-5 h-5" /> },
   { id: 'Earnings', label: 'Earnings', icon: <DollarSign className="w-5 h-5" /> },
@@ -52,6 +53,24 @@ export default function CaregiverDashboard() {
   const [cgBio, setCgBio] = useState('Experienced nanny with 8+ years caring for children of all ages. CPR certified and passionate about early childhood development.');
   const [cgRate, setCgRate] = useState({ min: 18, max: 25 });
   const [cgNotifPrefs, setCgNotifPrefs] = useState({ email: true, sms: true, push: true, marketing: false });
+  const [cgSelectedMsg, setCgSelectedMsg] = useState<string | null>(null);
+  const [cgMsgInput, setCgMsgInput] = useState('');
+  const [cgMsgAutoReplying, setCgMsgAutoReplying] = useState(false);
+  const [cgFamilyMessages, setCgFamilyMessages] = useState<Record<string, { text: string; fromMe: boolean; time: string }[]>>({
+    fam1: [
+      { text: "Hi! We loved your profile and wanted to reach out about our child care needs.", fromMe: false, time: '10:30 AM' },
+      { text: "Thank you for reaching out! I'd love to learn more about your children.", fromMe: true, time: '10:42 AM' },
+      { text: "We have twins, age 4. Looking for someone reliable 3 days a week. Are you available?", fromMe: false, time: '10:55 AM' },
+    ],
+    fam2: [
+      { text: "Hello! We're looking for senior care support for my mother — 3 days per week.", fromMe: false, time: '9:15 AM' },
+      { text: "I'd be happy to help! Could you tell me more about your mother's daily needs?", fromMe: true, time: '9:28 AM' },
+    ],
+    fam3: [
+      { text: "Can we reschedule Wednesday's session? Something came up at work.", fromMe: false, time: 'Yesterday' },
+    ],
+  });
+  const cgMsgEndRef = useRef<HTMLDivElement>(null);
 
   const handleLogout = () => { logout(); navigate('/'); };
   const handleJob = (id: string, action: 'accepted' | 'declined') =>
@@ -541,6 +560,153 @@ export default function CaregiverDashboard() {
             </div>
           )}
 
+          {/* ── MESSAGES ── */}
+          {activeTab === 'Messages' && (() => {
+            const cgFamilies = [
+              { id: 'fam1', name: 'The Martinez Family', care: 'Child Care', color: avatarColors[0], unread: 1 },
+              { id: 'fam2', name: 'Rebecca Thompson', care: 'Senior Care', color: avatarColors[1], unread: 0 },
+              { id: 'fam3', name: 'James Chen', care: 'Adult Care', color: avatarColors[2], unread: 0 },
+            ];
+
+            const sendCgMsg = () => {
+              if (!cgMsgInput.trim() || !cgSelectedMsg) return;
+              const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              setCgFamilyMessages(prev => ({
+                ...prev,
+                [cgSelectedMsg]: [...(prev[cgSelectedMsg] || []), { text: cgMsgInput.trim(), fromMe: true, time }],
+              }));
+              setCgMsgInput('');
+              setCgMsgAutoReplying(true);
+              setTimeout(() => {
+                const replies = [
+                  "That works great for us, thank you!",
+                  "Perfect! We'll confirm the details soon.",
+                  "Sounds good! Looking forward to it.",
+                  "Thanks for getting back to me so quickly!",
+                ];
+                const reply = replies[Math.floor(Math.random() * replies.length)];
+                const replyTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                setCgFamilyMessages(prev => ({
+                  ...prev,
+                  [cgSelectedMsg]: [...(prev[cgSelectedMsg] || []), { text: reply, fromMe: false, time: replyTime }],
+                }));
+                setCgMsgAutoReplying(false);
+              }, 2000);
+            };
+
+            if (cgSelectedMsg) {
+              const family = cgFamilies.find(f => f.id === cgSelectedMsg)!;
+              const msgs = cgFamilyMessages[cgSelectedMsg] || [];
+              return (
+                <div className="space-y-4">
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 180px)', minHeight: 420 }}>
+                    <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 shrink-0">
+                      <button
+                        onClick={() => setCgSelectedMsg(null)}
+                        className="text-sm text-emerald-600 font-semibold hover:underline"
+                      >← Back</button>
+                      <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0', family.color)}>
+                        {family.name.charAt(0)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-900 text-sm truncate">{family.name}</p>
+                        <p className="text-xs text-emerald-600">● {family.care}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto px-5 py-5 space-y-3">
+                      {msgs.map((m, i) => (
+                        <div key={i} className={cn('flex', m.fromMe ? 'justify-end' : 'justify-start')}>
+                          <div className={cn(
+                            'max-w-[80%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed',
+                            m.fromMe ? 'bg-emerald-600 text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                          )}>
+                            <p>{m.text}</p>
+                            <p className={cn('text-[10px] mt-0.5', m.fromMe ? 'text-emerald-200' : 'text-gray-400')}>{m.time}</p>
+                          </div>
+                        </div>
+                      ))}
+                      {cgMsgAutoReplying && (
+                        <div className="flex justify-start">
+                          <div className="bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-3">
+                            <div className="flex gap-1">
+                              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div ref={cgMsgEndRef} />
+                    </div>
+
+                    <div className="px-5 py-4 border-t border-gray-100 flex gap-3 shrink-0">
+                      <input
+                        type="text"
+                        value={cgMsgInput}
+                        onChange={e => setCgMsgInput(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && sendCgMsg()}
+                        placeholder="Type a message…"
+                        className="flex-1 border border-gray-200 rounded-full px-4 py-2.5 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                      />
+                      <button
+                        onClick={sendCgMsg}
+                        disabled={!cgMsgInput.trim()}
+                        className="w-10 h-10 rounded-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 flex items-center justify-center text-white transition-colors"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className="space-y-4">
+                <h2 className="text-xl font-bold text-gray-900">Messages</h2>
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden divide-y divide-gray-50">
+                  {cgFamilies.map((family) => {
+                    const msgs = cgFamilyMessages[family.id] || [];
+                    const lastMsg = msgs[msgs.length - 1];
+                    return (
+                      <button
+                        key={family.id}
+                        onClick={() => setCgSelectedMsg(family.id)}
+                        className="w-full flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors text-left"
+                      >
+                        <div className={cn('w-11 h-11 rounded-2xl flex items-center justify-center text-white font-bold text-sm shrink-0 relative', family.color)}>
+                          {family.name.charAt(0)}
+                          {family.unread > 0 && (
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-coral-500 rounded-full border-2 border-white" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <p className={cn('text-sm font-semibold truncate', family.unread > 0 ? 'text-gray-900' : 'text-gray-700')}>
+                              {family.name}
+                            </p>
+                            <span className="text-xs text-gray-400 shrink-0 ml-2">{lastMsg?.time || ''}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs text-gray-500 truncate">
+                              {lastMsg ? (lastMsg.fromMe ? `You: ${lastMsg.text}` : lastMsg.text) : ''}
+                            </p>
+                            {family.unread > 0 && (
+                              <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full shrink-0" />
+                            )}
+                          </div>
+                          <p className="text-[11px] text-emerald-600 font-medium mt-0.5">{family.care}</p>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* ── SCHEDULE ── */}
           {activeTab === 'Schedule' && (
             <div className="space-y-4">
@@ -713,7 +879,7 @@ export default function CaregiverDashboard() {
                 <div className="grid sm:grid-cols-2 gap-4 mb-6">
                   {[
                     { label: 'Specialties', value: 'Child Care' },
-                    { label: 'Hourly Rate', value: '$18 – $25/hr' },
+                    { label: 'Hourly Rate', value: `$${cgRate.min} – $${cgRate.max}/hr` },
                     { label: 'Availability', value: 'Full-time' },
                     { label: 'Experience', value: '8 years' },
                   ].map((f, i) => (
@@ -974,7 +1140,7 @@ export default function CaregiverDashboard() {
 
       {/* ── BOTTOM NAV (mobile) ── */}
       {(() => {
-        const MOBILE_PRIMARY: Tab[] = ['Overview', 'Job Requests', 'My Clients', 'Earnings', 'Profile'];
+        const MOBILE_PRIMARY: Tab[] = ['Overview', 'Job Requests', 'Messages', 'Earnings', 'Profile'];
         const mobileNav = navItems.filter(n => MOBILE_PRIMARY.includes(n.id));
         const moreNav = navItems.filter(n => !MOBILE_PRIMARY.includes(n.id));
         const moreActive = moreNav.some(n => n.id === activeTab);

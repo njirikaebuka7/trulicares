@@ -742,7 +742,7 @@ export default function FamilyDashboard() {
                     </button>
                   </div>
                   <div className="flex-1">
-                    <h2 className="text-xl font-bold text-gray-900">{user?.name || 'User'}</h2>
+                    <h2 className="text-xl font-bold text-gray-900">{editName || user?.name || 'User'}</h2>
                     <p className="text-gray-500 text-sm">{user?.email}</p>
                     <span className="inline-flex items-center gap-1 mt-2 px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-xs font-bold">
                       <Check className="w-3 h-3" /> Verified Account

@@ -11,6 +11,7 @@ const navLinks = [
   { to: '/', label: 'Home' },
   { to: '/about', label: 'About' },
   { to: '/services', label: 'Services' },
+  { to: '/caregivers', label: 'Caregivers' },
   { to: '/resources', label: 'Resources' },
   { to: '/contact', label: 'Contact' },
 ];
