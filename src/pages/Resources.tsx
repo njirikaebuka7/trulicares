@@ -1,5 +1,6 @@
 import { HelpCircle, ChevronRight, Clock, User } from 'lucide-react';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { cn } from '@/utils/cn';
 
 import imgNannyInterview from '@/assets/blog-nanny-interview.jpg';
@@ -162,9 +163,10 @@ export default function Resources() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredArticles.map(article => (
-              <article
+              <Link
                 key={article.id}
-                className="group bg-white rounded-3xl border border-gray-100 overflow-hidden hover:shadow-xl hover:border-transparent transition-all duration-300 cursor-pointer"
+                to={`/resources/${article.id}`}
+                className="group bg-white rounded-3xl border border-gray-100 overflow-hidden hover:shadow-xl hover:border-transparent transition-all duration-300 block"
               >
                 {/* Thumbnail */}
                 <div className="relative h-48 overflow-hidden">
@@ -215,7 +217,7 @@ export default function Resources() {
                     </span>
                   </div>
                 </div>
-              </article>
+              </Link>
             ))}
           </div>
         </div>

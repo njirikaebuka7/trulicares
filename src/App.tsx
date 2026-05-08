@@ -15,6 +15,8 @@ import NotFound from '@/pages/NotFound';
 import PrivacyPolicy from '@/pages/PrivacyPolicy';
 import Terms from '@/pages/Terms';
 import CookiePolicy from '@/pages/CookiePolicy';
+import ResourceArticle from '@/pages/ResourceArticle';
+import CaregiverProfile from '@/pages/CaregiverProfile';
 
 export default function App() {
   return (
@@ -28,6 +30,8 @@ export default function App() {
             <Route path="/about" element={<About />} />
             <Route path="/services" element={<Services />} />
             <Route path="/resources" element={<Resources />} />
+            <Route path="/resources/:id" element={<ResourceArticle />} />
+            <Route path="/caregivers/:id" element={<CaregiverProfile />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<Terms />} />

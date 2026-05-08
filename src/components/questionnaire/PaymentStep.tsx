@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft, Lock, Check, ExternalLink, ShieldCheck, CreditCard, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import Button from '@/components/ui/Button';
 import { mockMatches } from '@/data/mock';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';

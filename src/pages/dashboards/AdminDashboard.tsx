@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Bell, LogOut, Users, Shield, AlertTriangle, TrendingUp,
+  Bell, LogOut, Users, Shield, AlertTriangle,
   CheckCircle, XCircle, Clock, X, Search,
   Activity, DollarSign, UserCheck, Flag, BarChart2, LayoutDashboard,
   ChevronLeft, ChevronRight as ChevronRightIcon
@@ -71,7 +71,7 @@ export default function AdminDashboard() {
 
       {/* ── LEFT SIDEBAR (desktop) ── */}
       <aside className={cn(
-        'hidden lg:flex flex-col fixed top-16 lg:top-[72px] left-0 bottom-0 z-20 transition-all duration-300 bg-slate-900',
+        'hidden lg:flex flex-col fixed top-14 left-0 bottom-0 z-20 transition-all duration-300 bg-slate-900',
         collapsed ? 'w-16' : 'w-64'
       )}>
         {/* Logo + collapse toggle */}
@@ -193,7 +193,10 @@ export default function AdminDashboard() {
         {/* Top header */}
         <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
-            <h1 className="text-base font-bold text-gray-900">{navItems.find(n => n.id === activeTab)?.label}</h1>
+            {/* Logo on mobile */}
+            <img src={logoImg} alt="TruliCares" className="h-6 w-auto lg:hidden" />
+            <h1 className="text-base font-bold text-gray-900 hidden lg:block">{navItems.find(n => n.id === activeTab)?.label}</h1>
+            <h1 className="text-base font-bold text-gray-900 lg:hidden">{navItems.find(n => n.id === activeTab)?.label}</h1>
             <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold hidden sm:inline">Internal</span>
           </div>
           <div className="flex items-center gap-1">

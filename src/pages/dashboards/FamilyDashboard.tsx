@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell, MessageCircle, User, Settings, LogOut, Plus, MapPin, DollarSign,
   Star, Shield, Check, ChevronRight, Calendar, Clock, CreditCard,
   FileText, X, Home, LayoutDashboard, Users, ChevronLeft, ChevronRight as ChevronRightIcon,
-  Edit3, Camera, MoreHorizontal
+  Edit3, Camera, MoreHorizontal, Send
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
@@ -64,6 +64,36 @@ export default function FamilyDashboard() {
   const [profileModal, setProfileModal] = useState<null | 'personal' | 'notifications' | 'privacy' | 'account'>(null);
   const [notifPrefs, setNotifPrefs] = useState({ email: true, sms: true, push: false, marketing: false });
   const [privacyPrefs, setPrivacyPrefs] = useState({ profileVisible: true, shareActivity: false, dataAnalytics: true });
+  const [chatInput, setChatInput] = useState('');
+  const [chatMessages, setChatMessages] = useState<Record<string, Array<{text: string; fromMe: boolean; time: string}>>>({
+    cg1: [
+      { text: "Hi! Thank you for reaching out. I'd love to learn more about your family's needs.", fromMe: false, time: '2:30 PM' },
+      { text: "Great! We have two kids, ages 3 and 6. Looking for full-time care starting next month.", fromMe: true, time: '2:35 PM' },
+    ],
+    cg2: [
+      { text: "Hello! I saw your care request and I'd be happy to help. When can we chat?", fromMe: false, time: '10:15 AM' },
+    ],
+    cg3: [
+      { text: "Good morning! I'm available for the schedule you mentioned. Let me know!", fromMe: false, time: 'Yesterday' },
+    ],
+  });
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  useEffect(() => { scrollToBottom(); }, [chatMessages, selectedMessage]);
+
+  const handleSendMessage = () => {
+    if (!chatInput.trim() || !selectedMessage) return;
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const newMsg = { text: chatInput.trim(), fromMe: true, time };
+    setChatMessages(prev => ({ ...prev, [selectedMessage]: [...(prev[selectedMessage] || []), newMsg] }));
+    setChatInput('');
+    const currentId = selectedMessage;
+    setTimeout(() => {
+      const reply = { text: "Thanks for the message! I'll get back to you shortly.", fromMe: false, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+      setChatMessages(prev => ({ ...prev, [currentId]: [...(prev[currentId] || []), reply] }));
+    }, 2000);
+  };
 
   const handleLogout = () => { logout(); navigate('/'); };
 
@@ -488,7 +518,7 @@ export default function FamilyDashboard() {
                         <DollarSign className="w-4 h-4" /> Unlock Messaging
                       </Button>
                     )}
-                    <Button variant="secondary" size="sm">View Full Profile</Button>
+                    <Button variant="secondary" size="sm" onClick={() => navigate(`/caregivers/${match.caregiver.id}`)}>View Full Profile</Button>
                   </div>
                 </div>
               ))}
@@ -526,75 +556,112 @@ export default function FamilyDashboard() {
           )}
 
           {/* ── MESSAGES ── */}
-          {activeTab === 'Messages' && (
-            <div className="space-y-4">
-              <h2 className="text-xl font-bold text-gray-900">Messages</h2>
-              {selectedMessage ? (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-                  <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
-                    <button onClick={() => setSelectedMessage(null)} className="text-sm text-brand-600 hover:underline font-medium">← Back</button>
-                    {mockCaregivers[0].photoUrl ? (
-                      <img src={mockCaregivers[0].photoUrl} alt="Sarah Johnson" className="w-9 h-9 rounded-full object-cover" />
-                    ) : (
-                      <div className={cn('w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs', avatarColors[0])}>SJ</div>
-                    )}
-                    <div>
-                      <span className="font-semibold text-gray-900 block">Sarah Johnson</span>
-                      <span className="text-xs text-green-600">● Online</span>
-                    </div>
-                  </div>
-                  <div className="px-5 py-6 space-y-4 min-h-64">
-                    <div className="flex gap-3">
-                      {mockCaregivers[0].photoUrl ? (
-                        <img src={mockCaregivers[0].photoUrl} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
+          {activeTab === 'Messages' && (() => {
+            const activeCg = selectedMessage ? mockCaregivers.find(cg => cg.id === selectedMessage) : null;
+            const activeMessages = selectedMessage ? (chatMessages[selectedMessage] || []) : [];
+            const threadList = mockCaregivers.slice(0, 3);
+            const threadPreviews: Record<string, string> = {
+              cg1: "Great! We have two kids, ages 3 and 6.",
+              cg2: "Hello! I saw your care request and I'd be happy to help.",
+              cg3: "Good morning! I'm available for the schedule you mentioned.",
+            };
+            const threadTimes: Record<string, string> = { cg1: '2:35 PM', cg2: '10:15 AM', cg3: 'Yesterday' };
+            return (
+              <div className="space-y-4">
+                <h2 className="text-xl font-bold text-gray-900">Messages</h2>
+                {activeCg ? (
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col">
+                    {/* Chat header */}
+                    <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
+                      <button onClick={() => setSelectedMessage(null)} className="text-sm text-brand-600 hover:underline font-medium shrink-0">← Back</button>
+                      {activeCg.photoUrl ? (
+                        <img src={activeCg.photoUrl} alt={activeCg.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
                       ) : (
-                        <div className={cn('w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0', avatarColors[0])}>SJ</div>
-                      )}
-                      <div className="bg-gray-100 rounded-2xl rounded-tl-none px-4 py-2.5 max-w-sm">
-                        <p className="text-sm text-gray-800">Hi! Thank you for reaching out. I'd love to learn more about your family's needs.</p>
-                        <p className="text-xs text-gray-400 mt-1">2:30 PM</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-3 justify-end">
-                      <div className="bg-brand-600 rounded-2xl rounded-tr-none px-4 py-2.5 max-w-sm">
-                        <p className="text-sm text-white">Great! We have two kids, ages 3 and 6. Looking for full-time care starting next month.</p>
-                        <p className="text-xs text-brand-200 mt-1">2:35 PM</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
-                    <input type="text" placeholder="Type a message…" className="flex-1 border border-gray-200 rounded-full px-4 py-2.5 text-sm outline-none focus:border-brand-400" />
-                    <Button variant="primary" size="sm">Send</Button>
-                  </div>
-                </div>
-              ) : (
-                mockCaregivers.slice(0, 3).map((cg, i) => (
-                  <div key={cg.id} onClick={() => setSelectedMessage(cg.id)}
-                    className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4 cursor-pointer hover:border-brand-200 hover:shadow-md transition-all">
-                    <div className="relative shrink-0">
-                      {cg.photoUrl ? (
-                        <img src={cg.photoUrl} alt={cg.name} className="w-12 h-12 rounded-full object-cover" />
-                      ) : (
-                        <div className={cn('w-12 h-12 rounded-full flex items-center justify-center text-white font-bold', avatarColors[i % avatarColors.length])}>
-                          {cg.name.split(' ').map(n => n[0]).join('')}
+                        <div className={cn('w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0', avatarColors[0])}>
+                          {activeCg.name.split(' ').map(n => n[0]).join('')}
                         </div>
                       )}
-                      {i === 0 && <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <h4 className="font-semibold text-gray-900">{cg.name}</h4>
-                        <span className="text-xs text-gray-400">2:35 PM</span>
+                      <div>
+                        <span className="font-semibold text-gray-900 block">{activeCg.name}</span>
+                        <span className="text-xs text-green-600">● Online</span>
                       </div>
-                      <p className="text-sm text-gray-500 truncate">Thank you for reaching out! I'd love to discuss your care needs...</p>
                     </div>
-                    {i === 0 && <span className="w-2.5 h-2.5 bg-brand-500 rounded-full shrink-0" />}
-                    <ChevronRight className="w-5 h-5 text-gray-300 shrink-0" />
+                    {/* Messages */}
+                    <div className="px-5 py-5 space-y-4 min-h-64 max-h-96 overflow-y-auto">
+                      {activeMessages.map((msg, i) => (
+                        <div key={i} className={cn('flex gap-3', msg.fromMe && 'justify-end')}>
+                          {!msg.fromMe && (
+                            activeCg.photoUrl ? (
+                              <img src={activeCg.photoUrl} alt="" className="w-8 h-8 rounded-full object-cover shrink-0 self-end" />
+                            ) : (
+                              <div className={cn('w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0 self-end', avatarColors[0])}>
+                                {activeCg.name.split(' ').map(n => n[0]).join('')}
+                              </div>
+                            )
+                          )}
+                          <div className={cn('rounded-2xl px-4 py-2.5 max-w-xs sm:max-w-sm', msg.fromMe ? 'bg-brand-600 rounded-tr-none' : 'bg-gray-100 rounded-tl-none')}>
+                            <p className={cn('text-sm', msg.fromMe ? 'text-white' : 'text-gray-800')}>{msg.text}</p>
+                            <p className={cn('text-xs mt-1', msg.fromMe ? 'text-brand-200' : 'text-gray-400')}>{msg.time}</p>
+                          </div>
+                        </div>
+                      ))}
+                      <div ref={messagesEndRef} />
+                    </div>
+                    {/* Input */}
+                    <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
+                      <input
+                        type="text"
+                        value={chatInput}
+                        onChange={e => setChatInput(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
+                        placeholder="Type a message…"
+                        className="flex-1 border border-gray-200 rounded-full px-4 py-2.5 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/20"
+                      />
+                      <button
+                        onClick={handleSendMessage}
+                        disabled={!chatInput.trim()}
+                        className="w-10 h-10 rounded-full bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors shrink-0"
+                      >
+                        <Send className="w-4 h-4 text-white" />
+                      </button>
+                    </div>
                   </div>
-                ))
-              )}
-            </div>
-          )}
+                ) : (
+                  threadList.map((cg, i) => {
+                    const msgs = chatMessages[cg.id] || [];
+                    const lastMsg = msgs[msgs.length - 1];
+                    const unreadDot = i === 0 && msgs.some(m => !m.fromMe);
+                    return (
+                      <div key={cg.id} onClick={() => setSelectedMessage(cg.id)}
+                        className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4 cursor-pointer hover:border-brand-200 hover:shadow-md transition-all">
+                        <div className="relative shrink-0">
+                          {cg.photoUrl ? (
+                            <img src={cg.photoUrl} alt={cg.name} className="w-12 h-12 rounded-full object-cover" />
+                          ) : (
+                            <div className={cn('w-12 h-12 rounded-full flex items-center justify-center text-white font-bold', avatarColors[i % avatarColors.length])}>
+                              {cg.name.split(' ').map(n => n[0]).join('')}
+                            </div>
+                          )}
+                          {i === 0 && <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <h4 className={cn('font-semibold', unreadDot ? 'text-gray-900' : 'text-gray-700')}>{cg.name}</h4>
+                            <span className="text-xs text-gray-400">{threadTimes[cg.id] || ''}</span>
+                          </div>
+                          <p className="text-sm text-gray-500 truncate">
+                            {lastMsg ? (lastMsg.fromMe ? `You: ${lastMsg.text}` : lastMsg.text) : threadPreviews[cg.id] || ''}
+                          </p>
+                        </div>
+                        {unreadDot && <span className="w-2.5 h-2.5 bg-brand-500 rounded-full shrink-0" />}
+                        <ChevronRight className="w-5 h-5 text-gray-300 shrink-0" />
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            );
+          })()}
 
           {/* ── PAYMENTS ── */}
           {activeTab === 'Payments' && (
