@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowRight, ArrowLeft, Check, Mail, Lock, Eye, EyeOff, User, DollarSign, Calendar, Shield, Star, Heart, X } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Check, Mail, Lock, Eye, EyeOff, User, DollarSign, Calendar, Shield, Star, Heart, X, MapPin, Loader2 } from 'lucide-react';
+import { detectLocationWithZip } from '@/utils/geolocation';
 import Button from '@/components/ui/Button';
 import SelectCard from '@/components/ui/SelectCard';
 import { useAuth } from '@/context/AuthContext';
@@ -37,6 +38,9 @@ export default function ProvideCare() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [specialties, setSpecialties] = useState<CareCategory[]>([]);
+  const [serviceZips, setServiceZips] = useState<string[]>([]);
+  const [zipInput, setZipInput] = useState('');
+  const [locatingZip, setLocatingZip] = useState(false);
   const [experience, setExperience] = useState('');
   const [hourlyRate, setHourlyRate] = useState(20);
   const [bio, setBio] = useState('');
@@ -46,7 +50,7 @@ export default function ProvideCare() {
   };
 
   const handleNext = () => {
-    if (step < 3) setStep(step + 1);
+    if (step < 4) setStep(step + 1);
     else handleSubmit();
   };
 
@@ -61,7 +65,8 @@ export default function ProvideCare() {
     switch (step) {
       case 0: return !name || !email || !password || password.length < 6;
       case 1: return specialties.length === 0;
-      case 2: return !experience;
+      case 2: return serviceZips.length === 0;
+      case 3: return !experience;
       default: return false;
     }
   };
@@ -114,6 +119,83 @@ export default function ProvideCare() {
             icon={<span className="text-xl">{opt.icon}</span>} label={opt.label} multiSelect />
         ))}
       </div>
+    </>,
+    <>
+      <h2 className="text-2xl font-bold text-gray-900 mb-2">Where do you provide services?</h2>
+      <p className="text-gray-500 text-sm mb-5">Add ZIP codes or neighborhoods. Families in your area get matched with you first.</p>
+
+      {serviceZips.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {serviceZips.map(zip => (
+            <span key={zip} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-100 text-brand-800 text-sm font-semibold">
+              <MapPin className="w-3.5 h-3.5 text-brand-500" />
+              {zip}
+              <button
+                type="button"
+                onClick={() => setServiceZips(prev => prev.filter(z => z !== zip))}
+                className="text-brand-400 hover:text-brand-700 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-2">Add ZIP code or city</label>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={zipInput}
+            onChange={e => setZipInput(e.target.value)}
+            onKeyDown={e => {
+              if ((e.key === 'Enter' || e.key === ',') && zipInput.trim()) {
+                e.preventDefault();
+                const val = zipInput.trim().replace(/,+$/, '');
+                if (val && !serviceZips.includes(val)) setServiceZips(prev => [...prev, val]);
+                setZipInput('');
+              }
+            }}
+            placeholder="e.g. 11201 or Brooklyn, NY"
+            className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              const val = zipInput.trim().replace(/,+$/, '');
+              if (val && !serviceZips.includes(val)) setServiceZips(prev => [...prev, val]);
+              setZipInput('');
+            }}
+            disabled={!zipInput.trim()}
+            className="px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+          >
+            Add
+          </button>
+        </div>
+        <p className="text-xs text-gray-400 mt-1.5">Press Enter or comma to add multiple areas.</p>
+      </div>
+
+      <button
+        type="button"
+        onClick={async () => {
+          setLocatingZip(true);
+          try {
+            const { address, zip } = await detectLocationWithZip();
+            const label = zip || address;
+            if (label && !serviceZips.includes(label)) setServiceZips(prev => [...prev, label]);
+          } catch {
+            // User denied or unavailable
+          } finally {
+            setLocatingZip(false);
+          }
+        }}
+        disabled={locatingZip}
+        className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-brand-50 text-brand-700 font-medium text-sm hover:bg-brand-100 transition-colors w-full disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        {locatingZip ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
+        {locatingZip ? 'Detecting your location…' : 'Add my current location'}
+      </button>
     </>,
     <>
       <h2 className="text-2xl font-bold text-gray-900 mb-2">How many years of experience?</h2>
@@ -188,7 +270,7 @@ export default function ProvideCare() {
         {/* Progress */}
         {step > 0 && (
           <div className="flex items-center gap-2 mb-8">
-            {[0, 1, 2, 3].map(s => (
+            {[0, 1, 2, 3, 4].map(s => (
               <div key={s} className={`h-1.5 flex-1 rounded-full transition-colors ${s <= step ? 'bg-brand-500' : 'bg-gray-200'}`} />
             ))}
           </div>
@@ -204,9 +286,9 @@ export default function ProvideCare() {
             onClick={handleNext}
             disabled={isNextDisabled()}
             loading={loading}
-            icon={step < 3 ? <ArrowRight className="w-5 h-5" /> : <Check className="w-5 h-5" />}
+            icon={step < 4 ? <ArrowRight className="w-5 h-5" /> : <Check className="w-5 h-5" />}
           >
-            {step < 3 ? 'Continue' : 'Create Account'}
+            {step < 4 ? 'Continue' : 'Create Account'}
           </Button>
 
           {step > 0 && (

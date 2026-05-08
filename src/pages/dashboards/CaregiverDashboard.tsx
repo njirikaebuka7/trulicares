@@ -4,10 +4,11 @@ import {
   Bell, MessageCircle, User, Settings, LogOut, MapPin, DollarSign,
   Star, Shield, Check, ChevronRight, Calendar, Clock, TrendingUp,
   Briefcase, X, CheckCircle, XCircle, Edit3, LayoutDashboard, Users,
-  ChevronLeft, ChevronRight as ChevronRightIcon, Camera, Send, MoreHorizontal
+  ChevronLeft, ChevronRight as ChevronRightIcon, Camera, Send, MoreHorizontal, Loader2, Plus
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
+import { detectLocationWithZip } from '@/utils/geolocation';
 import {
   mockJobRequests, mockCaregiverClients, mockEarnings,
   mockCaregiverReviews, mockCaregiverSchedule
@@ -49,9 +50,12 @@ export default function CaregiverDashboard() {
     cl3: [{ text: 'Thank you for all your help this month!', fromMe: false, time: 'May 1' }],
   });
   const [moreOpen, setMoreOpen] = useState(false);
-  const [cgModal, setCgModal] = useState<null | 'bio' | 'rates' | 'availability' | 'notifications' | 'account'>(null);
+  const [cgModal, setCgModal] = useState<null | 'bio' | 'rates' | 'availability' | 'notifications' | 'account' | 'serviceArea'>(null);
   const [cgBio, setCgBio] = useState('Experienced nanny with 8+ years caring for children of all ages. CPR certified and passionate about early childhood development.');
   const [cgRate, setCgRate] = useState({ min: 18, max: 25 });
+  const [cgServiceZips, setCgServiceZips] = useState<string[]>(['11201', '11215', '11217', '11231']);
+  const [cgZipInput, setCgZipInput] = useState('');
+  const [cgLocating, setCgLocating] = useState(false);
   const [cgNotifPrefs, setCgNotifPrefs] = useState({ email: true, sms: true, push: true, marketing: false });
   const [cgSelectedMsg, setCgSelectedMsg] = useState<string | null>(null);
   const [cgMsgInput, setCgMsgInput] = useState('');
@@ -889,11 +893,41 @@ export default function CaregiverDashboard() {
                     </div>
                   ))}
                 </div>
+                {/* Service Area card */}
+                <div className="bg-gray-50 rounded-2xl p-4 mb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="font-semibold text-gray-900 text-sm">Service Area</p>
+                      <p className="text-xs text-gray-400 mt-0.5">ZIP codes and neighborhoods you cover</p>
+                    </div>
+                    <button
+                      onClick={() => setCgModal('serviceArea')}
+                      className="flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Edit
+                    </button>
+                  </div>
+                  {cgServiceZips.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {cgServiceZips.map(zip => (
+                        <span key={zip} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-gray-200 text-emerald-700 text-xs font-semibold">
+                          <MapPin className="w-3 h-3" /> {zip}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <button onClick={() => setCgModal('serviceArea')} className="text-sm text-emerald-600 font-medium hover:underline">
+                      + Add service areas
+                    </button>
+                  )}
+                </div>
+
                 <div className="space-y-1">
                   {[
                     { icon: <Edit3 className="w-5 h-5" />, label: 'Edit Bio & Specialties', sub: 'Update your bio and care categories', action: () => setCgModal('bio') },
                     { icon: <DollarSign className="w-5 h-5" />, label: 'Update Rates', sub: 'Set your hourly rate range', action: () => setCgModal('rates') },
                     { icon: <Calendar className="w-5 h-5" />, label: 'Manage Availability', sub: 'Days, hours & time-off', action: () => setCgModal('availability') },
+                    { icon: <MapPin className="w-5 h-5" />, label: 'Manage Service Area', sub: 'ZIP codes and neighborhoods you cover', action: () => setCgModal('serviceArea') },
                     { icon: <Bell className="w-5 h-5" />, label: 'Notification Preferences', sub: 'Alerts for requests & messages', action: () => setCgModal('notifications') },
                     { icon: <Settings className="w-5 h-5" />, label: 'Account Settings', sub: 'Password, language & timezone', action: () => setCgModal('account') },
                   ].map((item, i) => (
@@ -1132,6 +1166,96 @@ export default function CaregiverDashboard() {
               <div className="flex gap-3 pt-2">
                 <Button variant="secondary" fullWidth onClick={() => setCgModal(null)}>Cancel</Button>
                 <Button variant="primary" fullWidth onClick={() => setCgModal(null)} className="bg-emerald-600 hover:bg-emerald-700">Save Changes</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Service Area */}
+      {cgModal === 'serviceArea' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setCgModal(null)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 text-lg">Service Area</h3>
+              <button onClick={() => setCgModal(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><X className="w-4 h-4 text-gray-500" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-500">Add ZIP codes and neighborhoods you can serve. Families in these areas will be matched with you first.</p>
+
+              {/* Current zip chips */}
+              {cgServiceZips.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {cgServiceZips.map(zip => (
+                    <span key={zip} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-semibold">
+                      <MapPin className="w-3.5 h-3.5" /> {zip}
+                      <button
+                        onClick={() => setCgServiceZips(prev => prev.filter(z => z !== zip))}
+                        className="text-emerald-400 hover:text-emerald-700 transition-colors ml-0.5"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Input row */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={cgZipInput}
+                  onChange={e => setCgZipInput(e.target.value)}
+                  onKeyDown={e => {
+                    if ((e.key === 'Enter' || e.key === ',') && cgZipInput.trim()) {
+                      e.preventDefault();
+                      const val = cgZipInput.trim().replace(/,+$/, '');
+                      if (val && !cgServiceZips.includes(val)) setCgServiceZips(prev => [...prev, val]);
+                      setCgZipInput('');
+                    }
+                  }}
+                  placeholder="e.g. 11201 or Brooklyn, NY"
+                  className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+                />
+                <button
+                  onClick={() => {
+                    const val = cgZipInput.trim().replace(/,+$/, '');
+                    if (val && !cgServiceZips.includes(val)) setCgServiceZips(prev => [...prev, val]);
+                    setCgZipInput('');
+                  }}
+                  disabled={!cgZipInput.trim()}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+                >
+                  Add
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 -mt-2">Press Enter or comma to add. Add as many as you cover.</p>
+
+              {/* Use my location */}
+              <button
+                onClick={async () => {
+                  setCgLocating(true);
+                  try {
+                    const { address, zip } = await detectLocationWithZip();
+                    const label = zip || address;
+                    if (label && !cgServiceZips.includes(label)) setCgServiceZips(prev => [...prev, label]);
+                  } catch {
+                    // User denied or unavailable
+                  } finally {
+                    setCgLocating(false);
+                  }
+                }}
+                disabled={cgLocating}
+                className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-emerald-50 text-emerald-700 font-medium text-sm hover:bg-emerald-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {cgLocating ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
+                {cgLocating ? 'Detecting your location…' : 'Add my current location'}
+              </button>
+
+              <div className="flex gap-3 pt-2">
+                <Button variant="secondary" fullWidth onClick={() => setCgModal(null)}>Cancel</Button>
+                <Button variant="primary" fullWidth onClick={() => setCgModal(null)} className="bg-emerald-600 hover:bg-emerald-700">Save Area</Button>
               </div>
             </div>
           </div>

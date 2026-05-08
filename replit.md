@@ -60,7 +60,8 @@ TruliCares is a fully-featured care marketplace web application built with React
 - **Messages tab** — inbox of family conversations; thread list with unread indicators; per-thread full chat history; functional send with auto-reply after 2 seconds; Enter key sends
 - **Job Requests tab** — accept/decline pending job requests with modal confirmation
 - **My Clients tab** — active/past client cards with per-client messaging panel
-- **Profile tab** — hourly rate range reflects live state from "Update Rates" modal; bio, specialties, availability, notification, account settings modals
+- **Profile tab** — hourly rate range reflects live state from "Update Rates" modal; bio, specialties, availability, notification, account settings modals; **Service Area card** showing current ZIP codes as chips with an "Edit" button; "Manage Service Area" settings row
+- **Service Area modal** — add/remove ZIP codes or city names, "Add my current location" button (real GPS + Nominatim reverse geocoding), chips with X to remove individual entries
 - Earnings summary with weekly bar chart, schedule, and review display
 
 ### Admin Dashboard (`/dashboard`)
@@ -97,7 +98,7 @@ src/
 │   ├── Login.tsx
 │   ├── Dashboard.tsx         # Auth-gated router to role dashboards
 │   ├── FindCare.tsx          # Multi-step care request questionnaire (9 phases)
-│   ├── ProvideCare.tsx       # Caregiver onboarding flow (4 steps)
+│   ├── ProvideCare.tsx       # Caregiver onboarding flow (5 steps — incl. Service Area)
 │   ├── NotFound.tsx
 │   ├── PrivacyPolicy.tsx
 │   ├── Terms.tsx
@@ -106,9 +107,10 @@ src/
 │       ├── FamilyDashboard.tsx
 │       ├── CaregiverDashboard.tsx
 │       └── AdminDashboard.tsx
-├── types/               # TypeScript interfaces (CaregiverProfile, CareMatch, etc.)
+├── types/               # TypeScript interfaces (CaregiverProfile + serviceZips, CareMatch, etc.)
 ├── utils/
-│   └── cn.ts            # Tailwind class merging utility
+│   ├── cn.ts            # Tailwind class merging utility
+│   └── geolocation.ts   # GPS detection + Nominatim reverse geocoding + ZIP extractor
 └── App.tsx              # Route definitions
 ```
 
@@ -139,6 +141,20 @@ src/
 ## FindCare Flow (9 Phases)
 
 `care-type` → `care-details` (4 sub-flows: child/senior/adult/cleaning) → `account` → `review` → `matching` → `matches` → `payment` → `verification` → `messaging`
+
+**Location detection** — every care-details sub-flow has a "Where are you located?" step. The "Use my current location" button calls the browser Geolocation API, reverse-geocodes via Nominatim (OpenStreetMap), and fills the input with the real city + state + ZIP (e.g. `Brooklyn, NY 11201`). Gracefully falls back to manual typing if the user denies location.
+
+**ZIP-aware matching** — `MatchesListStep` receives the family's location string, extracts the 5-digit ZIP via regex, and sorts caregivers so those whose `serviceZips` array includes the family's ZIP appear first. Each such caregiver gets a green "Near You" badge. A banner at the top of the matches screen shows the family's location and how many caregivers serve that area.
+
+---
+
+## ProvideCare Onboarding (5 Steps)
+
+0. **Account** — name, email, password
+1. **Services** — care category multi-select (Child, Senior, Adult, Cleaning)
+2. **Service Area** — tag-based multi-ZIP input; type a ZIP and press Enter/comma to add; "Add my current location" uses real GPS + Nominatim reverse geocoding; chips are removable individually; at least 1 area required to continue
+3. **Experience** — radio select (Less than 1 year → 10+ years)
+4. **Rate & Bio** — hourly rate slider ($10–$100/hr), optional short bio
 
 ---
 

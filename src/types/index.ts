@@ -90,6 +90,7 @@ export interface CaregiverProfile extends User {
   yearsExperience: number;
   availability: string;
   photoUrl?: string;
+  serviceZips?: string[];
 }
 
 export interface CareMatch {

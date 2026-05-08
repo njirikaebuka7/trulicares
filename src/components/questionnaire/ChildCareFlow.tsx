@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import StepContainer from '@/components/ui/StepContainer';
 import SelectCard from '@/components/ui/SelectCard';
-import { MapPin, Minus, Plus } from 'lucide-react';
+import { MapPin, Minus, Plus, Loader2 } from 'lucide-react';
+import { detectLocationWithZip } from '@/utils/geolocation';
 
 interface Props {
   onComplete: (data: Record<string, unknown>) => void;
@@ -28,6 +29,7 @@ export default function ChildCareFlow({ onComplete, onBack }: Props) {
   const [specialNeeds, setSpecialNeeds] = useState('');
   const [location, setLocation] = useState('');
   const [payRange, setPayRange] = useState(20);
+  const [locating, setLocating] = useState(false);
 
   const goNext = () => {
     if (step < totalSteps - 1) setStep(step + 1);
@@ -153,10 +155,22 @@ export default function ChildCareFlow({ onComplete, onBack }: Props) {
           className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none" />
       </div>
       <button
-        onClick={() => setLocation('Current Location')}
-        className="flex items-center gap-2 px-4 py-3 rounded-xl bg-brand-50 text-brand-700 font-medium text-sm hover:bg-brand-100 transition-colors w-full"
+        onClick={async () => {
+          setLocating(true);
+          try {
+            const { address } = await detectLocationWithZip();
+            setLocation(address);
+          } catch {
+            // User denied or unavailable — they can type manually
+          } finally {
+            setLocating(false);
+          }
+        }}
+        disabled={locating}
+        className="flex items-center gap-2 px-4 py-3 rounded-xl bg-brand-50 text-brand-700 font-medium text-sm hover:bg-brand-100 transition-colors w-full disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        <MapPin className="w-4 h-4" /> Use my current location
+        {locating ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
+        {locating ? 'Detecting your location…' : 'Use my current location'}
       </button>
     </>,
     // Step 6: Pay range

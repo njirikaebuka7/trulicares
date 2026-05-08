@@ -17,6 +17,7 @@ export const mockCaregivers: CaregiverProfile[] = [
     yearsExperience: 8,
     availability: 'Full-time',
     photoUrl: 'https://randomuser.me/api/portraits/women/65.jpg',
+    serviceZips: ['11201', '11215', '11217', '11231', '11238'],
   },
   {
     id: 'cg2',
@@ -34,6 +35,7 @@ export const mockCaregivers: CaregiverProfile[] = [
     yearsExperience: 12,
     availability: 'Part-time',
     photoUrl: 'https://randomuser.me/api/portraits/women/44.jpg',
+    serviceZips: ['10001', '10003', '10011', '10014', '10023', '10036'],
   },
   {
     id: 'cg3',
@@ -51,6 +53,7 @@ export const mockCaregivers: CaregiverProfile[] = [
     yearsExperience: 6,
     availability: 'Full-time',
     photoUrl: 'https://randomuser.me/api/portraits/men/32.jpg',
+    serviceZips: ['11101', '11102', '11103', '11354', '11375', '11201'],
   },
   {
     id: 'cg4',
@@ -68,6 +71,7 @@ export const mockCaregivers: CaregiverProfile[] = [
     yearsExperience: 10,
     availability: 'Flexible',
     photoUrl: 'https://randomuser.me/api/portraits/women/74.jpg',
+    serviceZips: ['07302', '07306', '07310', '07030', '10001'],
   },
   {
     id: 'cg5',
@@ -78,6 +82,7 @@ export const mockCaregivers: CaregiverProfile[] = [
     specialties: ['child-care'],
     hourlyRate: [15, 22],
     rating: 4.6,
+    serviceZips: ['07030', '07302', '07306', '11201'],
     reviewCount: 19,
     location: 'Hoboken, NJ',
     verified: true,
@@ -102,6 +107,7 @@ export const mockCaregivers: CaregiverProfile[] = [
     yearsExperience: 9,
     availability: 'Full-time',
     photoUrl: 'https://randomuser.me/api/portraits/men/62.jpg',
+    serviceZips: ['11354', '11355', '11367', '11375', '11101'],
   },
   {
     id: 'cg7',
@@ -119,6 +125,7 @@ export const mockCaregivers: CaregiverProfile[] = [
     yearsExperience: 7,
     availability: 'Weekdays',
     photoUrl: 'https://randomuser.me/api/portraits/women/89.jpg',
+    serviceZips: ['07101', '07102', '07103', '07104', '07302'],
   },
 ];
 

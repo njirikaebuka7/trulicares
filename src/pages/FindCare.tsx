@@ -97,7 +97,7 @@ export default function FindCare() {
     case 'matching':
       return <MatchingStep onComplete={handleMatchingComplete} />;
     case 'matches':
-      return <MatchesListStep onSelectMatch={handleSelectMatch} onBack={() => setPhase('matching')} />;
+      return <MatchesListStep onSelectMatch={handleSelectMatch} onBack={() => setPhase('matching')} familyLocation={(careData.location as string) || ''} />;
     case 'payment':
       return <PaymentStep matchId={selectedMatchId!} onComplete={handlePaymentComplete} onBack={() => setPhase('matches')} />;
     case 'verification':

@@ -1,21 +1,35 @@
 import { useState } from 'react';
-import { Star, Shield, MapPin, DollarSign, Check, ArrowLeft } from 'lucide-react';
+import { Star, Shield, MapPin, DollarSign, Check, ArrowLeft, Navigation } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Button from '@/components/ui/Button';
 import { mockMatches } from '@/data/mock';
 import { cn } from '@/utils/cn';
+import { extractZip } from '@/utils/geolocation';
 import logoImg from '@/assets/logo.png';
 
 interface Props {
   onSelectMatch: (matchId: string) => void;
   onBack: () => void;
+  familyLocation?: string;
 }
 
 const avatarColors = ['bg-coral-400', 'bg-brand-400', 'bg-sky-400', 'bg-warm-400', 'bg-purple-400'];
 
-export default function MatchesListStep({ onSelectMatch, onBack }: Props) {
+export default function MatchesListStep({ onSelectMatch, onBack, familyLocation }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const matches = mockMatches.filter(m => m.status === 'accepted');
+
+  const familyZip = familyLocation ? extractZip(familyLocation) : '';
+
+  const matches = [...mockMatches.filter(m => m.status === 'accepted')].sort((a, b) => {
+    if (!familyZip) return 0;
+    const aServes = a.caregiver.serviceZips?.includes(familyZip) ? 1 : 0;
+    const bServes = b.caregiver.serviceZips?.includes(familyZip) ? 1 : 0;
+    return bServes - aServes;
+  });
+
+  const nearYouCount = familyZip
+    ? matches.filter(m => m.caregiver.serviceZips?.includes(familyZip)).length
+    : 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-coral-50 flex flex-col">
@@ -41,9 +55,25 @@ export default function MatchesListStep({ onSelectMatch, onBack }: Props) {
 
       {/* Content */}
       <div className="flex-1 max-w-lg mx-auto w-full px-4 py-6 space-y-4">
+
+        {/* Location context banner */}
+        {familyLocation && (
+          <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-brand-50 border border-brand-100">
+            <Navigation className="w-4 h-4 text-brand-600 mt-0.5 shrink-0" />
+            <div className="text-sm">
+              <span className="text-brand-800">Showing caregivers near </span>
+              <span className="font-semibold text-brand-900">{familyLocation}</span>
+              {nearYouCount > 0 && (
+                <span className="text-brand-700"> — {nearYouCount} serve your area</span>
+              )}
+            </div>
+          </div>
+        )}
+
         {matches.map((match, i) => {
           const cg = match.caregiver;
           const isSelected = selectedId === match.id;
+          const servesFamily = Boolean(familyZip && cg.serviceZips?.includes(familyZip));
 
           return (
             <button
@@ -86,6 +116,11 @@ export default function MatchesListStep({ onSelectMatch, onBack }: Props) {
                         <Check className="w-3 h-3" /> Background
                       </span>
                     )}
+                    {servesFamily && (
+                      <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">
+                        <MapPin className="w-3 h-3" /> Near You
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-3 mt-1.5 text-sm text-gray-500">
@@ -108,6 +143,30 @@ export default function MatchesListStep({ onSelectMatch, onBack }: Props) {
                       <DollarSign className="w-4 h-4" /> ${cg.hourlyRate[0]}–${cg.hourlyRate[1]}/hr
                     </span>
                   </div>
+
+                  {/* Service area chips — show a few */}
+                  {cg.serviceZips && cg.serviceZips.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {cg.serviceZips.slice(0, 3).map(zip => (
+                        <span
+                          key={zip}
+                          className={cn(
+                            'text-xs px-2 py-0.5 rounded-lg font-medium',
+                            servesFamily && zip === familyZip
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-gray-100 text-gray-500'
+                          )}
+                        >
+                          {zip}
+                        </span>
+                      ))}
+                      {cg.serviceZips.length > 3 && (
+                        <span className="text-xs px-2 py-0.5 rounded-lg bg-gray-100 text-gray-400 font-medium">
+                          +{cg.serviceZips.length - 3} more
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Selection indicator */}
