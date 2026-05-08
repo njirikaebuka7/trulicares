@@ -2,7 +2,7 @@ import 'dotenv/config';
 import app from './app.js';
 import { pool } from './db.js';
 
-const PORT = parseInt(process.env.API_PORT || '3001', 10);
+const PORT = parseInt(process.env.PORT || process.env.API_PORT || (process.env.NODE_ENV === 'production' ? '5000' : '3001'), 10);
 
 async function verifyDatabase() {
   try {

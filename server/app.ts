@@ -1,6 +1,12 @@
 import express, { type Express } from 'express';
 import cors from 'cors';
+import { fileURLToPath } from 'url';
+import { join, dirname } from 'path';
+import { existsSync } from 'fs';
 import { WebhookHandlers } from './webhookHandlers.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 import authRouter from './routes/auth.js';
 import caregiversRouter from './routes/caregivers.js';
 import requestsRouter from './routes/requests.js';
@@ -71,10 +77,19 @@ app.use('/api/notifications', notificationsRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/clients', clientsRouter);
 
-// ── 404 handler ───────────────────────────────────────────────────────────────
+// ── 404 handler for unknown API routes ────────────────────────────────────────
 app.use('/api/*path', (_req, res) => {
   res.status(404).json({ error: 'API endpoint not found' });
 });
+
+// ── Serve built frontend in production ────────────────────────────────────────
+const distPath = join(__dirname, '..', 'dist');
+if (existsSync(distPath)) {
+  app.use(express.static(distPath));
+  app.get('*', (_req, res) => {
+    res.sendFile(join(distPath, 'index.html'));
+  });
+}
 
 // ── Global error handler ──────────────────────────────────────────────────────
 app.use((err: any, _req: any, res: any, _next: any) => {
