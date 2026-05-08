@@ -1,16 +1,17 @@
 import { useState } from 'react';
-import { Star, Shield, MapPin, DollarSign, Check } from 'lucide-react';
+import { Star, Shield, MapPin, DollarSign, Check, ArrowLeft } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { mockMatches } from '@/data/mock';
 import { cn } from '@/utils/cn';
 
 interface Props {
   onSelectMatch: (matchId: string) => void;
+  onBack: () => void;
 }
 
 const avatarColors = ['bg-coral-400', 'bg-brand-400', 'bg-sky-400', 'bg-warm-400', 'bg-purple-400'];
 
-export default function MatchesListStep({ onSelectMatch }: Props) {
+export default function MatchesListStep({ onSelectMatch, onBack }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const matches = mockMatches.filter(m => m.status === 'accepted');
 
@@ -18,9 +19,17 @@ export default function MatchesListStep({ onSelectMatch }: Props) {
     <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-coral-50 flex flex-col">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-lg border-b border-gray-100">
-        <div className="max-w-lg mx-auto px-4 py-4">
-          <h1 className="text-xl font-bold text-gray-900">Your Matches</h1>
-          <p className="text-sm text-gray-500">{matches.length} caregivers accepted your request</p>
+        <div className="max-w-lg mx-auto px-4 py-4 flex items-center gap-3">
+          <button
+            onClick={onBack}
+            className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-gray-100 transition-colors shrink-0"
+          >
+            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          </button>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Your Matches</h1>
+            <p className="text-sm text-gray-500">{matches.length} caregivers accepted your request</p>
+          </div>
         </div>
       </div>
 

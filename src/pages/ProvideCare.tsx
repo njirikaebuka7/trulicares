@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Check, Mail, Lock, Eye, EyeOff, User, DollarSign, Calendar, Shield, Star, Heart } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { ArrowRight, ArrowLeft, Check, Mail, Lock, Eye, EyeOff, User, DollarSign, Calendar, Shield, Star, Heart, X } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import SelectCard from '@/components/ui/SelectCard';
 import { useAuth } from '@/context/AuthContext';
 import type { CareCategory } from '@/types';
+import logoImg from '@/assets/logo.png';
 
 const benefits = [
   { icon: <Calendar className="w-5 h-5" />, title: 'Flexible Schedule', desc: 'Work when you want, where you want.' },
@@ -25,14 +26,12 @@ export default function ProvideCare() {
   const { isAuthenticated, signup } = useAuth();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
-  
-  // If already logged in, go to dashboard
+
   if (isAuthenticated) {
     navigate('/dashboard');
     return null;
   }
 
-  // Form state
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -68,7 +67,6 @@ export default function ProvideCare() {
   };
 
   const steps = [
-    // Step 0: Account info
     <>
       <div className="text-center mb-6">
         <div className="w-16 h-16 bg-gradient-to-br from-brand-400 to-brand-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -107,7 +105,6 @@ export default function ProvideCare() {
         </div>
       </div>
     </>,
-    // Step 1: Specialties
     <>
       <h2 className="text-2xl font-bold text-gray-900 mb-2">What services do you offer?</h2>
       <p className="text-gray-500 text-sm mb-6">Select all that apply.</p>
@@ -118,7 +115,6 @@ export default function ProvideCare() {
         ))}
       </div>
     </>,
-    // Step 2: Experience
     <>
       <h2 className="text-2xl font-bold text-gray-900 mb-2">How many years of experience?</h2>
       <p className="text-gray-500 text-sm mb-6">This helps families understand your background.</p>
@@ -128,7 +124,6 @@ export default function ProvideCare() {
         ))}
       </div>
     </>,
-    // Step 3: Rate & Bio
     <>
       <h2 className="text-2xl font-bold text-gray-900 mb-2">Set your rate & introduce yourself</h2>
       <p className="text-gray-500 text-sm mb-6">You can always update this later.</p>
@@ -153,8 +148,20 @@ export default function ProvideCare() {
     <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-coral-50">
       {/* Hero section (visible only on step 0) */}
       {step === 0 && (
-        <section className="bg-gradient-to-br from-brand-900 via-brand-800 to-brand-950 py-16">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <section className="bg-gradient-to-br from-brand-900 via-brand-800 to-brand-950 py-16 relative">
+          {/* Exit button */}
+          <Link
+            to="/"
+            className="absolute top-5 left-5 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors z-10"
+            aria-label="Go home"
+          >
+            <X className="w-5 h-5 text-white" />
+          </Link>
+          {/* Logo */}
+          <Link to="/" className="absolute top-5 left-1/2 -translate-x-1/2 z-10">
+            <img src={logoImg} alt="TruliCares" className="h-8 w-auto brightness-0 invert opacity-90" />
+          </Link>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center pt-8">
             <h1 className="text-3xl sm:text-4xl font-bold text-white mb-4">
               Start earning as a <span className="text-brand-300">caregiver</span>
             </h1>
@@ -203,8 +210,8 @@ export default function ProvideCare() {
           </Button>
 
           {step > 0 && (
-            <button onClick={() => setStep(step - 1)} className="w-full mt-4 text-center text-sm text-gray-500 hover:text-gray-700">
-              Go back
+            <button onClick={() => setStep(step - 1)} className="w-full mt-4 text-center text-sm text-gray-500 hover:text-gray-700 flex items-center justify-center gap-1">
+              <ArrowLeft className="w-4 h-4" /> Go back
             </button>
           )}
         </div>
@@ -212,9 +219,9 @@ export default function ProvideCare() {
         {step === 0 && (
           <p className="text-center text-xs text-gray-500 mt-6">
             By signing up, you agree to our{' '}
-            <a href="#" className="text-brand-600 hover:underline">Terms of Service</a>
+            <Link to="/terms" className="text-brand-600 hover:underline">Terms of Service</Link>
             {' '}and{' '}
-            <a href="#" className="text-brand-600 hover:underline">Privacy Policy</a>.
+            <Link to="/privacy-policy" className="text-brand-600 hover:underline">Privacy Policy</Link>.
           </p>
         )}
       </div>

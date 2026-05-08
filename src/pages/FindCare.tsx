@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { CareCategory } from '@/types';
 
-// Step components
 import CareTypeStep from '@/components/questionnaire/CareTypeStep';
 import ChildCareFlow from '@/components/questionnaire/ChildCareFlow';
 import SeniorCareFlow from '@/components/questionnaire/SeniorCareFlow';
@@ -98,7 +97,7 @@ export default function FindCare() {
     case 'matching':
       return <MatchingStep onComplete={handleMatchingComplete} />;
     case 'matches':
-      return <MatchesListStep onSelectMatch={handleSelectMatch} />;
+      return <MatchesListStep onSelectMatch={handleSelectMatch} onBack={() => setPhase('matching')} />;
     case 'payment':
       return <PaymentStep matchId={selectedMatchId!} onComplete={handlePaymentComplete} onBack={() => setPhase('matches')} />;
     case 'verification':

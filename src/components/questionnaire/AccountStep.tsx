@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ArrowLeft, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 interface Props {
   onComplete: () => void;
@@ -10,13 +11,13 @@ interface Props {
 
 export default function AccountStep({ onComplete, onBack }: Props) {
   const { isAuthenticated, signup } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // If already logged in, skip this step
   if (isAuthenticated) {
     onComplete();
     return null;
@@ -120,14 +121,17 @@ export default function AccountStep({ onComplete, onBack }: Props) {
 
         <p className="text-center text-xs text-gray-500 mt-6">
           By signing up, you agree to our{' '}
-          <a href="#" className="text-brand-600 hover:underline">Terms of Service</a>
+          <a href="/terms" className="text-brand-600 hover:underline">Terms of Service</a>
           {' '}and{' '}
-          <a href="#" className="text-brand-600 hover:underline">Privacy Policy</a>.
+          <a href="/privacy-policy" className="text-brand-600 hover:underline">Privacy Policy</a>.
         </p>
 
         <div className="mt-8 text-center">
           <span className="text-sm text-gray-500">Already have an account?</span>{' '}
-          <button className="text-sm font-semibold text-brand-600 hover:underline">
+          <button
+            onClick={() => navigate('/login')}
+            className="text-sm font-semibold text-brand-600 hover:underline"
+          >
             Sign in
           </button>
         </div>

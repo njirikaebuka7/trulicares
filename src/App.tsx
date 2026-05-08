@@ -11,6 +11,10 @@ import FindCare from '@/pages/FindCare';
 import ProvideCare from '@/pages/ProvideCare';
 import Dashboard from '@/pages/Dashboard';
 import Login from '@/pages/Login';
+import NotFound from '@/pages/NotFound';
+import PrivacyPolicy from '@/pages/PrivacyPolicy';
+import Terms from '@/pages/Terms';
+import CookiePolicy from '@/pages/CookiePolicy';
 
 export default function App() {
   return (
@@ -26,12 +30,18 @@ export default function App() {
             <Route path="/resources" element={<Resources />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/cookie-policy" element={<CookiePolicy />} />
           </Route>
 
           {/* Full-screen flows (no navbar/footer) */}
           <Route path="/find-care" element={<FindCare />} />
           <Route path="/provide-care" element={<ProvideCare />} />
           <Route path="/login" element={<Login />} />
+
+          {/* 404 */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

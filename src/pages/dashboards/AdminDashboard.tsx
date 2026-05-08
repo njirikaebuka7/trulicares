@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   Bell, LogOut, Users, Shield, AlertTriangle, TrendingUp,
   CheckCircle, XCircle, Clock, X, Search,
-  Activity, DollarSign, UserCheck, Flag, BarChart2, LayoutDashboard
+  Activity, DollarSign, UserCheck, Flag, BarChart2, LayoutDashboard,
+  ChevronLeft, ChevronRight as ChevronRightIcon
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
@@ -11,6 +12,7 @@ import {
   mockAdminStats, mockAdminUsers, mockVerificationQueue, mockAdminReports
 } from '@/data/mock';
 import { cn } from '@/utils/cn';
+import logoImg from '@/assets/logo.png';
 
 type Tab = 'Overview' | 'Users' | 'Verification Queue' | 'Reports' | 'Analytics';
 
@@ -22,13 +24,18 @@ const navItems: { id: Tab; label: string; icon: React.ReactNode; badge?: number 
   { id: 'Analytics', label: 'Analytics', icon: <BarChart2 className="w-5 h-5" /> },
 ];
 
+const PAGE_SIZE = 8;
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('Overview');
+  const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [notificationsRead, setNotificationsRead] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [userFilter, setUserFilter] = useState<'all' | 'family' | 'caregiver'>('all');
+  const [currentPage, setCurrentPage] = useState(1);
   const [verificationActions, setVerificationActions] = useState<Record<string, 'approved' | 'rejected' | null>>({});
   const [reportActions, setReportActions] = useState<Record<string, 'resolved' | 'dismissed' | null>>({});
 
@@ -41,6 +48,21 @@ export default function AdminDashboard() {
     return matchesSearch && matchesFilter;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
+  const paginatedUsers = filteredUsers.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  const handleFilterChange = (f: typeof userFilter) => {
+    setUserFilter(f);
+    setCurrentPage(1);
+  };
+  const handleSearchChange = (q: string) => {
+    setSearchQuery(q);
+    setCurrentPage(1);
+  };
+
+  const unread = notificationsRead ? 0 : mockAdminStats.pendingVerifications + mockAdminStats.openReports;
+  const openNotifications = () => { setNotifOpen(true); setNotificationsRead(true); };
+
   const maxBarValue = Math.max(...mockAdminStats.monthlyGrowth.map(m => m.families + m.caregivers));
   const initials = 'AD';
 
@@ -48,25 +70,52 @@ export default function AdminDashboard() {
     <div className="flex bg-gray-50 min-h-screen">
 
       {/* ── LEFT SIDEBAR (desktop) ── */}
-      <aside className="hidden lg:flex flex-col fixed top-16 lg:top-[72px] left-0 bottom-0 w-64 bg-slate-900 z-20">
-        {/* User profile */}
-        <div className="px-5 py-5 border-b border-slate-700/60">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-slate-700 flex items-center justify-center text-white font-bold text-sm shrink-0">
-              {initials}
-            </div>
-            <div className="min-w-0">
-              <p className="font-semibold text-white text-sm truncate">{user?.name || 'Admin'}</p>
-              <p className="text-xs text-slate-400 truncate">{user?.email}</p>
-            </div>
-          </div>
-          <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-700 text-slate-300 text-xs font-semibold">
-            <Shield className="w-3 h-3" /> Admin Console
-          </div>
+      <aside className={cn(
+        'hidden lg:flex flex-col fixed top-16 lg:top-[72px] left-0 bottom-0 z-20 transition-all duration-300 bg-slate-900',
+        collapsed ? 'w-16' : 'w-64'
+      )}>
+        {/* Logo + collapse toggle */}
+        <div className={cn(
+          'flex items-center border-b border-slate-700/60 shrink-0',
+          collapsed ? 'justify-center px-3 py-4' : 'justify-between px-4 py-4'
+        )}>
+          {!collapsed && (
+            <img src={logoImg} alt="TruliCares" className="h-7 w-auto brightness-0 invert opacity-80" />
+          )}
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="w-8 h-8 rounded-lg bg-slate-700/60 hover:bg-slate-600/60 flex items-center justify-center text-slate-400 hover:text-white transition-all shrink-0"
+          >
+            {collapsed ? <ChevronRightIcon className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
         </div>
 
+        {/* User profile */}
+        {!collapsed ? (
+          <div className="px-4 py-4 border-b border-slate-700/60">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-slate-700 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                {initials}
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-white text-sm truncate">{user?.name || 'Admin'}</p>
+                <p className="text-xs text-slate-400 truncate">{user?.email}</p>
+              </div>
+            </div>
+            <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-700 text-slate-300 text-xs font-semibold">
+              <Shield className="w-3 h-3" /> Admin Console
+            </div>
+          </div>
+        ) : (
+          <div className="flex justify-center py-3 border-b border-slate-700/60">
+            <div className="w-8 h-8 rounded-xl bg-slate-700 flex items-center justify-center text-white text-xs font-bold">
+              {initials}
+            </div>
+          </div>
+        )}
+
         {/* Alerts summary */}
-        {(mockAdminStats.pendingVerifications > 0 || mockAdminStats.openReports > 0) && (
+        {!collapsed && (mockAdminStats.pendingVerifications > 0 || mockAdminStats.openReports > 0) && (
           <div className="mx-3 mt-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
             <p className="text-xs font-semibold text-red-400 mb-1.5">Action Required</p>
             {mockAdminStats.pendingVerifications > 0 && (
@@ -85,41 +134,61 @@ export default function AdminDashboard() {
         )}
 
         {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
           {navItems.map(item => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
+              title={collapsed ? item.label : undefined}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
+                'w-full flex items-center rounded-xl text-sm font-medium transition-all',
+                collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5',
                 activeTab === item.id
                   ? 'bg-white text-slate-900 shadow-sm'
                   : 'text-slate-400 hover:bg-slate-800 hover:text-white'
               )}
             >
-              <span className="shrink-0">{item.icon}</span>
-              <span className="flex-1 text-left">{item.label}</span>
-              {item.badge && (
-                <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-                  activeTab === item.id ? 'bg-red-100 text-red-600' : 'bg-red-500 text-white')}>
-                  {item.badge}
-                </span>
+              <span className="shrink-0 relative">
+                {item.icon}
+                {item.badge && collapsed && (
+                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full text-white text-[8px] flex items-center justify-center font-bold">
+                    {item.badge}
+                  </span>
+                )}
+              </span>
+              {!collapsed && (
+                <>
+                  <span className="flex-1 text-left">{item.label}</span>
+                  {item.badge && (
+                    <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-full',
+                      activeTab === item.id ? 'bg-red-100 text-red-600' : 'bg-red-500 text-white')}>
+                      {item.badge}
+                    </span>
+                  )}
+                </>
               )}
             </button>
           ))}
         </nav>
 
         {/* Logout */}
-        <div className="px-3 py-4 border-t border-slate-700/60">
-          <button onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-red-400 transition-colors">
-            <LogOut className="w-5 h-5 shrink-0" /> Log Out
+        <div className="px-2 py-3 border-t border-slate-700/60">
+          <button
+            onClick={handleLogout}
+            title={collapsed ? 'Log Out' : undefined}
+            className={cn(
+              'w-full flex items-center rounded-xl text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-red-400 transition-colors',
+              collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'
+            )}
+          >
+            <LogOut className="w-5 h-5 shrink-0" />
+            {!collapsed && 'Log Out'}
           </button>
         </div>
       </aside>
 
       {/* ── MAIN CONTENT ── */}
-      <div className="flex-1 lg:ml-64 flex flex-col min-h-screen">
+      <div className={cn('flex-1 flex flex-col min-h-screen transition-all duration-300', collapsed ? 'lg:ml-16' : 'lg:ml-64')}>
 
         {/* Top header */}
         <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between shrink-0">
@@ -129,12 +198,14 @@ export default function AdminDashboard() {
           </div>
           <div className="flex items-center gap-1">
             <div className="relative">
-              <button onClick={() => setNotifOpen(!notifOpen)}
+              <button onClick={openNotifications}
                 className="relative w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center">
                 <Bell className="w-5 h-5 text-gray-500" />
-                <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 rounded-full text-white text-[10px] flex items-center justify-center font-bold">
-                  {mockAdminStats.pendingVerifications + mockAdminStats.openReports}
-                </span>
+                {unread > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 rounded-full text-white text-[10px] flex items-center justify-center font-bold">
+                    {unread}
+                  </span>
+                )}
               </button>
               {notifOpen && (
                 <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50">
@@ -147,7 +218,7 @@ export default function AdminDashboard() {
                     { text: `${mockAdminStats.openReports} open reports need review`, time: 'Ongoing', urgent: true },
                     { text: '94 new sign-ups this month', time: 'This month', urgent: false },
                   ].map((n, i) => (
-                    <div key={i} className={cn('px-4 py-3 border-b border-gray-50 last:border-0', n.urgent && 'bg-red-50/40')}>
+                    <div key={i} className="px-4 py-3 border-b border-gray-50 last:border-0">
                       <div className="flex items-start gap-2">
                         {n.urgent && <AlertTriangle className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" />}
                         <p className="text-sm text-gray-800 font-medium">{n.text}</p>
@@ -291,12 +362,12 @@ export default function AdminDashboard() {
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input type="text" placeholder="Search users…" value={searchQuery}
-                      onChange={e => setSearchQuery(e.target.value)}
+                      onChange={e => handleSearchChange(e.target.value)}
                       className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-slate-400 w-48" />
                   </div>
                   <div className="flex rounded-xl border border-gray-200 overflow-hidden text-sm font-medium">
                     {(['all', 'family', 'caregiver'] as const).map(f => (
-                      <button key={f} onClick={() => setUserFilter(f)}
+                      <button key={f} onClick={() => handleFilterChange(f)}
                         className={cn('px-3 py-2 capitalize transition-colors',
                           userFilter === f ? 'bg-slate-800 text-white' : 'text-gray-600 hover:bg-gray-50')}>
                         {f}
@@ -319,7 +390,7 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {filteredUsers.map((u, i) => (
+                      {paginatedUsers.map((u, i) => (
                         <tr key={u.id} className="hover:bg-gray-50/50 transition-colors">
                           <td className="px-5 py-4">
                             <div className="flex items-center gap-3">
@@ -365,8 +436,43 @@ export default function AdminDashboard() {
                 {filteredUsers.length === 0 && (
                   <div className="py-12 text-center text-gray-400">No users found.</div>
                 )}
-                <div className="px-5 py-3 border-t border-gray-100 text-xs text-gray-400">
-                  Showing {filteredUsers.length} of {mockAdminUsers.length} users
+                {/* Pagination */}
+                <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between gap-4 flex-wrap">
+                  <span className="text-xs text-gray-400">
+                    Showing {Math.min((currentPage - 1) * PAGE_SIZE + 1, filteredUsers.length)}–{Math.min(currentPage * PAGE_SIZE, filteredUsers.length)} of {filteredUsers.length} users
+                  </span>
+                  {totalPages > 1 && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                        <button
+                          key={p}
+                          onClick={() => setCurrentPage(p)}
+                          className={cn(
+                            'w-8 h-8 rounded-lg text-xs font-semibold transition-colors',
+                            p === currentPage
+                              ? 'bg-slate-800 text-white'
+                              : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+                          )}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <ChevronRightIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -395,7 +501,7 @@ export default function AdminDashboard() {
                         <p className="text-sm text-gray-500">{item.email} · {item.specialty}</p>
                         <p className="text-sm text-gray-500">{item.experience} experience · Submitted {item.submittedAt}</p>
                         <div className="flex flex-wrap gap-2 mt-3">
-                          {item.documents.map(doc => (
+                          {item.documents.map((doc: string) => (
                             <span key={doc} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-green-100 text-green-700 font-medium">
                               <CheckCircle className="w-3 h-3" /> {doc}
                             </span>

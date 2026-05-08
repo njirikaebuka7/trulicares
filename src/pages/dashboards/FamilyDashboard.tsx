@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell, MessageCircle, User, Settings, LogOut, Plus, MapPin, DollarSign,
   Star, Shield, Check, ChevronRight, Calendar, Clock, CreditCard,
-  FileText, X, Home, LayoutDashboard, Users
+  FileText, X, Home, LayoutDashboard, Users, ChevronLeft, ChevronRight as ChevronRightIcon,
+  Edit3, Camera
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
@@ -12,6 +13,7 @@ import {
   mockCareRequests, mockSchedule, mockPayments
 } from '@/data/mock';
 import { cn } from '@/utils/cn';
+import logoImg from '@/assets/logo.png';
 
 type Tab = 'Overview' | 'My Requests' | 'Matches' | 'Schedule' | 'Messages' | 'Payments' | 'Profile';
 
@@ -49,81 +51,140 @@ export default function FamilyDashboard() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('Overview');
+  const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<string | null>(null);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showAddPayment, setShowAddPayment] = useState(false);
+  const [editName, setEditName] = useState(user?.name || '');
+  const [editPhone, setEditPhone] = useState('(555) 000-1234');
+  const [newCard, setNewCard] = useState({ number: '', expiry: '', cvc: '' });
+  const [notificationsRead, setNotificationsRead] = useState(false);
 
   const handleLogout = () => { logout(); navigate('/'); };
 
   const notifications = [
-    { id: 'n1', text: 'Sarah Johnson accepted your request', time: '10 min ago', read: false },
-    { id: 'n2', text: 'New match found for Senior Care', time: '2 hrs ago', read: false },
-    { id: 'n3', text: 'Upcoming session tomorrow at 8am', time: '1 day ago', read: true },
+    { id: 'n1', text: 'Sarah Johnson accepted your request', time: '10 min ago' },
+    { id: 'n2', text: 'New match found for Senior Care', time: '2 hrs ago' },
+    { id: 'n3', text: 'Upcoming session tomorrow at 8am', time: '1 day ago' },
   ];
-  const unread = notifications.filter(n => !n.read).length;
+  const unread = notificationsRead ? 0 : 2;
   const initials = user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() ?? 'U';
+
+  const openNotifications = () => {
+    setNotifOpen(true);
+    setNotificationsRead(true);
+  };
 
   return (
     <div className="flex bg-gray-50 min-h-screen">
 
       {/* ── LEFT SIDEBAR (desktop) ── */}
-      <aside className="hidden lg:flex flex-col fixed top-16 lg:top-[72px] left-0 bottom-0 w-64 bg-white border-r border-gray-100 z-20">
-        {/* User profile */}
-        <div className="px-5 py-5 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
-              {initials}
-            </div>
-            <div className="min-w-0">
-              <p className="font-semibold text-gray-900 text-sm truncate">{user?.name}</p>
-              <p className="text-xs text-gray-400 truncate">{user?.email}</p>
-            </div>
-          </div>
-          <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-brand-50 text-brand-700 text-xs font-semibold">
-            <Home className="w-3 h-3" /> Family Account
-          </div>
+      <aside className={cn(
+        'hidden lg:flex flex-col fixed top-16 lg:top-[72px] left-0 bottom-0 z-20 transition-all duration-300',
+        collapsed ? 'w-16' : 'w-64',
+        'bg-brand-950'
+      )}>
+        {/* Logo + collapse toggle */}
+        <div className={cn(
+          'flex items-center border-b border-brand-800/60 shrink-0',
+          collapsed ? 'justify-center px-3 py-4' : 'justify-between px-4 py-4'
+        )}>
+          {!collapsed && (
+            <img src={logoImg} alt="TruliCares" className="h-7 w-auto brightness-0 invert opacity-80" />
+          )}
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="w-8 h-8 rounded-lg bg-brand-800/60 hover:bg-brand-700/60 flex items-center justify-center text-brand-300 hover:text-white transition-all shrink-0"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? <ChevronRightIcon className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
         </div>
 
+        {/* User profile */}
+        {!collapsed && (
+          <div className="px-4 py-4 border-b border-brand-800/60">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                {initials}
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-white text-sm truncate">{user?.name}</p>
+                <p className="text-xs text-brand-400 truncate">{user?.email}</p>
+              </div>
+            </div>
+            <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-brand-800/60 text-brand-300 text-xs font-semibold">
+              <Home className="w-3 h-3" /> Family Account
+            </div>
+          </div>
+        )}
+        {collapsed && (
+          <div className="flex justify-center py-3 border-b border-brand-800/60">
+            <div className="w-8 h-8 rounded-xl bg-brand-600 flex items-center justify-center text-white font-bold text-xs">
+              {initials}
+            </div>
+          </div>
+        )}
+
         {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
           {navItems.map(item => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
+              title={collapsed ? item.label : undefined}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
+                'w-full flex items-center rounded-xl text-sm font-medium transition-all',
+                collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5',
                 activeTab === item.id
-                  ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/20'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  ? 'bg-white/10 text-white'
+                  : 'text-brand-300 hover:bg-white/5 hover:text-white'
               )}
             >
-              <span className="shrink-0">{item.icon}</span>
-              <span className="flex-1 text-left">{item.label}</span>
-              {item.badge && (
-                <span className={cn(
-                  'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-                  activeTab === item.id ? 'bg-white/20 text-white' : 'bg-brand-100 text-brand-700'
-                )}>
-                  {item.badge}
-                </span>
+              <span className="shrink-0 relative">
+                {item.icon}
+                {item.badge && collapsed && (
+                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-coral-500 rounded-full text-white text-[8px] flex items-center justify-center font-bold">
+                    {item.badge}
+                  </span>
+                )}
+              </span>
+              {!collapsed && (
+                <>
+                  <span className="flex-1 text-left">{item.label}</span>
+                  {item.badge && (
+                    <span className={cn(
+                      'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
+                      activeTab === item.id ? 'bg-white/20 text-white' : 'bg-coral-500/20 text-coral-300'
+                    )}>
+                      {item.badge}
+                    </span>
+                  )}
+                </>
               )}
             </button>
           ))}
         </nav>
 
         {/* Logout */}
-        <div className="px-3 py-4 border-t border-gray-100">
+        <div className="px-2 py-3 border-t border-brand-800/60">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-colors"
+            title={collapsed ? 'Log Out' : undefined}
+            className={cn(
+              'w-full flex items-center rounded-xl text-sm font-medium text-brand-400 hover:bg-red-500/10 hover:text-red-300 transition-colors',
+              collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'
+            )}
           >
             <LogOut className="w-5 h-5 shrink-0" />
-            Log Out
+            {!collapsed && 'Log Out'}
           </button>
         </div>
       </aside>
 
       {/* ── MAIN CONTENT ── */}
-      <div className="flex-1 lg:ml-64 flex flex-col min-h-screen">
+      <div className={cn('flex-1 flex flex-col min-h-screen transition-all duration-300', collapsed ? 'lg:ml-16' : 'lg:ml-64')}>
 
         {/* Top header */}
         <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between shrink-0">
@@ -133,7 +194,7 @@ export default function FamilyDashboard() {
           <div className="flex items-center gap-1">
             <div className="relative">
               <button
-                onClick={() => setNotifOpen(!notifOpen)}
+                onClick={openNotifications}
                 className="relative w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center"
               >
                 <Bell className="w-5 h-5 text-gray-500" />
@@ -150,7 +211,7 @@ export default function FamilyDashboard() {
                     <button onClick={() => setNotifOpen(false)}><X className="w-4 h-4 text-gray-400" /></button>
                   </div>
                   {notifications.map(n => (
-                    <div key={n.id} className={cn('px-4 py-3 border-b border-gray-50 last:border-0', !n.read && 'bg-brand-50/50')}>
+                    <div key={n.id} className="px-4 py-3 border-b border-gray-50 last:border-0">
                       <p className="text-sm text-gray-800 font-medium">{n.text}</p>
                       <p className="text-xs text-gray-400 mt-0.5">{n.time}</p>
                     </div>
@@ -515,7 +576,7 @@ export default function FamilyDashboard() {
                 </div>
               </div>
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <h3 className="font-bold text-gray-900 mb-4">Payment Method</h3>
+                <h3 className="font-bold text-gray-900 mb-4">Payment Methods</h3>
                 <div className="flex items-center gap-4 p-4 border border-gray-200 rounded-xl">
                   <CreditCard className="w-8 h-8 text-gray-400" />
                   <div>
@@ -524,7 +585,12 @@ export default function FamilyDashboard() {
                   </div>
                   <span className="ml-auto text-xs px-2.5 py-1 bg-green-100 text-green-700 rounded-full font-semibold">Default</span>
                 </div>
-                <Button variant="secondary" size="sm" className="mt-3">+ Add Payment Method</Button>
+                <button
+                  onClick={() => setShowAddPayment(true)}
+                  className="mt-3 text-sm font-semibold text-brand-600 hover:text-brand-700 flex items-center gap-1"
+                >
+                  <Plus className="w-4 h-4" /> Add Payment Method
+                </button>
               </div>
             </div>
           )}
@@ -545,17 +611,21 @@ export default function FamilyDashboard() {
                       <Check className="w-3 h-3" /> Verified Account
                     </span>
                   </div>
-                  <Button variant="secondary" size="sm">Edit Profile</Button>
+                  <Button variant="secondary" size="sm" onClick={() => setShowEditProfile(true)}>
+                    <Edit3 className="w-4 h-4" /> Edit Profile
+                  </Button>
                 </div>
                 <div className="space-y-1">
                   {[
                     { icon: <User className="w-5 h-5" />, label: 'Personal Information' },
                     { icon: <Bell className="w-5 h-5" />, label: 'Notification Preferences' },
                     { icon: <Shield className="w-5 h-5" />, label: 'Privacy & Safety' },
-                    { icon: <CreditCard className="w-5 h-5" />, label: 'Billing & Payments' },
+                    { icon: <CreditCard className="w-5 h-5" />, label: 'Billing & Payments', action: () => setActiveTab('Payments') },
                     { icon: <Settings className="w-5 h-5" />, label: 'Account Settings' },
                   ].map((item, i) => (
-                    <button key={i} className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-gray-50 transition-colors">
+                    <button key={i}
+                      onClick={item.action}
+                      className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-gray-50 transition-colors">
                       <div className="flex items-center gap-3">
                         <span className="text-gray-400">{item.icon}</span>
                         <span className="font-medium text-gray-700">{item.label}</span>
@@ -601,6 +671,101 @@ export default function FamilyDashboard() {
           ))}
         </div>
       </nav>
+
+      {/* ── EDIT PROFILE MODAL ── */}
+      {showEditProfile && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowEditProfile(false)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 text-lg">Edit Profile</h3>
+              <button onClick={() => setShowEditProfile(false)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex justify-center mb-4">
+                <div className="relative">
+                  <div className="w-20 h-20 rounded-2xl bg-brand-600 flex items-center justify-center text-white text-2xl font-bold">
+                    {initials}
+                  </div>
+                  <button className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-brand-600 flex items-center justify-center text-white shadow-md">
+                    <Camera className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
+                <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+                <input type="email" value={user?.email || ''} disabled
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-400 outline-none text-sm cursor-not-allowed" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number</label>
+                <input type="tel" value={editPhone} onChange={e => setEditPhone(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <Button variant="secondary" fullWidth onClick={() => setShowEditProfile(false)}>Cancel</Button>
+                <Button variant="primary" fullWidth onClick={() => setShowEditProfile(false)}>Save Changes</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── ADD PAYMENT METHOD MODAL ── */}
+      {showAddPayment && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowAddPayment(false)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 text-lg">Add Payment Method</h3>
+              <button onClick={() => setShowAddPayment(false)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-gradient-to-br from-brand-600 to-brand-800 rounded-2xl p-5 text-white mb-2">
+                <p className="text-brand-200 text-xs mb-4">Card Number</p>
+                <p className="font-mono text-lg tracking-widest">{newCard.number || '•••• •••• •••• ••••'}</p>
+                <div className="flex justify-between mt-4 text-xs text-brand-200">
+                  <span>{newCard.expiry || 'MM/YY'}</span>
+                  <span>CVV</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Card Number</label>
+                <input type="text" placeholder="1234 5678 9012 3456" maxLength={19}
+                  value={newCard.number} onChange={e => setNewCard(p => ({ ...p, number: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm font-mono" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Expiry Date</label>
+                  <input type="text" placeholder="MM/YY" maxLength={5}
+                    value={newCard.expiry} onChange={e => setNewCard(p => ({ ...p, expiry: e.target.value }))}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">CVV</label>
+                  <input type="text" placeholder="123" maxLength={4}
+                    value={newCard.cvc} onChange={e => setNewCard(p => ({ ...p, cvc: e.target.value }))}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <Button variant="secondary" fullWidth onClick={() => setShowAddPayment(false)}>Cancel</Button>
+                <Button variant="primary" fullWidth onClick={() => setShowAddPayment(false)}>Add Card</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { cn } from '@/utils/cn';
 import { useAuth } from '@/context/AuthContext';
 import Button from '@/components/ui/Button';
 import GetStartedModal from '@/components/ui/GetStartedModal';
+import logoImg from '@/assets/logo.png';
 
 const navLinks = [
   { to: '/', label: 'Home' },
@@ -28,15 +29,8 @@ export default function Navbar() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 lg:h-[72px]">
             {/* Logo */}
-            <Link to="/" className="flex items-center gap-2 shrink-0" onClick={() => setMobileOpen(false)}>
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
-                <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                </svg>
-              </div>
-              <span className="text-xl font-bold text-brand-900 tracking-tight">
-                Truli<span className="text-brand-600">Cares</span>
-              </span>
+            <Link to="/" className="flex items-center shrink-0" onClick={() => setMobileOpen(false)}>
+              <img src={logoImg} alt="TruliCares" className="h-9 w-auto" />
             </Link>
 
             {/* Desktop nav */}
@@ -163,7 +157,6 @@ export default function Navbar() {
         )}
       </nav>
 
-      {/* Get Started Modal */}
       <GetStartedModal open={showGetStarted} onClose={() => setShowGetStarted(false)} />
     </>
   );

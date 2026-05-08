@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, BriefcaseBusiness, Bell, Star, MapPin, Clock } from 'lucide-react';
 import Button from '@/components/ui/Button';
+import logoImg from '@/assets/logo.png';
 
 export default function FinalCTA() {
   const navigate = useNavigate();
@@ -59,7 +60,7 @@ export default function FinalCTA() {
               <div className="bg-gray-900 rounded-[2.5rem] p-3 shadow-2xl shadow-black/40 border border-gray-700">
                 <div className="bg-white rounded-[2rem] overflow-hidden">
                   {/* Status bar */}
-                  <div className="bg-brand-600 px-5 pt-4 pb-3">
+                  <div className="bg-brand-700 px-5 pt-4 pb-3">
                     <div className="flex items-center justify-between text-white text-xs mb-3">
                       <span className="font-medium">9:41</span>
                       <div className="flex gap-1">
@@ -68,10 +69,17 @@ export default function FinalCTA() {
                         <div className="w-6 h-2 bg-white rounded-sm" />
                       </div>
                     </div>
-                    <h3 className="text-white font-bold text-lg">Open Jobs</h3>
-                    <div className="flex gap-3 mt-3">
-                      <div className="px-4 py-1.5 bg-white text-brand-700 rounded-full text-xs font-bold">Open (4)</div>
-                      <div className="px-4 py-1.5 bg-white/20 text-white rounded-full text-xs font-medium">Closed (12)</div>
+                    {/* Logo in phone header */}
+                    <div className="flex items-center justify-between">
+                      <img
+                        src={logoImg}
+                        alt="TruliCares"
+                        className="h-6 w-auto brightness-0 invert"
+                      />
+                      <div className="flex gap-3 mt-1">
+                        <div className="px-3 py-1 bg-white text-brand-700 rounded-full text-[10px] font-bold">Open (4)</div>
+                        <div className="px-3 py-1 bg-white/20 text-white rounded-full text-[10px] font-medium">Closed (12)</div>
+                      </div>
                     </div>
                   </div>
 
@@ -92,7 +100,7 @@ export default function FinalCTA() {
                         <div className="flex items-start justify-between mb-2">
                           <h4 className="font-bold text-gray-900 text-sm">{job.title}</h4>
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${job.color}`}>
-                            {job.applicants} applicants
+                            {job.applicants} applied
                           </span>
                         </div>
                         <div className="flex items-center gap-3 text-xs text-gray-500">

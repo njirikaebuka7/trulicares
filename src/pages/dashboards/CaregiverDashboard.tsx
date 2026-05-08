@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell, MessageCircle, User, Settings, LogOut, MapPin, DollarSign,
   Star, Shield, Check, ChevronRight, Calendar, Clock, TrendingUp,
-  Briefcase, X, CheckCircle, XCircle, Edit3, LayoutDashboard, Users
+  Briefcase, X, CheckCircle, XCircle, Edit3, LayoutDashboard, Users,
+  ChevronLeft, ChevronRight as ChevronRightIcon, Camera, Upload
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
@@ -12,6 +13,7 @@ import {
   mockCaregiverReviews, mockCaregiverSchedule
 } from '@/data/mock';
 import { cn } from '@/utils/cn';
+import logoImg from '@/assets/logo.png';
 
 type Tab = 'Overview' | 'Job Requests' | 'My Clients' | 'Schedule' | 'Earnings' | 'Reviews' | 'Profile';
 
@@ -31,86 +33,156 @@ export default function CaregiverDashboard() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('Overview');
+  const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [notificationsRead, setNotificationsRead] = useState(false);
   const [jobStatuses, setJobStatuses] = useState<Record<string, 'accepted' | 'declined' | null>>({});
   const [availabilityStatus, setAvailabilityStatus] = useState<'available' | 'busy' | 'away'>('available');
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const handleLogout = () => { logout(); navigate('/'); };
   const handleJob = (id: string, action: 'accepted' | 'declined') =>
     setJobStatuses(prev => ({ ...prev, [id]: action }));
 
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) setPhotoUrl(URL.createObjectURL(file));
+  };
+
   const maxEarning = Math.max(...mockEarnings.weeklyBreakdown.map(d => d.amount), 1);
   const initials = user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() ?? 'C';
+  const unread = notificationsRead ? 0 : 2;
 
-  const accentActive = 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/20';
-  const accentBadge = 'bg-emerald-100 text-emerald-700';
+  const openNotifications = () => {
+    setNotifOpen(true);
+    setNotificationsRead(true);
+  };
 
   return (
     <div className="flex bg-gray-50 min-h-screen">
 
       {/* ── LEFT SIDEBAR (desktop) ── */}
-      <aside className="hidden lg:flex flex-col fixed top-16 lg:top-[72px] left-0 bottom-0 w-64 bg-white border-r border-gray-100 z-20">
-        {/* User profile */}
-        <div className="px-5 py-5 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
-              {initials}
-            </div>
-            <div className="min-w-0">
-              <p className="font-semibold text-gray-900 text-sm truncate">{user?.name}</p>
-              <p className="text-xs text-gray-400 truncate">{user?.email}</p>
-            </div>
-          </div>
-          <div className="mt-3 flex items-center gap-2">
-            <div className={cn('w-2 h-2 rounded-full shrink-0',
-              availabilityStatus === 'available' ? 'bg-green-400' :
-              availabilityStatus === 'busy' ? 'bg-amber-400' : 'bg-gray-400')} />
-            <select
-              value={availabilityStatus}
-              onChange={e => setAvailabilityStatus(e.target.value as typeof availabilityStatus)}
-              className="text-xs font-medium text-gray-600 bg-transparent border-none outline-none cursor-pointer"
-            >
-              <option value="available">Available</option>
-              <option value="busy">Busy</option>
-              <option value="away">Away</option>
-            </select>
-          </div>
+      <aside className={cn(
+        'hidden lg:flex flex-col fixed top-16 lg:top-[72px] left-0 bottom-0 z-20 transition-all duration-300',
+        collapsed ? 'w-16' : 'w-64',
+        'bg-emerald-950'
+      )}>
+        {/* Logo + collapse toggle */}
+        <div className={cn(
+          'flex items-center border-b border-emerald-800/60 shrink-0',
+          collapsed ? 'justify-center px-3 py-4' : 'justify-between px-4 py-4'
+        )}>
+          {!collapsed && (
+            <img src={logoImg} alt="TruliCares" className="h-7 w-auto brightness-0 invert opacity-80" />
+          )}
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="w-8 h-8 rounded-lg bg-emerald-800/60 hover:bg-emerald-700/60 flex items-center justify-center text-emerald-300 hover:text-white transition-all shrink-0"
+          >
+            {collapsed ? <ChevronRightIcon className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
         </div>
 
+        {/* User profile */}
+        {!collapsed ? (
+          <div className="px-4 py-4 border-b border-emerald-800/60">
+            <div className="flex items-center gap-3">
+              {photoUrl ? (
+                <img src={photoUrl} alt="Profile" className="w-9 h-9 rounded-xl object-cover shrink-0" />
+              ) : (
+                <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                  {initials}
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="font-semibold text-white text-sm truncate">{user?.name}</p>
+                <p className="text-xs text-emerald-400 truncate">{user?.email}</p>
+              </div>
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <div className={cn('w-2 h-2 rounded-full shrink-0',
+                availabilityStatus === 'available' ? 'bg-green-400' :
+                availabilityStatus === 'busy' ? 'bg-amber-400' : 'bg-gray-400')} />
+              <select
+                value={availabilityStatus}
+                onChange={e => setAvailabilityStatus(e.target.value as typeof availabilityStatus)}
+                className="text-xs font-medium text-emerald-300 bg-transparent border-none outline-none cursor-pointer"
+              >
+                <option value="available">Available</option>
+                <option value="busy">Busy</option>
+                <option value="away">Away</option>
+              </select>
+            </div>
+          </div>
+        ) : (
+          <div className="flex justify-center py-3 border-b border-emerald-800/60">
+            {photoUrl ? (
+              <img src={photoUrl} alt="Profile" className="w-8 h-8 rounded-xl object-cover" />
+            ) : (
+              <div className="w-8 h-8 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-bold text-xs">
+                {initials}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
           {navItems.map(item => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
+              title={collapsed ? item.label : undefined}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
-                activeTab === item.id ? accentActive : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                'w-full flex items-center rounded-xl text-sm font-medium transition-all',
+                collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5',
+                activeTab === item.id
+                  ? 'bg-white/10 text-white'
+                  : 'text-emerald-300 hover:bg-white/5 hover:text-white'
               )}
             >
-              <span className="shrink-0">{item.icon}</span>
-              <span className="flex-1 text-left">{item.label}</span>
-              {item.badge && (
-                <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-                  activeTab === item.id ? 'bg-white/20 text-white' : accentBadge)}>
-                  {item.badge}
-                </span>
+              <span className="shrink-0 relative">
+                {item.icon}
+                {item.badge && collapsed && (
+                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-coral-500 rounded-full text-white text-[8px] flex items-center justify-center font-bold">
+                    {item.badge}
+                  </span>
+                )}
+              </span>
+              {!collapsed && (
+                <>
+                  <span className="flex-1 text-left">{item.label}</span>
+                  {item.badge && (
+                    <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-full',
+                      activeTab === item.id ? 'bg-white/20 text-white' : 'bg-coral-500/20 text-coral-300')}>
+                      {item.badge}
+                    </span>
+                  )}
+                </>
               )}
             </button>
           ))}
         </nav>
 
         {/* Logout */}
-        <div className="px-3 py-4 border-t border-gray-100">
-          <button onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-colors">
-            <LogOut className="w-5 h-5 shrink-0" /> Log Out
+        <div className="px-2 py-3 border-t border-emerald-800/60">
+          <button
+            onClick={handleLogout}
+            title={collapsed ? 'Log Out' : undefined}
+            className={cn(
+              'w-full flex items-center rounded-xl text-sm font-medium text-emerald-400 hover:bg-red-500/10 hover:text-red-300 transition-colors',
+              collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'
+            )}
+          >
+            <LogOut className="w-5 h-5 shrink-0" />
+            {!collapsed && 'Log Out'}
           </button>
         </div>
       </aside>
 
       {/* ── MAIN CONTENT ── */}
-      <div className="flex-1 lg:ml-64 flex flex-col min-h-screen">
+      <div className={cn('flex-1 flex flex-col min-h-screen transition-all duration-300', collapsed ? 'lg:ml-16' : 'lg:ml-64')}>
 
         {/* Top header */}
         <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between shrink-0">
@@ -119,10 +191,12 @@ export default function CaregiverDashboard() {
           </h1>
           <div className="flex items-center gap-2">
             <div className="relative">
-              <button onClick={() => setNotifOpen(!notifOpen)}
+              <button onClick={openNotifications}
                 className="relative w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center">
                 <Bell className="w-5 h-5 text-gray-500" />
-                <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-coral-500 rounded-full text-white text-[10px] flex items-center justify-center font-bold">2</span>
+                {unread > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-coral-500 rounded-full text-white text-[10px] flex items-center justify-center font-bold">{unread}</span>
+                )}
               </button>
               {notifOpen && (
                 <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50">
@@ -131,11 +205,11 @@ export default function CaregiverDashboard() {
                     <button onClick={() => setNotifOpen(false)}><X className="w-4 h-4 text-gray-400" /></button>
                   </div>
                   {[
-                    { text: '2 new job requests match your profile', time: '30 min ago', unread: true },
-                    { text: 'Johnson Family left you a 5-star review', time: '3 hrs ago', unread: true },
-                    { text: 'Weekly payout of $540 processed', time: '2 days ago', unread: false },
+                    { text: '2 new job requests match your profile', time: '30 min ago' },
+                    { text: 'Johnson Family left you a 5-star review', time: '3 hrs ago' },
+                    { text: 'Weekly payout of $540 processed', time: '2 days ago' },
                   ].map((n, i) => (
-                    <div key={i} className={cn('px-4 py-3 border-b border-gray-50 last:border-0', n.unread && 'bg-emerald-50/40')}>
+                    <div key={i} className="px-4 py-3 border-b border-gray-50 last:border-0">
                       <p className="text-sm text-gray-800 font-medium">{n.text}</p>
                       <p className="text-xs text-gray-400 mt-0.5">{n.time}</p>
                     </div>
@@ -484,8 +558,27 @@ export default function CaregiverDashboard() {
               <h2 className="text-xl font-bold text-gray-900">Profile & Settings</h2>
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                 <div className="flex items-center gap-5 mb-6 pb-6 border-b border-gray-100">
-                  <div className="w-20 h-20 rounded-2xl bg-emerald-600 flex items-center justify-center text-white text-2xl font-bold shrink-0">
-                    {initials}
+                  <div className="relative shrink-0">
+                    {photoUrl ? (
+                      <img src={photoUrl} alt="Profile" className="w-20 h-20 rounded-2xl object-cover" />
+                    ) : (
+                      <div className="w-20 h-20 rounded-2xl bg-emerald-600 flex items-center justify-center text-white text-2xl font-bold">
+                        {initials}
+                      </div>
+                    )}
+                    <button
+                      onClick={() => photoInputRef.current?.click()}
+                      className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white shadow-md hover:bg-emerald-700 transition-colors"
+                    >
+                      <Camera className="w-4 h-4" />
+                    </button>
+                    <input
+                      ref={photoInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handlePhotoChange}
+                    />
                   </div>
                   <div className="flex-1">
                     <h2 className="text-xl font-bold text-gray-900">{user?.name || 'Caregiver'}</h2>
