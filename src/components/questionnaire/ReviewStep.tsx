@@ -1,7 +1,9 @@
 import { ArrowLeft, Edit2, CheckCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import Button from '@/components/ui/Button';
 import type { CareCategory } from '@/types';
 import { careCategoryLabels } from '@/data/mock';
+import logoImg from '@/assets/logo.png';
 
 interface Props {
   careCategory: CareCategory;
@@ -10,8 +12,17 @@ interface Props {
   onBack: () => void;
 }
 
+function formatAge(years: number): string {
+  if (years === 0) return 'Under 1 year';
+  if (years === 1) return '1 year';
+  return `${years} years`;
+}
+
 export default function ReviewStep({ careCategory, careData, onSubmit, onBack }: Props) {
-  const formatValue = (_key: string, value: unknown): string => {
+  const formatValue = (key: string, value: unknown): string => {
+    if (key === 'childAges' && Array.isArray(value)) {
+      return value.map(a => formatAge(Number(a))).join(', ');
+    }
     if (Array.isArray(value)) return value.join(', ');
     if (typeof value === 'boolean') return value ? 'Yes' : 'No';
     if (value === null) return 'Not specified';
@@ -78,8 +89,8 @@ export default function ReviewStep({ careCategory, careData, onSubmit, onBack }:
           >
             <ArrowLeft className="w-5 h-5 text-gray-600" />
           </button>
-          <div className="flex-1 text-center">
-            <span className="text-sm font-medium text-gray-500">Review & Submit</span>
+          <div className="flex-1 flex justify-center">
+            <Link to="/"><img src={logoImg} alt="TruliCares" className="h-6 w-auto" /></Link>
           </div>
           <div className="w-10" />
         </div>

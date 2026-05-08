@@ -16,6 +16,7 @@ export const mockCaregivers: CaregiverProfile[] = [
     backgroundChecked: true,
     yearsExperience: 8,
     availability: 'Full-time',
+    photoUrl: 'https://randomuser.me/api/portraits/women/65.jpg',
   },
   {
     id: 'cg2',
@@ -32,6 +33,7 @@ export const mockCaregivers: CaregiverProfile[] = [
     backgroundChecked: true,
     yearsExperience: 12,
     availability: 'Part-time',
+    photoUrl: 'https://randomuser.me/api/portraits/women/44.jpg',
   },
   {
     id: 'cg3',
@@ -48,6 +50,7 @@ export const mockCaregivers: CaregiverProfile[] = [
     backgroundChecked: false,
     yearsExperience: 6,
     availability: 'Full-time',
+    photoUrl: 'https://randomuser.me/api/portraits/men/32.jpg',
   },
   {
     id: 'cg4',
@@ -64,6 +67,7 @@ export const mockCaregivers: CaregiverProfile[] = [
     backgroundChecked: true,
     yearsExperience: 10,
     availability: 'Flexible',
+    photoUrl: 'https://randomuser.me/api/portraits/women/74.jpg',
   },
   {
     id: 'cg5',
@@ -78,6 +82,7 @@ export const mockCaregivers: CaregiverProfile[] = [
     location: 'Hoboken, NJ',
     verified: true,
     backgroundChecked: true,
+    photoUrl: 'https://randomuser.me/api/portraits/women/47.jpg',
     yearsExperience: 4,
     availability: 'Evenings & Weekends',
   },
@@ -96,6 +101,7 @@ export const mockCaregivers: CaregiverProfile[] = [
     backgroundChecked: false,
     yearsExperience: 9,
     availability: 'Full-time',
+    photoUrl: 'https://randomuser.me/api/portraits/men/62.jpg',
   },
   {
     id: 'cg7',
@@ -112,6 +118,7 @@ export const mockCaregivers: CaregiverProfile[] = [
     backgroundChecked: false,
     yearsExperience: 7,
     availability: 'Weekdays',
+    photoUrl: 'https://randomuser.me/api/portraits/women/89.jpg',
   },
 ];
 

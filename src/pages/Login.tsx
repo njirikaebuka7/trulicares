@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Shield, Heart, Check } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Shield, Check } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
 import GetStartedModal from '@/components/ui/GetStartedModal';
+import logoImg from '@/assets/logo.png';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -38,19 +39,13 @@ export default function Login() {
       <div className="min-h-screen flex">
         {/* Left - branding panel (hidden on mobile) */}
         <div className="hidden lg:flex lg:w-[45%] bg-gradient-to-br from-brand-900 via-brand-800 to-brand-950 relative overflow-hidden flex-col justify-between p-12">
-          {/* Decorative orbs */}
           <div className="absolute top-20 -left-10 w-72 h-72 bg-brand-500/15 rounded-full blur-3xl" />
           <div className="absolute bottom-20 right-0 w-60 h-60 bg-coral-500/10 rounded-full blur-3xl" />
           <div className="absolute top-1/2 left-1/3 w-40 h-40 bg-warm-400/8 rounded-full blur-3xl" />
 
           <div className="relative">
-            <Link to="/" className="flex items-center gap-2 mb-16">
-              <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center">
-                <Heart className="w-5 h-5 text-white" fill="white" />
-              </div>
-              <span className="text-xl font-bold text-white tracking-tight">
-                Truli<span className="text-brand-300">Cares</span>
-              </span>
+            <Link to="/" className="flex items-center mb-16">
+              <img src={logoImg} alt="TruliCares" className="h-9 w-auto brightness-0 invert opacity-90" />
             </Link>
 
             <h1 className="text-4xl xl:text-5xl font-bold text-white leading-tight mb-6">
@@ -84,13 +79,8 @@ export default function Login() {
         <div className="flex-1 flex flex-col">
           {/* Mobile header */}
           <div className="lg:hidden px-6 pt-6">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
-                <Heart className="w-5 h-5 text-white" fill="white" />
-              </div>
-              <span className="text-xl font-bold text-brand-900 tracking-tight">
-                Truli<span className="text-brand-600">Cares</span>
-              </span>
+            <Link to="/">
+              <img src={logoImg} alt="TruliCares" className="h-8 w-auto" />
             </Link>
           </div>
 
@@ -195,7 +185,6 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Get Started Modal */}
       <GetStartedModal open={showGetStarted} onClose={() => setShowGetStarted(false)} />
     </>
   );

@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { ArrowLeft, Lock, Check, ExternalLink, ShieldCheck, CreditCard, Zap } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import Button from '@/components/ui/Button';
 import { mockMatches } from '@/data/mock';
 import { cn } from '@/utils/cn';
+import logoImg from '@/assets/logo.png';
 
 interface Props {
   matchId: string;
@@ -25,18 +27,12 @@ export default function PaymentStep({ matchId, onComplete, onBack }: Props) {
   const caregiver = match?.caregiver;
 
   const handleStripeCheckout = async () => {
-    // Step 1: Simulate redirect to Stripe
     setState('redirecting');
     await new Promise(r => setTimeout(r, 1800));
-
-    // Step 2: Simulate Stripe payment processing
     setState('processing');
     await new Promise(r => setTimeout(r, 1600));
-
-    // Step 3: Simulate successful return from Stripe
     setState('success');
     await new Promise(r => setTimeout(r, 1000));
-
     onComplete();
   };
 
@@ -44,7 +40,6 @@ export default function PaymentStep({ matchId, onComplete, onBack }: Props) {
     return (
       <div className="min-h-screen bg-[#635BFF] flex flex-col items-center justify-center px-4 text-white">
         <div className="text-center space-y-6 max-w-sm">
-          {/* Stripe logo simulation */}
           <div className="flex items-center justify-center gap-2 mb-2">
             <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
               <svg viewBox="0 0 28 28" className="w-6 h-6" fill="none">
@@ -71,10 +66,10 @@ export default function PaymentStep({ matchId, onComplete, onBack }: Props) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center px-4">
         <div className="text-center space-y-5 max-w-sm">
-          <div className="w-16 h-16 bg-[#635BFF]/10 rounded-2xl flex items-center justify-center mx-auto">
-            <CreditCard className="w-8 h-8 text-[#635BFF]" />
+          <div className="w-16 h-16 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto">
+            <CreditCard className="w-8 h-8 text-brand-600" />
           </div>
-          <div className="w-10 h-10 border-4 border-gray-200 border-t-[#635BFF] rounded-full animate-spin mx-auto" />
+          <div className="w-10 h-10 border-4 border-gray-200 border-t-brand-600 rounded-full animate-spin mx-auto" />
           <div>
             <p className="text-lg font-bold text-gray-900">Processing payment…</p>
             <p className="text-gray-500 text-sm mt-1">Please don't close this window.</p>
@@ -95,8 +90,8 @@ export default function PaymentStep({ matchId, onComplete, onBack }: Props) {
           >
             <ArrowLeft className="w-5 h-5 text-gray-600" />
           </button>
-          <div className="flex-1 text-center">
-            <span className="text-sm font-semibold text-gray-700">Unlock Connection</span>
+          <div className="flex-1 flex justify-center">
+            <Link to="/"><img src={logoImg} alt="TruliCares" className="h-6 w-auto" /></Link>
           </div>
           <div className="w-10" />
         </div>
@@ -118,9 +113,13 @@ export default function PaymentStep({ matchId, onComplete, onBack }: Props) {
 
         {/* Caregiver card */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-coral-400 flex items-center justify-center text-white font-bold text-lg shrink-0">
-            {caregiver?.name?.split(' ').map(n => n[0]).join('') ?? '?'}
-          </div>
+          {caregiver?.photoUrl ? (
+            <img src={caregiver.photoUrl} alt={caregiver.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
+          ) : (
+            <div className="w-14 h-14 rounded-xl bg-coral-400 flex items-center justify-center text-white font-bold text-lg shrink-0">
+              {caregiver?.name?.split(' ').map(n => n[0]).join('') ?? '?'}
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <p className="font-bold text-gray-900">{caregiver?.name}</p>
             <p className="text-sm text-gray-500">{caregiver?.availability} · {caregiver?.location}</p>
@@ -188,8 +187,8 @@ export default function PaymentStep({ matchId, onComplete, onBack }: Props) {
             className={cn(
               'w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-bold text-white text-base transition-all duration-200 shadow-lg',
               state !== 'idle'
-                ? 'bg-[#635BFF]/50 cursor-not-allowed'
-                : 'bg-[#635BFF] hover:bg-[#5851e6] shadow-[#635BFF]/30 active:scale-[0.98]'
+                ? 'bg-brand-400 cursor-not-allowed'
+                : 'bg-brand-600 hover:bg-brand-700 shadow-brand-600/30 active:scale-[0.98]'
             )}
           >
             <svg viewBox="0 0 28 28" className="w-5 h-5 shrink-0" fill="none">

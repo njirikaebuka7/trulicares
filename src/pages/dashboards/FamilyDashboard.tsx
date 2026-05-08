@@ -60,6 +60,9 @@ export default function FamilyDashboard() {
   const [editPhone, setEditPhone] = useState('(555) 000-1234');
   const [newCard, setNewCard] = useState({ number: '', expiry: '', cvc: '' });
   const [notificationsRead, setNotificationsRead] = useState(false);
+  const [profileModal, setProfileModal] = useState<null | 'personal' | 'notifications' | 'privacy' | 'account'>(null);
+  const [notifPrefs, setNotifPrefs] = useState({ email: true, sms: true, push: false, marketing: false });
+  const [privacyPrefs, setPrivacyPrefs] = useState({ profileVisible: true, shareActivity: false, dataAnalytics: true });
 
   const handleLogout = () => { logout(); navigate('/'); };
 
@@ -400,9 +403,13 @@ export default function FamilyDashboard() {
               {mockMatches.map((match, i) => (
                 <div key={match.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                   <div className="flex items-start gap-4">
-                    <div className={cn('w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0', avatarColors[i % avatarColors.length])}>
-                      {match.caregiver.name.split(' ').map(n => n[0]).join('')}
-                    </div>
+                    {match.caregiver.photoUrl ? (
+                      <img src={match.caregiver.photoUrl} alt={match.caregiver.name} className="w-14 h-14 rounded-2xl object-cover shrink-0" />
+                    ) : (
+                      <div className={cn('w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0', avatarColors[i % avatarColors.length])}>
+                        {match.caregiver.name.split(' ').map(n => n[0]).join('')}
+                      </div>
+                    )}
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-bold text-gray-900">{match.caregiver.name}</h3>
@@ -489,13 +496,24 @@ export default function FamilyDashboard() {
               {selectedMessage ? (
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
                   <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
-                    <button onClick={() => setSelectedMessage(null)} className="text-sm text-brand-600 hover:underline">← Back</button>
-                    <div className={cn('w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs', avatarColors[0])}>SJ</div>
-                    <span className="font-semibold text-gray-900">Sarah Johnson</span>
+                    <button onClick={() => setSelectedMessage(null)} className="text-sm text-brand-600 hover:underline font-medium">← Back</button>
+                    {mockCaregivers[0].photoUrl ? (
+                      <img src={mockCaregivers[0].photoUrl} alt="Sarah Johnson" className="w-9 h-9 rounded-full object-cover" />
+                    ) : (
+                      <div className={cn('w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs', avatarColors[0])}>SJ</div>
+                    )}
+                    <div>
+                      <span className="font-semibold text-gray-900 block">Sarah Johnson</span>
+                      <span className="text-xs text-green-600">● Online</span>
+                    </div>
                   </div>
                   <div className="px-5 py-6 space-y-4 min-h-64">
                     <div className="flex gap-3">
-                      <div className={cn('w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0', avatarColors[0])}>SJ</div>
+                      {mockCaregivers[0].photoUrl ? (
+                        <img src={mockCaregivers[0].photoUrl} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
+                      ) : (
+                        <div className={cn('w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0', avatarColors[0])}>SJ</div>
+                      )}
                       <div className="bg-gray-100 rounded-2xl rounded-tl-none px-4 py-2.5 max-w-sm">
                         <p className="text-sm text-gray-800">Hi! Thank you for reaching out. I'd love to learn more about your family's needs.</p>
                         <p className="text-xs text-gray-400 mt-1">2:30 PM</p>
@@ -509,7 +527,7 @@ export default function FamilyDashboard() {
                     </div>
                   </div>
                   <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
-                    <input type="text" placeholder="Type a message…" className="flex-1 border border-gray-200 rounded-full px-4 py-2 text-sm outline-none focus:border-brand-400" />
+                    <input type="text" placeholder="Type a message…" className="flex-1 border border-gray-200 rounded-full px-4 py-2.5 text-sm outline-none focus:border-brand-400" />
                     <Button variant="primary" size="sm">Send</Button>
                   </div>
                 </div>
@@ -517,8 +535,15 @@ export default function FamilyDashboard() {
                 mockCaregivers.slice(0, 3).map((cg, i) => (
                   <div key={cg.id} onClick={() => setSelectedMessage(cg.id)}
                     className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4 cursor-pointer hover:border-brand-200 hover:shadow-md transition-all">
-                    <div className={cn('w-12 h-12 rounded-full flex items-center justify-center text-white font-bold shrink-0', avatarColors[i % avatarColors.length])}>
-                      {cg.name.split(' ').map(n => n[0]).join('')}
+                    <div className="relative shrink-0">
+                      {cg.photoUrl ? (
+                        <img src={cg.photoUrl} alt={cg.name} className="w-12 h-12 rounded-full object-cover" />
+                      ) : (
+                        <div className={cn('w-12 h-12 rounded-full flex items-center justify-center text-white font-bold', avatarColors[i % avatarColors.length])}>
+                          {cg.name.split(' ').map(n => n[0]).join('')}
+                        </div>
+                      )}
+                      {i === 0 && <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full" />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-0.5">
@@ -599,10 +624,19 @@ export default function FamilyDashboard() {
           {activeTab === 'Profile' && (
             <div className="space-y-5 max-w-2xl">
               <h2 className="text-xl font-bold text-gray-900">Profile & Settings</h2>
+              {/* Profile header card */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                 <div className="flex items-center gap-5 mb-6 pb-6 border-b border-gray-100">
-                  <div className="w-20 h-20 rounded-2xl bg-brand-600 flex items-center justify-center text-white text-2xl font-bold shrink-0">
-                    {initials}
+                  <div className="relative shrink-0">
+                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-2xl font-bold">
+                      {initials}
+                    </div>
+                    <button
+                      onClick={() => setShowEditProfile(true)}
+                      className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-brand-600 flex items-center justify-center text-white shadow-md hover:bg-brand-700 transition-colors"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                   <div className="flex-1">
                     <h2 className="text-xl font-bold text-gray-900">{user?.name || 'User'}</h2>
@@ -612,31 +646,53 @@ export default function FamilyDashboard() {
                     </span>
                   </div>
                   <Button variant="secondary" size="sm" onClick={() => setShowEditProfile(true)}>
-                    <Edit3 className="w-4 h-4" /> Edit Profile
+                    <Edit3 className="w-4 h-4" /> Edit
                   </Button>
                 </div>
+
+                {/* Quick info */}
+                <div className="grid grid-cols-2 gap-3 mb-6">
+                  {[
+                    { label: 'Member since', value: 'Jan 2026' },
+                    { label: 'Care requests', value: '2 active' },
+                    { label: 'Matches found', value: '3 caregivers' },
+                    { label: 'Sessions booked', value: '12 total' },
+                  ].map((f, i) => (
+                    <div key={i} className="p-3 rounded-xl bg-gray-50">
+                      <p className="text-xs text-gray-400 mb-0.5">{f.label}</p>
+                      <p className="font-semibold text-gray-900 text-sm">{f.value}</p>
+                    </div>
+                  ))}
+                </div>
+
                 <div className="space-y-1">
                   {[
-                    { icon: <User className="w-5 h-5" />, label: 'Personal Information' },
-                    { icon: <Bell className="w-5 h-5" />, label: 'Notification Preferences' },
-                    { icon: <Shield className="w-5 h-5" />, label: 'Privacy & Safety' },
-                    { icon: <CreditCard className="w-5 h-5" />, label: 'Billing & Payments', action: () => setActiveTab('Payments') },
-                    { icon: <Settings className="w-5 h-5" />, label: 'Account Settings' },
+                    { icon: <User className="w-5 h-5" />, label: 'Personal Information', sub: 'Update name, phone & address', action: () => setProfileModal('personal') },
+                    { icon: <Bell className="w-5 h-5" />, label: 'Notification Preferences', sub: 'Email, SMS & push alerts', action: () => setProfileModal('notifications') },
+                    { icon: <Shield className="w-5 h-5" />, label: 'Privacy & Safety', sub: 'Visibility & data controls', action: () => setProfileModal('privacy') },
+                    { icon: <CreditCard className="w-5 h-5" />, label: 'Billing & Payments', sub: 'Cards, history & invoices', action: () => setActiveTab('Payments') },
+                    { icon: <Settings className="w-5 h-5" />, label: 'Account Settings', sub: 'Password, language & timezone', action: () => setProfileModal('account') },
                   ].map((item, i) => (
                     <button key={i}
                       onClick={item.action}
-                      className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-gray-50 transition-colors">
+                      className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-gray-50 transition-colors group">
                       <div className="flex items-center gap-3">
-                        <span className="text-gray-400">{item.icon}</span>
-                        <span className="font-medium text-gray-700">{item.label}</span>
+                        <span className="text-gray-400 group-hover:text-brand-500 transition-colors">{item.icon}</span>
+                        <div className="text-left">
+                          <p className="font-medium text-gray-800">{item.label}</p>
+                          <p className="text-xs text-gray-400">{item.sub}</p>
+                        </div>
                       </div>
-                      <ChevronRight className="w-5 h-5 text-gray-300" />
+                      <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-brand-400 transition-colors" />
                     </button>
                   ))}
-                  <button onClick={handleLogout} className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-red-50 transition-colors text-red-600 mt-2">
+                  <button onClick={handleLogout} className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-red-50 transition-colors text-red-600 mt-2 group">
                     <div className="flex items-center gap-3">
                       <LogOut className="w-5 h-5" />
-                      <span className="font-medium">Log Out</span>
+                      <div className="text-left">
+                        <p className="font-medium">Log Out</p>
+                        <p className="text-xs text-red-400">Sign out of your account</p>
+                      </div>
                     </div>
                     <ChevronRight className="w-5 h-5 text-red-300" />
                   </button>
@@ -712,6 +768,158 @@ export default function FamilyDashboard() {
               <div className="flex gap-3 pt-2">
                 <Button variant="secondary" fullWidth onClick={() => setShowEditProfile(false)}>Cancel</Button>
                 <Button variant="primary" fullWidth onClick={() => setShowEditProfile(false)}>Save Changes</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── PERSONAL INFO MODAL ── */}
+      {profileModal === 'personal' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setProfileModal(null)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 text-lg">Personal Information</h3>
+              <button onClick={() => setProfileModal(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><X className="w-4 h-4 text-gray-500" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              {[
+                { label: 'Full Name', value: user?.name || '', type: 'text', placeholder: 'Your full name' },
+                { label: 'Email Address', value: user?.email || '', type: 'email', placeholder: 'your@email.com' },
+                { label: 'Phone Number', value: '(555) 000-1234', type: 'tel', placeholder: '(555) 000-0000' },
+                { label: 'Address', value: 'Brooklyn, NY 11201', type: 'text', placeholder: 'Your address' },
+              ].map((f, i) => (
+                <div key={i}>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">{f.label}</label>
+                  <input type={f.type} defaultValue={f.value} placeholder={f.placeholder}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+                </div>
+              ))}
+              <div className="flex gap-3 pt-2">
+                <Button variant="secondary" fullWidth onClick={() => setProfileModal(null)}>Cancel</Button>
+                <Button variant="primary" fullWidth onClick={() => setProfileModal(null)}>Save Changes</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── NOTIFICATION PREFERENCES MODAL ── */}
+      {profileModal === 'notifications' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setProfileModal(null)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 text-lg">Notification Preferences</h3>
+              <button onClick={() => setProfileModal(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><X className="w-4 h-4 text-gray-500" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              {[
+                { key: 'email' as const, label: 'Email Notifications', sub: 'Match updates, messages & invoices' },
+                { key: 'sms' as const, label: 'SMS / Text Alerts', sub: 'Session reminders & urgent updates' },
+                { key: 'push' as const, label: 'Push Notifications', sub: 'Real-time alerts on your device' },
+                { key: 'marketing' as const, label: 'Marketing & Tips', sub: 'Care tips, promotions & news' },
+              ].map(item => (
+                <div key={item.key} className="flex items-center justify-between py-2">
+                  <div>
+                    <p className="font-medium text-gray-800 text-sm">{item.label}</p>
+                    <p className="text-xs text-gray-400">{item.sub}</p>
+                  </div>
+                  <button
+                    onClick={() => setNotifPrefs(p => ({ ...p, [item.key]: !p[item.key] }))}
+                    className={cn('w-12 h-6 rounded-full transition-colors relative shrink-0',
+                      notifPrefs[item.key] ? 'bg-brand-500' : 'bg-gray-200')}
+                  >
+                    <span className={cn('absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform',
+                      notifPrefs[item.key] ? 'translate-x-6' : 'translate-x-0.5')} />
+                  </button>
+                </div>
+              ))}
+              <Button variant="primary" fullWidth onClick={() => setProfileModal(null)} className="mt-2">Save Preferences</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── PRIVACY MODAL ── */}
+      {profileModal === 'privacy' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setProfileModal(null)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 text-lg">Privacy & Safety</h3>
+              <button onClick={() => setProfileModal(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><X className="w-4 h-4 text-gray-500" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              {[
+                { key: 'profileVisible' as const, label: 'Profile Visible to Caregivers', sub: 'Caregivers can see your family profile' },
+                { key: 'shareActivity' as const, label: 'Share Activity Data', sub: 'Help improve matching accuracy' },
+                { key: 'dataAnalytics' as const, label: 'Analytics & Performance', sub: 'Allow anonymized usage analytics' },
+              ].map(item => (
+                <div key={item.key} className="flex items-center justify-between py-2">
+                  <div>
+                    <p className="font-medium text-gray-800 text-sm">{item.label}</p>
+                    <p className="text-xs text-gray-400">{item.sub}</p>
+                  </div>
+                  <button
+                    onClick={() => setPrivacyPrefs(p => ({ ...p, [item.key]: !p[item.key] }))}
+                    className={cn('w-12 h-6 rounded-full transition-colors relative shrink-0',
+                      privacyPrefs[item.key] ? 'bg-brand-500' : 'bg-gray-200')}
+                  >
+                    <span className={cn('absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform',
+                      privacyPrefs[item.key] ? 'translate-x-6' : 'translate-x-0.5')} />
+                  </button>
+                </div>
+              ))}
+              <div className="pt-2 border-t border-gray-100">
+                <button className="text-sm text-red-500 font-medium hover:underline">Request account deletion</button>
+              </div>
+              <Button variant="primary" fullWidth onClick={() => setProfileModal(null)}>Save Settings</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── ACCOUNT SETTINGS MODAL ── */}
+      {profileModal === 'account' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setProfileModal(null)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 text-lg">Account Settings</h3>
+              <button onClick={() => setProfileModal(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><X className="w-4 h-4 text-gray-500" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">New Password</label>
+                <input type="password" placeholder="Enter new password"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirm Password</label>
+                <input type="password" placeholder="Confirm new password"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Language</label>
+                <select className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none text-sm bg-white">
+                  <option>English (US)</option>
+                  <option>Spanish</option>
+                  <option>French</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Timezone</label>
+                <select className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none text-sm bg-white">
+                  <option>Eastern Time (ET)</option>
+                  <option>Central Time (CT)</option>
+                  <option>Pacific Time (PT)</option>
+                </select>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <Button variant="secondary" fullWidth onClick={() => setProfileModal(null)}>Cancel</Button>
+                <Button variant="primary" fullWidth onClick={() => setProfileModal(null)}>Save Changes</Button>
               </div>
             </div>
           </div>

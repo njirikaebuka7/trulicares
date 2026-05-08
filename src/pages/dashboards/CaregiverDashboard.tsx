@@ -4,7 +4,7 @@ import {
   Bell, MessageCircle, User, Settings, LogOut, MapPin, DollarSign,
   Star, Shield, Check, ChevronRight, Calendar, Clock, TrendingUp,
   Briefcase, X, CheckCircle, XCircle, Edit3, LayoutDashboard, Users,
-  ChevronLeft, ChevronRight as ChevronRightIcon, Camera, Upload
+  ChevronLeft, ChevronRight as ChevronRightIcon, Camera, Upload, Send
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
@@ -40,6 +40,17 @@ export default function CaregiverDashboard() {
   const [availabilityStatus, setAvailabilityStatus] = useState<'available' | 'busy' | 'away'>('available');
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const [msgClientId, setMsgClientId] = useState<string | null>(null);
+  const [clientMsgInput, setClientMsgInput] = useState('');
+  const [clientMessages, setClientMessages] = useState<Record<string, {text: string; fromMe: boolean; time: string}[]>>({
+    cl1: [{ text: 'Hi! Just confirming tomorrow\'s session at 8am. See you then!', fromMe: false, time: '9:00 AM' }],
+    cl2: [{ text: 'Good morning! Ready for Friday\'s session?', fromMe: true, time: 'Yesterday' }],
+    cl3: [{ text: 'Thank you for all your help this month!', fromMe: false, time: 'May 1' }],
+  });
+  const [cgModal, setCgModal] = useState<null | 'bio' | 'rates' | 'availability' | 'notifications' | 'account'>(null);
+  const [cgBio, setCgBio] = useState('Experienced nanny with 8+ years caring for children of all ages. CPR certified and passionate about early childhood development.');
+  const [cgRate, setCgRate] = useState({ min: 18, max: 25 });
+  const [cgNotifPrefs, setCgNotifPrefs] = useState({ email: true, sms: true, push: true, marketing: false });
 
   const handleLogout = () => { logout(); navigate('/'); };
   const handleJob = (id: string, action: 'accepted' | 'declined') =>
@@ -400,28 +411,96 @@ export default function CaregiverDashboard() {
           {activeTab === 'My Clients' && (
             <div className="space-y-5">
               <h2 className="text-xl font-bold text-gray-900">My Clients</h2>
-              {mockCaregiverClients.map((client, i) => (
-                <div key={client.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
-                  <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center text-white font-bold shrink-0', avatarColors[i % avatarColors.length])}>
-                    {client.familyName.charAt(0)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <h3 className="font-bold text-gray-900">{client.familyName}</h3>
-                      <span className={cn('text-xs px-2.5 py-0.5 rounded-full font-semibold',
-                        client.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>
-                        {client.status}
-                      </span>
+              {msgClientId ? (() => {
+                const client = mockCaregiverClients.find(c => c.id === msgClientId)!;
+                const msgs = clientMessages[msgClientId] || [];
+                const sendMsg = () => {
+                  if (!clientMsgInput.trim()) return;
+                  setClientMessages(prev => ({
+                    ...prev,
+                    [msgClientId]: [...(prev[msgClientId] || []), {
+                      text: clientMsgInput.trim(), fromMe: true,
+                      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    }]
+                  }));
+                  setClientMsgInput('');
+                };
+                return (
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
+                      <button onClick={() => setMsgClientId(null)} className="text-sm text-emerald-600 font-medium hover:underline">← Back</button>
+                      <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0', avatarColors[0])}>
+                        {client.familyName.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900 text-sm">{client.familyName}</p>
+                        <p className="text-xs text-green-600">● Active client</p>
+                      </div>
                     </div>
-                    <p className="text-sm text-gray-500">{client.service} · Since {client.since}</p>
-                    <div className="flex items-center gap-4 mt-1 text-xs text-gray-400">
-                      <span>{client.totalSessions} sessions</span>
-                      <span>Next: {client.nextSession}</span>
+                    <div className="px-5 py-5 space-y-3 min-h-48 max-h-72 overflow-y-auto">
+                      {msgs.map((m, i) => (
+                        <div key={i} className={cn('flex', m.fromMe ? 'justify-end' : 'justify-start')}>
+                          <div className={cn('max-w-[80%] px-4 py-2.5 rounded-2xl text-sm',
+                            m.fromMe ? 'bg-emerald-600 text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm')}>
+                            <p>{m.text}</p>
+                            <p className={cn('text-[10px] mt-0.5', m.fromMe ? 'text-emerald-200' : 'text-gray-400')}>{m.time}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
+                      <input
+                        type="text" value={clientMsgInput}
+                        onChange={e => setClientMsgInput(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && sendMsg()}
+                        placeholder="Type a message…"
+                        className="flex-1 border border-gray-200 rounded-full px-4 py-2.5 text-sm outline-none focus:border-emerald-400"
+                      />
+                      <Button variant="primary" size="sm" onClick={sendMsg}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full">
+                        <Send className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
-                  <Button variant="secondary" size="sm">Message</Button>
-                </div>
-              ))}
+                );
+              })() : (
+                mockCaregiverClients.map((client, i) => (
+                  <div key={client.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                    <div className="flex items-center gap-4">
+                      <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0', avatarColors[i % avatarColors.length])}>
+                        {client.familyName.charAt(0)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <h3 className="font-bold text-gray-900">{client.familyName}</h3>
+                          <span className={cn('text-xs px-2.5 py-0.5 rounded-full font-semibold',
+                            client.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>
+                            {client.status}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-500">{client.service} · Since {client.since}</p>
+                        <div className="flex items-center gap-4 mt-1 text-xs text-gray-400">
+                          <span>{client.totalSessions} sessions</span>
+                          <span>Next: {client.nextSession}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-gray-50 flex gap-3">
+                      <Button
+                        variant="primary" size="sm"
+                        onClick={() => setMsgClientId(client.id)}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full"
+                      >
+                        <MessageCircle className="w-4 h-4" /> Message
+                      </Button>
+                      <Button variant="secondary" size="sm">View Details</Button>
+                      {client.status === 'active' && (
+                        <Button variant="ghost" size="sm">Schedule Session</Button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           )}
 
@@ -609,22 +688,31 @@ export default function CaregiverDashboard() {
                 </div>
                 <div className="space-y-1">
                   {[
-                    { icon: <Edit3 className="w-5 h-5" />, label: 'Edit Bio & Specialties' },
-                    { icon: <DollarSign className="w-5 h-5" />, label: 'Update Rates' },
-                    { icon: <Calendar className="w-5 h-5" />, label: 'Manage Availability' },
-                    { icon: <Bell className="w-5 h-5" />, label: 'Notification Preferences' },
-                    { icon: <Settings className="w-5 h-5" />, label: 'Account Settings' },
+                    { icon: <Edit3 className="w-5 h-5" />, label: 'Edit Bio & Specialties', sub: 'Update your bio and care categories', action: () => setCgModal('bio') },
+                    { icon: <DollarSign className="w-5 h-5" />, label: 'Update Rates', sub: 'Set your hourly rate range', action: () => setCgModal('rates') },
+                    { icon: <Calendar className="w-5 h-5" />, label: 'Manage Availability', sub: 'Days, hours & time-off', action: () => setCgModal('availability') },
+                    { icon: <Bell className="w-5 h-5" />, label: 'Notification Preferences', sub: 'Alerts for requests & messages', action: () => setCgModal('notifications') },
+                    { icon: <Settings className="w-5 h-5" />, label: 'Account Settings', sub: 'Password, language & timezone', action: () => setCgModal('account') },
                   ].map((item, i) => (
-                    <button key={i} className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-gray-50 transition-colors">
+                    <button key={i} onClick={item.action} className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-gray-50 transition-colors group">
                       <div className="flex items-center gap-3">
-                        <span className="text-gray-400">{item.icon}</span>
-                        <span className="font-medium text-gray-700">{item.label}</span>
+                        <span className="text-gray-400 group-hover:text-emerald-500 transition-colors">{item.icon}</span>
+                        <div className="text-left">
+                          <p className="font-medium text-gray-700">{item.label}</p>
+                          <p className="text-xs text-gray-400">{item.sub}</p>
+                        </div>
                       </div>
-                      <ChevronRight className="w-5 h-5 text-gray-300" />
+                      <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-emerald-400 transition-colors" />
                     </button>
                   ))}
                   <button onClick={handleLogout} className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-red-50 transition-colors text-red-600 mt-2">
-                    <div className="flex items-center gap-3"><LogOut className="w-5 h-5" /><span className="font-medium">Log Out</span></div>
+                    <div className="flex items-center gap-3">
+                      <LogOut className="w-5 h-5" />
+                      <div className="text-left">
+                        <p className="font-medium">Log Out</p>
+                        <p className="text-xs text-red-400">Sign out of your account</p>
+                      </div>
+                    </div>
                     <ChevronRight className="w-5 h-5 text-red-300" />
                   </button>
                 </div>
@@ -633,6 +721,219 @@ export default function CaregiverDashboard() {
           )}
         </div>
       </div>
+
+      {/* ── CAREGIVER PROFILE MODALS ── */}
+
+      {/* Bio & Specialties */}
+      {cgModal === 'bio' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setCgModal(null)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 text-lg">Edit Bio & Specialties</h3>
+              <button onClick={() => setCgModal(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><X className="w-4 h-4 text-gray-500" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Bio</label>
+                <textarea value={cgBio} onChange={e => setCgBio(e.target.value)} rows={4}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none" />
+                <p className="text-xs text-gray-400 mt-1">{cgBio.length}/500 characters</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Specialties</label>
+                <div className="flex flex-wrap gap-2">
+                  {['Child Care', 'Senior Care', 'Adult Care', 'Cleaning', 'Tutoring', 'Pet Care'].map(s => (
+                    <button key={s} className="px-3 py-1.5 rounded-xl text-xs font-semibold border-2 transition-all border-emerald-200 bg-emerald-50 text-emerald-700">
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Years of Experience</label>
+                <input type="number" defaultValue={8} min={0} max={50}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <Button variant="secondary" fullWidth onClick={() => setCgModal(null)}>Cancel</Button>
+                <Button variant="primary" fullWidth onClick={() => setCgModal(null)} className="bg-emerald-600 hover:bg-emerald-700">Save Changes</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Update Rates */}
+      {cgModal === 'rates' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setCgModal(null)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 text-lg">Update Hourly Rates</h3>
+              <button onClick={() => setCgModal(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><X className="w-4 h-4 text-gray-500" /></button>
+            </div>
+            <div className="p-6 space-y-5">
+              <div className="text-center py-4 bg-emerald-50 rounded-2xl">
+                <p className="text-3xl font-bold text-emerald-700">${cgRate.min} – ${cgRate.max}<span className="text-lg text-emerald-500">/hr</span></p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Minimum Rate: <span className="text-emerald-600 font-bold">${cgRate.min}/hr</span></label>
+                <input type="range" min={10} max={50} value={cgRate.min}
+                  onChange={e => setCgRate(r => ({ ...r, min: Number(e.target.value) }))}
+                  className="w-full accent-emerald-600" />
+                <div className="flex justify-between text-xs text-gray-400 mt-1"><span>$10</span><span>$50</span></div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Maximum Rate: <span className="text-emerald-600 font-bold">${cgRate.max}/hr</span></label>
+                <input type="range" min={15} max={100} value={cgRate.max}
+                  onChange={e => setCgRate(r => ({ ...r, max: Number(e.target.value) }))}
+                  className="w-full accent-emerald-600" />
+                <div className="flex justify-between text-xs text-gray-400 mt-1"><span>$15</span><span>$100</span></div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <Button variant="secondary" fullWidth onClick={() => setCgModal(null)}>Cancel</Button>
+                <Button variant="primary" fullWidth onClick={() => setCgModal(null)} className="bg-emerald-600 hover:bg-emerald-700">Save Rates</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Availability */}
+      {cgModal === 'availability' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setCgModal(null)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 text-lg">Manage Availability</h3>
+              <button onClick={() => setCgModal(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><X className="w-4 h-4 text-gray-500" /></button>
+            </div>
+            <div className="p-6 space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Available Days</label>
+                <div className="flex flex-wrap gap-2">
+                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
+                    <button key={d} className="px-3.5 py-2 rounded-xl text-sm font-semibold border-2 border-emerald-400 bg-emerald-50 text-emerald-700">
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Start Time</label>
+                  <select className="w-full px-3 py-2.5 rounded-xl border border-gray-200 outline-none text-sm bg-white">
+                    {['6:00 AM','7:00 AM','8:00 AM','9:00 AM','10:00 AM'].map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">End Time</label>
+                  <select className="w-full px-3 py-2.5 rounded-xl border border-gray-200 outline-none text-sm bg-white">
+                    {['4:00 PM','5:00 PM','6:00 PM','7:00 PM','8:00 PM'].map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Arrangement Type</label>
+                <select className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none text-sm bg-white">
+                  <option>Full-time</option>
+                  <option>Part-time</option>
+                  <option>Weekends only</option>
+                  <option>Evenings & Weekends</option>
+                  <option>Flexible</option>
+                </select>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <Button variant="secondary" fullWidth onClick={() => setCgModal(null)}>Cancel</Button>
+                <Button variant="primary" fullWidth onClick={() => setCgModal(null)} className="bg-emerald-600 hover:bg-emerald-700">Save Availability</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification Preferences */}
+      {cgModal === 'notifications' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setCgModal(null)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 text-lg">Notification Preferences</h3>
+              <button onClick={() => setCgModal(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><X className="w-4 h-4 text-gray-500" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              {[
+                { key: 'email' as const, label: 'Email Notifications', sub: 'New requests, messages & payouts' },
+                { key: 'sms' as const, label: 'SMS / Text Alerts', sub: 'Session reminders & urgent updates' },
+                { key: 'push' as const, label: 'Push Notifications', sub: 'Real-time alerts on your device' },
+                { key: 'marketing' as const, label: 'Tips & Community', sub: 'Care tips, events & news' },
+              ].map(item => (
+                <div key={item.key} className="flex items-center justify-between py-2">
+                  <div>
+                    <p className="font-medium text-gray-800 text-sm">{item.label}</p>
+                    <p className="text-xs text-gray-400">{item.sub}</p>
+                  </div>
+                  <button
+                    onClick={() => setCgNotifPrefs(p => ({ ...p, [item.key]: !p[item.key] }))}
+                    className={cn('w-12 h-6 rounded-full transition-colors relative shrink-0',
+                      cgNotifPrefs[item.key] ? 'bg-emerald-500' : 'bg-gray-200')}
+                  >
+                    <span className={cn('absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform',
+                      cgNotifPrefs[item.key] ? 'translate-x-6' : 'translate-x-0.5')} />
+                  </button>
+                </div>
+              ))}
+              <Button variant="primary" fullWidth onClick={() => setCgModal(null)} className="mt-2 bg-emerald-600 hover:bg-emerald-700">Save Preferences</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Account Settings */}
+      {cgModal === 'account' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setCgModal(null)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 text-lg">Account Settings</h3>
+              <button onClick={() => setCgModal(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><X className="w-4 h-4 text-gray-500" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">New Password</label>
+                <input type="password" placeholder="Enter new password"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirm Password</label>
+                <input type="password" placeholder="Confirm new password"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Language</label>
+                <select className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none text-sm bg-white">
+                  <option>English (US)</option>
+                  <option>Spanish</option>
+                  <option>French</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Timezone</label>
+                <select className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none text-sm bg-white">
+                  <option>Eastern Time (ET)</option>
+                  <option>Central Time (CT)</option>
+                  <option>Pacific Time (PT)</option>
+                </select>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <Button variant="secondary" fullWidth onClick={() => setCgModal(null)}>Cancel</Button>
+                <Button variant="primary" fullWidth onClick={() => setCgModal(null)} className="bg-emerald-600 hover:bg-emerald-700">Save Changes</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── BOTTOM NAV (mobile) ── */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-30 px-1">

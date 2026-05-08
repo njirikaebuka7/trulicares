@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Star, Shield, MapPin, DollarSign, Check, ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import Button from '@/components/ui/Button';
 import { mockMatches } from '@/data/mock';
 import { cn } from '@/utils/cn';
+import logoImg from '@/assets/logo.png';
 
 interface Props {
   onSelectMatch: (matchId: string) => void;
@@ -26,10 +28,14 @@ export default function MatchesListStep({ onSelectMatch, onBack }: Props) {
           >
             <ArrowLeft className="w-5 h-5 text-gray-600" />
           </button>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">Your Matches</h1>
-            <p className="text-sm text-gray-500">{matches.length} caregivers accepted your request</p>
+          <div className="flex-1 flex justify-center">
+            <Link to="/"><img src={logoImg} alt="TruliCares" className="h-6 w-auto" /></Link>
           </div>
+          <div className="w-10 shrink-0" />
+        </div>
+        <div className="max-w-lg mx-auto px-4 pb-3">
+          <h1 className="text-xl font-bold text-gray-900">Your Matches</h1>
+          <p className="text-sm text-gray-500">{matches.length} caregivers accepted your request</p>
         </div>
       </div>
 
@@ -51,13 +57,21 @@ export default function MatchesListStep({ onSelectMatch, onBack }: Props) {
               )}
             >
               <div className="flex items-start gap-4">
-                {/* Avatar */}
-                <div className={cn(
-                  'w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0',
-                  avatarColors[i % avatarColors.length]
-                )}>
-                  {cg.name.split(' ').map(n => n[0]).join('')}
-                </div>
+                {/* Avatar — real photo or initials fallback */}
+                {cg.photoUrl ? (
+                  <img
+                    src={cg.photoUrl}
+                    alt={cg.name}
+                    className="w-14 h-14 rounded-2xl object-cover shrink-0"
+                  />
+                ) : (
+                  <div className={cn(
+                    'w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0',
+                    avatarColors[i % avatarColors.length]
+                  )}>
+                    {cg.name.split(' ').map(n => n[0]).join('')}
+                  </div>
+                )}
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">

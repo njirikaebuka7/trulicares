@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import Button from './Button';
 import ProgressBar from './ProgressBar';
+import logoImg from '@/assets/logo.png';
 
 interface StepContainerProps {
   title: string;
@@ -36,14 +38,18 @@ export default function StepContainer({
           {onBack && (
             <button
               onClick={onBack}
-              className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-gray-100 transition-colors"
+              className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-gray-100 transition-colors shrink-0"
             >
               <ArrowLeft className="w-5 h-5 text-gray-600" />
             </button>
           )}
-          <div className="flex-1">
+          <div className="flex-1 flex flex-col items-center gap-1">
+            <Link to="/">
+              <img src={logoImg} alt="TruliCares" className="h-6 w-auto" />
+            </Link>
             <ProgressBar currentStep={currentStep} totalSteps={totalSteps} />
           </div>
+          <div className="w-10 shrink-0" />
         </div>
       </div>
 

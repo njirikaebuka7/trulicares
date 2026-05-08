@@ -89,6 +89,7 @@ export interface CaregiverProfile extends User {
   backgroundChecked: boolean;
   yearsExperience: number;
   availability: string;
+  photoUrl?: string;
 }
 
 export interface CareMatch {

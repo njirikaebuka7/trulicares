@@ -8,13 +8,18 @@ interface Props {
   onBack: () => void;
 }
 
+function ageLabel(years: number): string {
+  if (years === 0) return 'Under 1 year';
+  if (years === 1) return '1 year';
+  return `${years} years`;
+}
+
 export default function ChildCareFlow({ onComplete, onBack }: Props) {
   const [step, setStep] = useState(0);
   const totalSteps = 7;
 
-  // Data state
   const [numChildren, setNumChildren] = useState(1);
-  const [childAges, setChildAges] = useState<number[]>([0]);
+  const [childAges, setChildAges] = useState<number[]>([1]);
   const [careType, setCareType] = useState('');
   const [startDate, setStartDate] = useState('');
   const [days, setDays] = useState<string[]>([]);
@@ -39,7 +44,7 @@ export default function ChildCareFlow({ onComplete, onBack }: Props) {
   const updateNumChildren = (n: number) => {
     setNumChildren(n);
     setChildAges(prev => {
-      if (n > prev.length) return [...prev, ...Array(n - prev.length).fill(0)];
+      if (n > prev.length) return [...prev, ...Array(n - prev.length).fill(1)];
       return prev.slice(0, n);
     });
   };
@@ -54,6 +59,8 @@ export default function ChildCareFlow({ onComplete, onBack }: Props) {
       default: return false;
     }
   };
+
+  const AGE_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
 
   const steps = [
     // Step 0: Number & Ages
@@ -73,18 +80,19 @@ export default function ChildCareFlow({ onComplete, onBack }: Props) {
       {childAges.map((age, i) => (
         <div key={i} className="bg-white rounded-2xl border border-gray-200 p-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">Child {i + 1} age</label>
-          <input
-            type="number"
-            min={0}
-            max={17}
+          <select
             value={age}
             onChange={e => {
               const newAges = [...childAges];
-              newAges[i] = parseInt(e.target.value) || 0;
+              newAges[i] = parseInt(e.target.value);
               setChildAges(newAges);
             }}
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-lg font-semibold text-gray-800"
-          />
+            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-base font-semibold text-gray-800 bg-white appearance-none cursor-pointer"
+          >
+            {AGE_OPTIONS.map(yr => (
+              <option key={yr} value={yr}>{ageLabel(yr)}</option>
+            ))}
+          </select>
         </div>
       ))}
     </>,
