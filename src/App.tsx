@@ -29,13 +29,13 @@ export default function App() {
             <Route path="/services" element={<Services />} />
             <Route path="/resources" element={<Resources />} />
             <Route path="/contact" element={<Contact />} />
-            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/cookie-policy" element={<CookiePolicy />} />
           </Route>
 
           {/* Full-screen flows (no navbar/footer) */}
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/find-care" element={<FindCare />} />
           <Route path="/provide-care" element={<ProvideCare />} />
           <Route path="/login" element={<Login />} />

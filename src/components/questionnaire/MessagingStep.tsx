@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, ArrowRight, Phone, Video, MoreHorizontal, Check, CheckCheck, Smile, Paperclip, Info } from 'lucide-react';
+import { Send, ArrowRight, Phone, Video, Check, CheckCheck, Smile, Paperclip, Info } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Button from '@/components/ui/Button';
 import { mockMatches } from '@/data/mock';
@@ -67,7 +67,7 @@ export default function MessagingStep({ matchId, onDashboard }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="h-[100dvh] bg-gray-50 flex flex-col overflow-hidden">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100 shadow-sm">
         <div className="max-w-lg mx-auto px-4 py-2.5">
@@ -144,7 +144,7 @@ export default function MessagingStep({ matchId, onDashboard }: Props) {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 max-w-lg mx-auto w-full px-4 py-2 space-y-3 overflow-y-auto">
+      <div className="flex-1 max-w-lg mx-auto w-full px-4 py-2 space-y-3 overflow-y-auto overscroll-contain">
         {messages.map((msg, i) => {
           const showAvatar = !msg.fromMe && (i === 0 || messages[i - 1].fromMe);
           return (

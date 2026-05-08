@@ -1,10 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell, MessageCircle, User, Settings, LogOut, Plus, MapPin, DollarSign,
   Star, Shield, Check, ChevronRight, Calendar, Clock, CreditCard,
   FileText, X, Home, LayoutDashboard, Users, ChevronLeft, ChevronRight as ChevronRightIcon,
-  Edit3, Camera
+  Edit3, Camera, MoreHorizontal
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
@@ -60,6 +60,7 @@ export default function FamilyDashboard() {
   const [editPhone, setEditPhone] = useState('(555) 000-1234');
   const [newCard, setNewCard] = useState({ number: '', expiry: '', cvc: '' });
   const [notificationsRead, setNotificationsRead] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [profileModal, setProfileModal] = useState<null | 'personal' | 'notifications' | 'privacy' | 'account'>(null);
   const [notifPrefs, setNotifPrefs] = useState({ email: true, sms: true, push: false, marketing: false });
   const [privacyPrefs, setPrivacyPrefs] = useState({ profileVisible: true, shareActivity: false, dataAnalytics: true });
@@ -84,7 +85,7 @@ export default function FamilyDashboard() {
 
       {/* ── LEFT SIDEBAR (desktop) ── */}
       <aside className={cn(
-        'hidden lg:flex flex-col fixed top-16 lg:top-[72px] left-0 bottom-0 z-20 transition-all duration-300',
+        'hidden lg:flex flex-col fixed top-14 left-0 bottom-0 z-20 transition-all duration-300',
         collapsed ? 'w-16' : 'w-64',
         'bg-brand-950'
       )}>
@@ -190,15 +191,23 @@ export default function FamilyDashboard() {
       <div className={cn('flex-1 flex flex-col min-h-screen transition-all duration-300', collapsed ? 'lg:ml-16' : 'lg:ml-64')}>
 
         {/* Top header */}
-        <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between shrink-0">
-          <h1 className="text-base font-bold text-gray-900">
+        <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between shrink-0 shadow-sm">
+          {/* Mobile: logo | Desktop: page title */}
+          <div className="flex items-center gap-3">
+            <img src={logoImg} alt="TruliCares" className="h-7 w-auto lg:hidden" />
+            <h1 className="hidden lg:block text-base font-bold text-gray-900">
+              {navItems.find(n => n.id === activeTab)?.label}
+            </h1>
+          </div>
+          {/* Mobile: tab name centered */}
+          <p className="lg:hidden absolute left-1/2 -translate-x-1/2 text-sm font-semibold text-gray-800 pointer-events-none">
             {navItems.find(n => n.id === activeTab)?.label}
-          </h1>
+          </p>
           <div className="flex items-center gap-1">
             <div className="relative">
               <button
                 onClick={openNotifications}
-                className="relative w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center"
+                className="relative w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors"
               >
                 <Bell className="w-5 h-5 text-gray-500" />
                 {unread > 0 && (
@@ -207,8 +216,9 @@ export default function FamilyDashboard() {
                   </span>
                 )}
               </button>
+              {/* Desktop notification dropdown */}
               {notifOpen && (
-                <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50">
+                <div className="hidden lg:block absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                     <span className="font-bold text-gray-900 text-sm">Notifications</span>
                     <button onClick={() => setNotifOpen(false)}><X className="w-4 h-4 text-gray-400" /></button>
@@ -222,12 +232,38 @@ export default function FamilyDashboard() {
                 </div>
               )}
             </div>
-            <div className="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center text-white text-xs font-bold cursor-pointer lg:hidden"
-              onClick={() => setActiveTab('Profile')}>
+            <button
+              className="w-9 h-9 rounded-full bg-brand-600 flex items-center justify-center text-white text-xs font-bold lg:hidden transition-all active:scale-95"
+              onClick={() => setActiveTab('Profile')}
+            >
               {initials}
-            </div>
+            </button>
           </div>
         </div>
+
+        {/* Mobile notification panel (full-width) */}
+        {notifOpen && (
+          <div className="lg:hidden fixed inset-0 z-50" onClick={() => setNotifOpen(false)}>
+            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+            <div className="absolute top-14 left-0 right-0 bg-white shadow-2xl border-b border-gray-100 animate-fade-in-up" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <span className="font-bold text-gray-900">Notifications</span>
+                <button onClick={() => setNotifOpen(false)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+                  <X className="w-4 h-4 text-gray-400" />
+                </button>
+              </div>
+              {notifications.map(n => (
+                <div key={n.id} className="px-5 py-4 border-b border-gray-50 last:border-0 flex items-start gap-3">
+                  <div className="w-2 h-2 bg-brand-500 rounded-full mt-1.5 shrink-0" />
+                  <div>
+                    <p className="text-sm text-gray-800 font-medium">{n.text}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{n.time}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Page content */}
         <div className="flex-1 px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-8">
@@ -363,7 +399,7 @@ export default function FamilyDashboard() {
                         <span className={cn('text-xs px-2.5 py-0.5 rounded-full font-semibold',
                           req.status === 'matched' ? 'bg-green-100 text-green-700' :
                           req.status === 'matching' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600')}>
-                          {req.status === 'matched' ? `${req.matchCount} Matches Found` : req.status === 'matching' ? 'Finding Matches…' : req.status}
+                          {req.status === 'matched' ? `${req.matchCount} Matches Found` : req.status === 'matching' ? 'Finding Matches…' : 'Pending'}
                         </span>
                       </div>
                       <p className="text-sm text-gray-600">{req.description}</p>
@@ -704,29 +740,91 @@ export default function FamilyDashboard() {
       </div>
 
       {/* ── BOTTOM NAV (mobile) ── */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-30 px-1 pb-safe">
-        <div className="flex items-center justify-around">
-          {navItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={cn(
-                'relative flex flex-col items-center gap-0.5 px-2 py-2.5 min-w-0 flex-1 transition-colors',
-                activeTab === item.id ? 'text-brand-600' : 'text-gray-400'
-              )}
-            >
-              {item.badge && (
-                <span className="absolute top-1.5 right-1/2 translate-x-3 w-4 h-4 bg-coral-500 rounded-full text-white text-[9px] flex items-center justify-center font-bold">
-                  {item.badge}
-                </span>
-              )}
-              <span className={cn('transition-transform', activeTab === item.id && 'scale-110')}>{item.icon}</span>
-              <span className="text-[10px] font-medium leading-none truncate w-full text-center">{item.label.split(' ')[0]}</span>
-              {activeTab === item.id && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-5 h-0.5 bg-brand-600 rounded-full" />}
-            </button>
-          ))}
-        </div>
-      </nav>
+      {(() => {
+        const MOBILE_PRIMARY: Tab[] = ['Overview', 'My Requests', 'Matches', 'Messages', 'Profile'];
+        const mobileNav = navItems.filter(n => MOBILE_PRIMARY.includes(n.id));
+        const moreNav = navItems.filter(n => !MOBILE_PRIMARY.includes(n.id));
+        const moreActive = moreNav.some(n => n.id === activeTab);
+        return (
+          <>
+            {/* More drawer */}
+            {moreOpen && (
+              <div className="lg:hidden fixed inset-0 z-40" onClick={() => setMoreOpen(false)}>
+                <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+                <div
+                  className="absolute bottom-[64px] left-0 right-0 bg-white rounded-t-3xl shadow-2xl overflow-hidden animate-fade-in-up"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-3 mb-4" />
+                  <p className="px-5 pb-2 text-xs font-bold text-gray-400 uppercase tracking-widest">More</p>
+                  <div className="px-3 pb-4 space-y-1">
+                    {moreNav.map(item => (
+                      <button
+                        key={item.id}
+                        onClick={() => { setActiveTab(item.id); setMoreOpen(false); }}
+                        className={cn(
+                          'w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-colors',
+                          activeTab === item.id ? 'bg-brand-50 text-brand-700' : 'text-gray-700 hover:bg-gray-50'
+                        )}
+                      >
+                        <span className={cn(activeTab === item.id ? 'text-brand-600' : 'text-gray-400')}>{item.icon}</span>
+                        <span className="font-semibold text-sm flex-1 text-left">{item.label}</span>
+                        {item.badge && (
+                          <span className="px-2 py-0.5 bg-coral-500 text-white text-[10px] font-bold rounded-full">{item.badge}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-lg border-t border-gray-100 z-30" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+              <div className="flex items-stretch h-16">
+                {mobileNav.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => { setActiveTab(item.id); setMoreOpen(false); }}
+                    className={cn(
+                      'relative flex-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-200',
+                      activeTab === item.id ? 'text-brand-600' : 'text-gray-400'
+                    )}
+                  >
+                    {item.badge && (
+                      <span className="absolute top-2.5 right-[calc(50%-16px)] translate-x-3 w-4 h-4 bg-coral-500 rounded-full text-white text-[9px] flex items-center justify-center font-bold leading-none">
+                        {item.badge}
+                      </span>
+                    )}
+                    <span className={cn(
+                      'flex items-center justify-center w-12 h-7 rounded-full transition-all',
+                      activeTab === item.id ? 'bg-brand-100' : ''
+                    )}>
+                      {item.icon}
+                    </span>
+                    <span className="text-[10px] font-semibold leading-none">{item.label.split(' ')[0]}</span>
+                  </button>
+                ))}
+                {/* More button */}
+                <button
+                  onClick={() => setMoreOpen(!moreOpen)}
+                  className={cn(
+                    'relative flex-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-200',
+                    moreActive || moreOpen ? 'text-brand-600' : 'text-gray-400'
+                  )}
+                >
+                  <span className={cn(
+                    'flex items-center justify-center w-12 h-7 rounded-full transition-all',
+                    (moreActive || moreOpen) ? 'bg-brand-100' : ''
+                  )}>
+                    <MoreHorizontal className="w-5 h-5" />
+                  </span>
+                  <span className="text-[10px] font-semibold leading-none">More</span>
+                </button>
+              </div>
+            </nav>
+          </>
+        );
+      })()}
 
       {/* ── EDIT PROFILE MODAL ── */}
       {showEditProfile && (
