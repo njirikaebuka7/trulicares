@@ -4,7 +4,8 @@ import {
   Bell, LogOut, Users, Shield, AlertTriangle,
   CheckCircle, XCircle, Clock, X, Search,
   Activity, DollarSign, UserCheck, Flag, BarChart2, LayoutDashboard,
-  ChevronLeft, ChevronRight as ChevronRightIcon
+  ChevronLeft, ChevronRight as ChevronRightIcon, Pencil, Trash2,
+  FileText, Eye, Ban, RotateCcw, Mail, Calendar, Briefcase
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
@@ -16,12 +17,15 @@ import logoImg from '@/assets/logo.png';
 
 type Tab = 'Overview' | 'Users' | 'Verification Queue' | 'Reports' | 'Analytics';
 
-const navItems: { id: Tab; label: string; icon: React.ReactNode; badge?: number }[] = [
-  { id: 'Overview', label: 'Overview', icon: <LayoutDashboard className="w-5 h-5" /> },
-  { id: 'Users', label: 'Users', icon: <Users className="w-5 h-5" /> },
-  { id: 'Verification Queue', label: 'Verifications', icon: <UserCheck className="w-5 h-5" />, badge: mockAdminStats.pendingVerifications },
-  { id: 'Reports', label: 'Reports', icon: <Flag className="w-5 h-5" />, badge: mockAdminStats.openReports },
-  { id: 'Analytics', label: 'Analytics', icon: <BarChart2 className="w-5 h-5" /> },
+type AdminUser = typeof mockAdminUsers[0];
+type AdminReport = typeof mockAdminReports[0];
+
+const navItems: { id: Tab; label: string; mobileLabel: string; icon: React.ReactNode; badge?: number }[] = [
+  { id: 'Overview', label: 'Overview', mobileLabel: 'Overview', icon: <LayoutDashboard className="w-5 h-5" /> },
+  { id: 'Users', label: 'Users', mobileLabel: 'Users', icon: <Users className="w-5 h-5" /> },
+  { id: 'Verification Queue', label: 'Verifications', mobileLabel: 'Verify', icon: <UserCheck className="w-5 h-5" />, badge: mockAdminStats.pendingVerifications },
+  { id: 'Reports', label: 'Reports', mobileLabel: 'Reports', icon: <Flag className="w-5 h-5" />, badge: mockAdminStats.openReports },
+  { id: 'Analytics', label: 'Analytics', mobileLabel: 'Analytics', icon: <BarChart2 className="w-5 h-5" /> },
 ];
 
 const PAGE_SIZE = 8;
@@ -39,9 +43,19 @@ export default function AdminDashboard() {
   const [verificationActions, setVerificationActions] = useState<Record<string, 'approved' | 'rejected' | null>>({});
   const [reportActions, setReportActions] = useState<Record<string, 'resolved' | 'dismissed' | null>>({});
 
+  // Live user state for CRUD
+  const [users, setUsers] = useState<AdminUser[]>(mockAdminUsers);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', email: '', role: '' });
+  const [deletingUser, setDeletingUser] = useState<AdminUser | null>(null);
+
+  // Report detail modal
+  const [selectedReport, setSelectedReport] = useState<AdminReport | null>(null);
+
   const handleLogout = () => { logout(); navigate('/'); };
 
-  const filteredUsers = mockAdminUsers.filter(u => {
+  const filteredUsers = users.filter(u => {
     const matchesSearch = u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.email.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter = userFilter === 'all' || u.role === userFilter;
@@ -51,13 +65,32 @@ export default function AdminDashboard() {
   const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
   const paginatedUsers = filteredUsers.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-  const handleFilterChange = (f: typeof userFilter) => {
-    setUserFilter(f);
-    setCurrentPage(1);
+  const handleFilterChange = (f: typeof userFilter) => { setUserFilter(f); setCurrentPage(1); };
+  const handleSearchChange = (q: string) => { setSearchQuery(q); setCurrentPage(1); };
+
+  const handleSuspend = (id: string) => {
+    setUsers(prev => prev.map(u => u.id === id ? { ...u, status: 'suspended' } : u));
+    if (selectedUser?.id === id) setSelectedUser(prev => prev ? { ...prev, status: 'suspended' } : prev);
   };
-  const handleSearchChange = (q: string) => {
-    setSearchQuery(q);
-    setCurrentPage(1);
+  const handleRestore = (id: string) => {
+    setUsers(prev => prev.map(u => u.id === id ? { ...u, status: 'active' } : u));
+    if (selectedUser?.id === id) setSelectedUser(prev => prev ? { ...prev, status: 'active' } : prev);
+  };
+  const handleDelete = (u: AdminUser) => { setDeletingUser(u); setSelectedUser(null); };
+  const confirmDelete = () => {
+    if (!deletingUser) return;
+    setUsers(prev => prev.filter(u => u.id !== deletingUser.id));
+    setDeletingUser(null);
+  };
+  const openEdit = (u: AdminUser) => {
+    setEditingUser(u);
+    setEditForm({ name: u.name, email: u.email, role: u.role });
+    setSelectedUser(null);
+  };
+  const saveEdit = () => {
+    if (!editingUser) return;
+    setUsers(prev => prev.map(u => u.id === editingUser.id ? { ...u, ...editForm } : u));
+    setEditingUser(null);
   };
 
   const unread = notificationsRead ? 0 : mockAdminStats.pendingVerifications + mockAdminStats.openReports;
@@ -67,17 +100,17 @@ export default function AdminDashboard() {
   const initials = 'AD';
 
   return (
-    <div className="flex bg-gray-50 min-h-screen">
+    <div className="flex h-[100dvh] bg-gray-50 overflow-hidden">
 
       {/* ── LEFT SIDEBAR (desktop) ── */}
       <aside className={cn(
-        'hidden lg:flex flex-col fixed top-14 left-0 bottom-0 z-20 transition-all duration-300 bg-slate-900',
+        'hidden lg:flex flex-col fixed top-0 left-0 bottom-0 z-20 transition-all duration-300 bg-slate-900',
         collapsed ? 'w-16' : 'w-64'
       )}>
         {/* Logo + collapse toggle */}
         <div className={cn(
-          'flex items-center border-b border-slate-700/60 shrink-0',
-          collapsed ? 'justify-center px-3 py-4' : 'justify-between px-4 py-4'
+          'flex items-center border-b border-slate-700/60 shrink-0 h-14',
+          collapsed ? 'justify-center px-3' : 'justify-between px-4'
         )}>
           {!collapsed && (
             <img src={logoImg} alt="TruliCares" className="h-7 w-auto brightness-0 invert opacity-80" />
@@ -188,12 +221,11 @@ export default function AdminDashboard() {
       </aside>
 
       {/* ── MAIN CONTENT ── */}
-      <div className={cn('flex-1 flex flex-col min-h-screen transition-all duration-300', collapsed ? 'lg:ml-16' : 'lg:ml-64')}>
+      <div className={cn('flex-1 flex flex-col h-full overflow-hidden transition-all duration-300', collapsed ? 'lg:ml-16' : 'lg:ml-64')}>
 
         {/* Top header */}
         <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
-            {/* Logo on mobile */}
             <img src={logoImg} alt="TruliCares" className="h-6 w-auto lg:hidden" />
             <h1 className="text-base font-bold text-gray-900 hidden lg:block">{navItems.find(n => n.id === activeTab)?.label}</h1>
             <h1 className="text-base font-bold text-gray-900 lg:hidden">{navItems.find(n => n.id === activeTab)?.label}</h1>
@@ -238,8 +270,8 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Page content */}
-        <div className="flex-1 px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-8">
+        {/* Scrollable page content */}
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-8">
 
           {/* ── OVERVIEW ── */}
           {activeTab === 'Overview' && (
@@ -424,11 +456,29 @@ export default function AdminDashboard() {
                           <td className="px-5 py-4 text-gray-700 font-medium hidden md:table-cell">{u.matches}</td>
                           <td className="px-5 py-4">
                             <div className="flex items-center gap-1">
-                              <button className="text-xs text-slate-600 hover:text-slate-900 font-medium px-2 py-1 rounded-lg hover:bg-gray-100">View</button>
+                              <button
+                                onClick={() => setSelectedUser(u)}
+                                className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-slate-900 font-medium px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors">
+                                <Eye className="w-3.5 h-3.5" /> View
+                              </button>
+                              <button
+                                onClick={() => openEdit(u)}
+                                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors">
+                                <Pencil className="w-3.5 h-3.5" /> Edit
+                              </button>
                               {u.status === 'suspended'
-                                ? <button className="text-xs text-green-600 font-medium px-2 py-1 rounded-lg hover:bg-green-50">Restore</button>
-                                : <button className="text-xs text-red-500 font-medium px-2 py-1 rounded-lg hover:bg-red-50">Suspend</button>
+                                ? <button onClick={() => handleRestore(u.id)} className="inline-flex items-center gap-1 text-xs text-green-600 font-medium px-2 py-1 rounded-lg hover:bg-green-50 transition-colors">
+                                    <RotateCcw className="w-3.5 h-3.5" /> Restore
+                                  </button>
+                                : <button onClick={() => handleSuspend(u.id)} className="inline-flex items-center gap-1 text-xs text-amber-600 font-medium px-2 py-1 rounded-lg hover:bg-amber-50 transition-colors">
+                                    <Ban className="w-3.5 h-3.5" /> Suspend
+                                  </button>
                               }
+                              <button
+                                onClick={() => handleDelete(u)}
+                                className="inline-flex items-center gap-1 text-xs text-red-500 font-medium px-2 py-1 rounded-lg hover:bg-red-50 transition-colors">
+                                <Trash2 className="w-3.5 h-3.5" /> Delete
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -446,32 +496,19 @@ export default function AdminDashboard() {
                   </span>
                   {totalPages > 1 && (
                     <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                        disabled={currentPage === 1}
-                        className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                      >
+                      <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+                        className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                         <ChevronLeft className="w-4 h-4" />
                       </button>
                       {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-                        <button
-                          key={p}
-                          onClick={() => setCurrentPage(p)}
-                          className={cn(
-                            'w-8 h-8 rounded-lg text-xs font-semibold transition-colors',
-                            p === currentPage
-                              ? 'bg-slate-800 text-white'
-                              : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
-                          )}
-                        >
+                        <button key={p} onClick={() => setCurrentPage(p)}
+                          className={cn('w-8 h-8 rounded-lg text-xs font-semibold transition-colors',
+                            p === currentPage ? 'bg-slate-800 text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50')}>
                           {p}
                         </button>
                       ))}
-                      <button
-                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                        disabled={currentPage === totalPages}
-                        className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                      >
+                      <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+                        className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                         <ChevronRightIcon className="w-4 h-4" />
                       </button>
                     </div>
@@ -527,7 +564,7 @@ export default function AdminDashboard() {
                             className="ml-2 text-xs text-gray-400 hover:text-gray-600 underline font-normal">Undo</button>
                         </div>
                       ) : (
-                        <div className="flex gap-3">
+                        <div className="flex gap-3 flex-wrap">
                           <Button size="sm" onClick={() => setVerificationActions(prev => ({...prev, [item.id]: 'approved'}))}
                             className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-sm">
                             <CheckCircle className="w-4 h-4" /> Approve
@@ -563,7 +600,7 @@ export default function AdminDashboard() {
                         <Flag className={cn('w-6 h-6',
                           report.priority === 'high' ? 'text-red-500' : report.priority === 'medium' ? 'text-amber-500' : 'text-gray-400')} />
                       </div>
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
                           <h3 className="font-bold text-gray-900">{report.type}</h3>
                           <span className={cn('text-xs px-2.5 py-0.5 rounded-full font-semibold',
@@ -579,31 +616,34 @@ export default function AdminDashboard() {
                         </div>
                         <p className="text-sm text-gray-600"><span className="font-medium">Reported:</span> {report.reportedUser}</p>
                         <p className="text-sm text-gray-500"><span className="font-medium">By:</span> {report.reportedBy} · {report.date}</p>
+                        <p className="text-sm text-gray-400 mt-2 line-clamp-2">{report.description}</p>
                       </div>
                     </div>
-                    {report.status !== 'resolved' && (
-                      <div className="mt-4 pt-4 border-t border-gray-50">
-                        {action ? (
-                          <div className={cn('flex items-center gap-2 text-sm font-semibold',
-                            action === 'resolved' ? 'text-green-600' : 'text-gray-500')}>
-                            <CheckCircle className="w-4 h-4" />
-                            {action === 'resolved' ? 'Report Resolved' : 'Report Dismissed'}
-                            <button onClick={() => setReportActions(prev => ({...prev, [report.id]: null}))}
-                              className="ml-2 text-xs text-gray-400 hover:text-gray-600 underline font-normal">Undo</button>
-                          </div>
-                        ) : (
-                          <div className="flex gap-3">
-                            <Button size="sm" onClick={() => setReportActions(prev => ({...prev, [report.id]: 'resolved'}))}
-                              className="bg-slate-700 hover:bg-slate-800 text-white rounded-full shadow-sm">
-                              <CheckCircle className="w-4 h-4" /> Mark Resolved
-                            </Button>
-                            <Button variant="secondary" size="sm">Review Details</Button>
+                    <div className="mt-4 pt-4 border-t border-gray-50">
+                      {action ? (
+                        <div className={cn('flex items-center gap-2 text-sm font-semibold',
+                          action === 'resolved' ? 'text-green-600' : 'text-gray-500')}>
+                          <CheckCircle className="w-4 h-4" />
+                          {action === 'resolved' ? 'Report Resolved' : 'Report Dismissed'}
+                          <button onClick={() => setReportActions(prev => ({...prev, [report.id]: null}))}
+                            className="ml-2 text-xs text-gray-400 hover:text-gray-600 underline font-normal">Undo</button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-3 flex-wrap">
+                          <Button size="sm" onClick={() => setReportActions(prev => ({...prev, [report.id]: 'resolved'}))}
+                            className="bg-slate-700 hover:bg-slate-800 text-white rounded-full shadow-sm">
+                            <CheckCircle className="w-4 h-4" /> Mark Resolved
+                          </Button>
+                          <Button variant="secondary" size="sm" onClick={() => setSelectedReport(report)}>
+                            <FileText className="w-4 h-4" /> View Details
+                          </Button>
+                          {report.status !== 'resolved' && (
                             <Button variant="ghost" size="sm" onClick={() => setReportActions(prev => ({...prev, [report.id]: 'dismissed'}))}
                               className="text-gray-400 hover:bg-gray-100">Dismiss</Button>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -679,24 +719,274 @@ export default function AdminDashboard() {
       </div>
 
       {/* ── BOTTOM NAV (mobile) ── */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-30 px-1">
-        <div className="flex items-center justify-around">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30 shadow-[0_-2px_12px_rgba(0,0,0,0.06)]">
+        <div className="flex items-center justify-around px-1">
           {navItems.map(item => (
             <button key={item.id} onClick={() => setActiveTab(item.id)}
-              className={cn('relative flex flex-col items-center gap-0.5 px-2 py-2.5 min-w-0 flex-1 transition-colors',
-                activeTab === item.id ? 'text-slate-800' : 'text-gray-400')}>
+              className={cn('relative flex flex-col items-center gap-0.5 px-1 py-2.5 min-w-0 flex-1 transition-colors',
+                activeTab === item.id ? 'text-slate-900' : 'text-gray-400 hover:text-gray-600')}>
               {item.badge && (
-                <span className="absolute top-1.5 right-1/2 translate-x-3 w-4 h-4 bg-red-500 rounded-full text-white text-[9px] flex items-center justify-center font-bold">
+                <span className="absolute top-1.5 right-1/2 translate-x-3.5 w-4 h-4 bg-red-500 rounded-full text-white text-[9px] flex items-center justify-center font-bold z-10">
                   {item.badge}
                 </span>
               )}
-              <span className={cn('transition-transform', activeTab === item.id && 'scale-110')}>{item.icon}</span>
-              <span className="text-[10px] font-medium leading-none truncate w-full text-center">{item.label.split(' ')[0]}</span>
-              {activeTab === item.id && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-5 h-0.5 bg-slate-800 rounded-full" />}
+              <span className={cn('transition-transform shrink-0', activeTab === item.id && 'scale-110')}>{item.icon}</span>
+              <span className={cn('text-[10px] font-semibold leading-none truncate w-full text-center',
+                activeTab === item.id ? 'text-slate-900' : 'text-gray-400')}>
+                {item.mobileLabel}
+              </span>
+              {activeTab === item.id && (
+                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-slate-800 rounded-full" />
+              )}
             </button>
           ))}
         </div>
       </nav>
+
+      {/* ── USER DETAIL MODAL ── */}
+      {selectedUser && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setSelectedUser(null)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 text-lg">User Details</h3>
+              <button onClick={() => setSelectedUser(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Avatar + name */}
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-slate-700 flex items-center justify-center text-white text-2xl font-bold shrink-0">
+                  {selectedUser.name.charAt(0)}
+                </div>
+                <div>
+                  <h4 className="text-xl font-bold text-gray-900">{selectedUser.name}</h4>
+                  <span className={cn('text-xs px-2.5 py-0.5 rounded-full font-semibold capitalize mt-1 inline-block',
+                    selectedUser.role === 'family' ? 'bg-brand-100 text-brand-700' : 'bg-emerald-100 text-emerald-700')}>
+                    {selectedUser.role}
+                  </span>
+                </div>
+              </div>
+              {/* Info rows */}
+              <div className="space-y-3 bg-gray-50 rounded-2xl p-4">
+                <div className="flex items-center gap-3 text-sm">
+                  <Mail className="w-4 h-4 text-gray-400 shrink-0" />
+                  <span className="text-gray-700">{selectedUser.email}</span>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
+                  <span className="text-gray-700">Joined {selectedUser.joined}</span>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <Briefcase className="w-4 h-4 text-gray-400 shrink-0" />
+                  <span className="text-gray-700">{selectedUser.matches} matches</span>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <span className={cn('w-2 h-2 rounded-full shrink-0',
+                    selectedUser.status === 'active' ? 'bg-green-500' : selectedUser.status === 'pending' ? 'bg-amber-500' : 'bg-red-500')} />
+                  <span className={cn('font-semibold capitalize',
+                    selectedUser.status === 'active' ? 'text-green-700' : selectedUser.status === 'pending' ? 'text-amber-700' : 'text-red-700')}>
+                    {selectedUser.status}
+                  </span>
+                </div>
+              </div>
+              {/* Actions */}
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => openEdit(selectedUser)}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-50 text-blue-700 text-sm font-semibold hover:bg-blue-100 transition-colors">
+                  <Pencil className="w-4 h-4" /> Edit User
+                </button>
+                {selectedUser.status === 'suspended'
+                  ? <button onClick={() => handleRestore(selectedUser.id)}
+                      className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-50 text-green-700 text-sm font-semibold hover:bg-green-100 transition-colors">
+                      <RotateCcw className="w-4 h-4" /> Restore
+                    </button>
+                  : <button onClick={() => handleSuspend(selectedUser.id)}
+                      className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 text-amber-700 text-sm font-semibold hover:bg-amber-100 transition-colors">
+                      <Ban className="w-4 h-4" /> Suspend
+                    </button>
+                }
+                <button onClick={() => handleDelete(selectedUser)}
+                  className="col-span-2 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-50 text-red-600 text-sm font-semibold hover:bg-red-100 transition-colors">
+                  <Trash2 className="w-4 h-4" /> Delete Account
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── EDIT USER MODAL ── */}
+      {editingUser && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditingUser(null)} />
+          <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 text-lg">Edit User</h3>
+              <button onClick={() => setEditingUser(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Full Name</label>
+                <input value={editForm.name} onChange={e => setEditForm(f => ({...f, name: e.target.value}))}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-100 outline-none text-sm" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Email</label>
+                <input value={editForm.email} onChange={e => setEditForm(f => ({...f, email: e.target.value}))}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-100 outline-none text-sm" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Role</label>
+                <div className="flex gap-2">
+                  {(['family', 'caregiver'] as const).map(r => (
+                    <button key={r} onClick={() => setEditForm(f => ({...f, role: r}))}
+                      className={cn('flex-1 py-2.5 rounded-xl text-sm font-semibold capitalize transition-colors',
+                        editForm.role === r ? 'bg-slate-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <Button variant="secondary" fullWidth onClick={() => setEditingUser(null)}>Cancel</Button>
+                <Button variant="primary" fullWidth onClick={saveEdit} className="bg-slate-800 hover:bg-slate-900">Save Changes</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── DELETE CONFIRM MODAL ── */}
+      {deletingUser && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setDeletingUser(null)} />
+          <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
+            <div className="p-6 text-center space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mx-auto">
+                <Trash2 className="w-7 h-7 text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 mb-1">Delete Account?</h3>
+                <p className="text-sm text-gray-500">
+                  This will permanently remove <span className="font-semibold text-gray-800">{deletingUser.name}</span>'s account and all associated data. This action cannot be undone.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <Button variant="secondary" fullWidth onClick={() => setDeletingUser(null)}>Cancel</Button>
+                <button onClick={confirmDelete}
+                  className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-colors">
+                  Delete Account
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── REPORT DETAIL MODAL ── */}
+      {selectedReport && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setSelectedReport(null)} />
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl z-10 overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+              <h3 className="font-bold text-gray-900 text-lg">Dispute Details</h3>
+              <button onClick={() => setSelectedReport(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-6 space-y-5">
+              {/* Header */}
+              <div className="flex items-start gap-4">
+                <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center shrink-0',
+                  selectedReport.priority === 'high' ? 'bg-red-50' : selectedReport.priority === 'medium' ? 'bg-amber-50' : 'bg-gray-50')}>
+                  <Flag className={cn('w-6 h-6',
+                    selectedReport.priority === 'high' ? 'text-red-500' : selectedReport.priority === 'medium' ? 'text-amber-500' : 'text-gray-400')} />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-bold text-gray-900 text-lg">{selectedReport.type}</h4>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    <span className={cn('text-xs px-2.5 py-0.5 rounded-full font-semibold',
+                      selectedReport.priority === 'high' ? 'bg-red-100 text-red-700' :
+                      selectedReport.priority === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500')}>
+                      {selectedReport.priority} priority
+                    </span>
+                    <span className={cn('text-xs px-2.5 py-0.5 rounded-full font-semibold',
+                      selectedReport.status === 'open' ? 'bg-red-100 text-red-700' :
+                      selectedReport.status === 'under_review' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700')}>
+                      {selectedReport.status.replace('_', ' ')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Parties */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-red-50 rounded-2xl p-4">
+                  <p className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-1">Reported User</p>
+                  <p className="font-bold text-gray-900">{selectedReport.reportedUser}</p>
+                </div>
+                <div className="bg-blue-50 rounded-2xl p-4">
+                  <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-1">Reported By</p>
+                  <p className="font-bold text-gray-900">{selectedReport.reportedBy}</p>
+                </div>
+              </div>
+
+              {/* Date */}
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <Calendar className="w-4 h-4 shrink-0" />
+                Report filed: {selectedReport.date}
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Description</p>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <p className="text-sm text-gray-700 leading-relaxed">{selectedReport.description}</p>
+                </div>
+              </div>
+
+              {/* Evidence */}
+              {selectedReport.evidence && selectedReport.evidence.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Submitted Evidence</p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedReport.evidence.map((ev: string) => (
+                      <span key={ev} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 font-medium">
+                        <FileText className="w-3.5 h-3.5" /> {ev}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              {!reportActions[selectedReport.id] && selectedReport.status !== 'resolved' && (
+                <div className="flex gap-3 pt-2">
+                  <Button size="sm" onClick={() => { setReportActions(prev => ({...prev, [selectedReport.id]: 'resolved'})); setSelectedReport(null); }}
+                    className="bg-slate-700 hover:bg-slate-800 text-white rounded-full flex-1">
+                    <CheckCircle className="w-4 h-4" /> Mark Resolved
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => { setReportActions(prev => ({...prev, [selectedReport.id]: 'dismissed'})); setSelectedReport(null); }}
+                    className="text-gray-400 hover:bg-gray-100 flex-1">
+                    Dismiss
+                  </Button>
+                </div>
+              )}
+              {reportActions[selectedReport.id] && (
+                <div className="flex items-center gap-2 text-sm font-semibold text-green-600 pt-2">
+                  <CheckCircle className="w-4 h-4" />
+                  {reportActions[selectedReport.id] === 'resolved' ? 'Report Resolved' : 'Report Dismissed'}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

@@ -514,6 +514,8 @@ export const mockAdminReports = [
     date: 'May 5, 2026',
     status: 'open',
     priority: 'high',
+    description: 'Sarah Johnson reported receiving a series of unsolicited and threatening messages from Michael Torres after she declined his care request. The messages included inappropriate language and were sent across 3 consecutive days. Screenshots have been submitted as evidence. This is a first offense for this account.',
+    evidence: ['Screenshot_chat_May3.png', 'Screenshot_chat_May4.png', 'Screenshot_chat_May5.png'],
   },
   {
     id: 'rp2',
@@ -523,6 +525,8 @@ export const mockAdminReports = [
     date: 'May 3, 2026',
     status: 'under_review',
     priority: 'medium',
+    description: 'Jennifer Martinez flagged a caregiver profile that appears to use stock photos instead of a real portrait, and the credentials listed (CPR cert, nursing license) could not be verified via the provided registration numbers. The account was created on Apr 30, 2026 and has already contacted 4 families.',
+    evidence: ['ReverseImageSearch_result.pdf', 'CredentialCheckFailed.txt'],
   },
   {
     id: 'rp3',
@@ -532,5 +536,7 @@ export const mockAdminReports = [
     date: 'Apr 28, 2026',
     status: 'resolved',
     priority: 'low',
+    description: 'Robert Kim reported that James Williams confirmed a booking for Apr 28 at 9:00 AM but did not show up and did not notify the family in advance. The family had arranged their schedule around this visit. James later cited a personal emergency. The dispute was resolved after James issued a formal apology and offered a discounted rebooking.',
+    evidence: ['BookingConfirmation_Apr28.pdf'],
   },
 ];
