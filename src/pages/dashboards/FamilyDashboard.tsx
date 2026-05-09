@@ -145,19 +145,24 @@ export default function FamilyDashboard() {
     ]).catch(console.error);
   }, []);
 
-  // Load profile settings when Profile tab opens (once per session)
+  // Load profile settings when Profile tab opens (once per session).
+  // Stats come from /auth/stats; preferences come from /auth/settings (phone, address, prefs).
   useEffect(() => {
     if (activeTab === 'Profile' && !profileSettingsLoaded) {
       setProfileSettingsLoaded(true);
-      authApi.settings()
-        .then((data: any) => {
-          setProfileSettings(data);
-          setPersonalForm({ name: user?.name || '', phone: data.phone || '', address: data.address || '' });
-          setEditPhone(data.phone || '');
-          setNotifPrefs(data.notificationPrefs || { email: true, sms: true, push: false, marketing: false });
-          setPrivacyPrefs(data.privacyPrefs || { profileVisible: true, shareActivity: false, dataAnalytics: true });
-        })
-        .catch(() => {});
+      Promise.all([
+        authApi.stats().catch(() => null),
+        authApi.settings().catch(() => null),
+      ]).then(([statsData, settingsData]: [any, any]) => {
+        // Merge stats + settings into profileSettings for display
+        setProfileSettings({ ...settingsData, ...(statsData || {}) });
+        if (settingsData) {
+          setPersonalForm({ name: user?.name || '', phone: settingsData.phone || '', address: settingsData.address || '' });
+          setEditPhone(settingsData.phone || '');
+          setNotifPrefs(settingsData.notificationPrefs || { email: true, sms: true, push: false, marketing: false });
+          setPrivacyPrefs(settingsData.privacyPrefs || { profileVisible: true, shareActivity: false, dataAnalytics: true });
+        }
+      });
     }
   }, [activeTab]);
 

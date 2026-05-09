@@ -77,6 +77,7 @@ export const auth = {
     post('/auth/register', { name, email, password, role }),
   me: () => get('/auth/me'),
   settings: () => get('/auth/settings'),
+  stats: () => get('/auth/stats'),
   updateProfile: (data: any) => put('/auth/profile', data),
   uploadPhoto: (photoData: string) => post('/auth/profile-photo', { photoData }),
   changePassword: (currentPassword: string, newPassword: string) =>

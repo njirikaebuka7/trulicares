@@ -177,9 +177,25 @@ router.post('/payment-method', requireAuth, async (req: AuthRequest, res) => {
       return res.status(503).json({ error: 'Payment service not configured' });
     }
     const customerId = await getOrCreateCustomer(stripe, req.user!.id);
-    // attach() returns the full PM object — use it directly (avoids a second retrieve)
-    const pm = await stripe.paymentMethods.attach(paymentMethodId, { customer: customerId });
-    // Set as default if this is the first card
+    // attach() returns the full PM — use it directly to avoid a second retrieve.
+    // If the PM is already attached to this customer (SetupIntent confirmed it before
+    // this request arrives), retrieve it instead of re-attaching.
+    let pm: any;
+    try {
+      pm = await stripe.paymentMethods.attach(paymentMethodId, { customer: customerId });
+    } catch (attachErr: any) {
+      const msg: string = attachErr?.raw?.message || attachErr?.message || '';
+      const isAlreadyAttached =
+        msg.toLowerCase().includes('already been attached') ||
+        attachErr?.raw?.code === 'resource_already_exists';
+      if (!isAlreadyAttached) throw attachErr;
+      // PM was already attached — retrieve and verify it belongs to this customer
+      pm = await stripe.paymentMethods.retrieve(paymentMethodId);
+      if (pm.customer !== customerId) {
+        return res.status(403).json({ error: 'Payment method belongs to a different account' });
+      }
+    }
+    // Set as default if this is the first/only card on the customer
     const existing = await stripe.paymentMethods.list({ customer: customerId, type: 'card' });
     const isFirst = existing.data.length === 1;
     if (isFirst) {
