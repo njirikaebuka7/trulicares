@@ -10,20 +10,21 @@ import {
 import Button from '@/components/ui/Button';
 import StripeCardModal from '@/components/ui/StripeCardModal';
 import { useAuth } from '@/context/AuthContext';
-import { get, post, put, auth as authApi, payments as paymentsApi } from '@/lib/api';
+import { get, post, put, auth as authApi, payments as paymentsApi, notifications as notificationsApi } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
 
 
-type Tab = 'Overview' | 'My Requests' | 'Schedule' | 'Messages' | 'Payments' | 'Profile';
+type Tab = 'Overview' | 'My Requests' | 'Matches' | 'Schedule' | 'Messages' | 'Payments' | 'Profile';
 
 const navItems: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'Overview', label: 'Overview', icon: <LayoutDashboard className="w-5 h-5" /> },
   { id: 'My Requests', label: 'My Requests', icon: <FileText className="w-5 h-5" /> },
-  { id: 'Schedule', label: 'Schedule', icon: <Calendar className="w-5 h-5" /> },
+  { id: 'Matches', label: 'Matches', icon: <Star className="w-5 h-5" /> },
   { id: 'Messages', label: 'Messages', icon: <MessageCircle className="w-5 h-5" /> },
-  { id: 'Payments', label: 'Payments', icon: <CreditCard className="w-5 h-5" /> },
   { id: 'Profile', label: 'Profile', icon: <User className="w-5 h-5" /> },
+  { id: 'Schedule', label: 'Schedule', icon: <Calendar className="w-5 h-5" /> },
+  { id: 'Payments', label: 'Payments', icon: <CreditCard className="w-5 h-5" /> },
 ];
 
 const avatarColors = ['bg-coral-400', 'bg-brand-400', 'bg-sky-400', 'bg-emerald-400', 'bg-violet-400'];
@@ -122,6 +123,8 @@ export default function FamilyDashboard() {
   const [schedule, setSchedule] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [conversations, setConversations] = useState<any[]>([]);
+  const [apiNotifications, setApiNotifications] = useState<any[]>([]);
+  const [dataLoading, setDataLoading] = useState(true);
 
   const loadMessages = async (convId: string) => {
     try {
@@ -136,13 +139,15 @@ export default function FamilyDashboard() {
   };
 
   useEffect(() => {
+    setDataLoading(true);
     Promise.all([
       get('/matches').then((d: any) => setMatches(d.matches || [])).catch(() => {}),
       get('/care-requests').then((d: any) => setRequests(d.requests || [])).catch(() => {}),
       get('/schedule').then((d: any) => setSchedule(d.schedule || [])).catch(() => {}),
       get('/payments').then((d: any) => setPayments(d.payments || [])).catch(() => {}),
       get('/conversations').then((d: any) => setConversations(d.conversations || [])).catch(() => {}),
-    ]).catch(console.error);
+      notificationsApi.list().then((d: any) => setApiNotifications(d.notifications || [])).catch(() => {}),
+    ]).finally(() => setDataLoading(false));
   }, []);
 
   // Load profile settings when Profile tab opens (once per session).
@@ -151,13 +156,14 @@ export default function FamilyDashboard() {
     if (activeTab === 'Profile' && !profileSettingsLoaded) {
       setProfileSettingsLoaded(true);
       Promise.all([
+        authApi.me().catch(() => null),
         authApi.stats().catch(() => null),
         authApi.settings().catch(() => null),
-      ]).then(([statsData, settingsData]: [any, any]) => {
-        // Merge stats + settings into profileSettings for display
+      ]).then(([meData, statsData, settingsData]: [any, any, any]) => {
+        if (meData) updateUser({ name: meData.name, email: meData.email, photoUrl: meData.photoUrl });
         setProfileSettings({ ...settingsData, ...(statsData || {}) });
         if (settingsData) {
-          setPersonalForm({ name: user?.name || '', phone: settingsData.phone || '', address: settingsData.address || '' });
+          setPersonalForm({ name: meData?.name || user?.name || '', phone: settingsData.phone || '', address: settingsData.address || '' });
           setEditPhone(settingsData.phone || '');
           setNotifPrefs(settingsData.notificationPrefs || { email: true, sms: true, push: false, marketing: false });
           setPrivacyPrefs(settingsData.privacyPrefs || { profileVisible: true, shareActivity: false, dataAnalytics: true });
@@ -186,8 +192,9 @@ export default function FamilyDashboard() {
     const reader = new FileReader();
     reader.onload = async () => {
       try {
-        const res: any = await authApi.uploadPhoto(reader.result as string);
-        updateUser({ photoUrl: res.photoUrl });
+        const base64 = reader.result as string;
+        const res: any = await authApi.updateProfile({ photoUrl: base64 });
+        updateUser({ photoUrl: res.photoUrl ?? base64 });
         showToast('Profile photo updated!');
       } catch (err: any) {
         showToast(err.message || 'Failed to upload photo', 'error');
@@ -332,23 +339,16 @@ export default function FamilyDashboard() {
 
   const handleLogout = () => { logout(); navigate('/'); };
 
-  const notifications = [
-    { id: 'n1', text: 'Sarah Johnson accepted your request', time: '10 min ago' },
-    { id: 'n2', text: 'New match found for Senior Care', time: '2 hrs ago' },
-    { id: 'n3', text: 'Upcoming session tomorrow at 8am', time: '1 day ago' },
-  ];
-  const unread = notificationsRead ? 0 : 2;
+  const unreadApiCount = apiNotifications.filter((n: any) => !(n.read ?? n.isRead ?? false)).length;
+  const unread = notificationsRead ? 0 : unreadApiCount;
   const initials = user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() ?? 'U';
 
   const navBadges: Partial<Record<Tab, number>> = {
     'My Requests': requests.filter((r: any) => r.status === 'matching').length || 0,
+    'Matches': matches.filter((m: any) => m.status === 'pending').length || 0,
     'Messages': conversations.reduce((s: number, c: any) => s + (c.unreadCount || 0), 0) || 0,
   };
 
-  const totalSpentCents = payments
-    .filter((p: any) => p.status === 'succeeded' && (p.type === 'messaging_unlock' || p.description?.toLowerCase().includes('messag')))
-    .reduce((s: number, p: any) => s + (p.amountCents || 0), 0);
-  const totalSpentStr = totalSpentCents ? `$${(totalSpentCents / 100).toFixed(0)}` : '$0';
   const totalUnread = conversations.reduce((s: number, c: any) => s + (c.unreadCount || 0), 0);
 
   const handleEditRequest = async () => {
@@ -382,6 +382,10 @@ export default function FamilyDashboard() {
   const openNotifications = () => {
     setNotifOpen(true);
     setNotificationsRead(true);
+    if (unreadApiCount > 0) {
+      notificationsApi.markAllRead().catch(() => {});
+      setApiNotifications(prev => prev.map((n: any) => ({ ...n, read: true, isRead: true })));
+    }
   };
 
   return (
@@ -531,12 +535,17 @@ export default function FamilyDashboard() {
                     <span className="font-bold text-gray-900 text-sm">Notifications</span>
                     <button onClick={() => setNotifOpen(false)}><X className="w-4 h-4 text-gray-400" /></button>
                   </div>
-                  {notifications.map(n => (
-                    <div key={n.id} className="px-4 py-3 border-b border-gray-50 last:border-0">
-                      <p className="text-sm text-gray-800 font-medium">{n.text}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{n.time}</p>
-                    </div>
-                  ))}
+                  {apiNotifications.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-sm text-gray-400">No notifications yet.</div>
+                  ) : apiNotifications.slice(0, 8).map((n: any) => {
+                    const isRead = n.read ?? n.isRead ?? false;
+                    return (
+                      <div key={n.id} className="px-4 py-3 border-b border-gray-50 last:border-0">
+                        <p className={cn('text-sm font-medium', isRead ? 'text-gray-600' : 'text-gray-900')}>{n.content || n.message || n.text}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{n.createdAt ? new Date(n.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : n.time}</p>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -562,15 +571,20 @@ export default function FamilyDashboard() {
                   <X className="w-4 h-4 text-gray-400" />
                 </button>
               </div>
-              {notifications.map(n => (
-                <div key={n.id} className="px-5 py-4 border-b border-gray-50 last:border-0 flex items-start gap-3">
-                  <div className="w-2 h-2 bg-brand-500 rounded-full mt-1.5 shrink-0" />
-                  <div>
-                    <p className="text-sm text-gray-800 font-medium">{n.text}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{n.time}</p>
+              {apiNotifications.length === 0 ? (
+                <div className="px-5 py-8 text-center text-sm text-gray-400">No notifications yet.</div>
+              ) : apiNotifications.slice(0, 8).map((n: any) => {
+                const isRead = n.read ?? n.isRead ?? false;
+                return (
+                  <div key={n.id} className="px-5 py-4 border-b border-gray-50 last:border-0 flex items-start gap-3">
+                    <div className={cn('w-2 h-2 rounded-full mt-1.5 shrink-0', isRead ? 'bg-gray-300' : 'bg-brand-500')} />
+                    <div>
+                      <p className={cn('text-sm font-medium', isRead ? 'text-gray-600' : 'text-gray-800')}>{n.content || n.message || n.text}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{n.createdAt ? new Date(n.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : n.time}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -578,8 +592,22 @@ export default function FamilyDashboard() {
         {/* Page content */}
         <div className="flex-1 px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-8">
 
+          {/* ── LOADING SKELETON ── */}
+          {dataLoading && (
+            <div className="space-y-4 animate-pulse">
+              <div className="h-36 bg-gray-100 rounded-3xl" />
+              <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+                {[0,1,2,3].map(i => <div key={i} className="h-28 bg-gray-100 rounded-2xl" />)}
+              </div>
+              <div className="grid lg:grid-cols-2 gap-6">
+                <div className="h-48 bg-gray-100 rounded-2xl" />
+                <div className="h-48 bg-gray-100 rounded-2xl" />
+              </div>
+            </div>
+          )}
+
           {/* ── OVERVIEW ── */}
-          {activeTab === 'Overview' && (
+          {!dataLoading && activeTab === 'Overview' && (
             <div className="space-y-6">
               <div className="bg-gradient-to-br from-brand-600 to-brand-800 rounded-3xl p-6 text-white relative overflow-hidden">
                 <div className="absolute -right-8 -top-8 w-40 h-40 bg-white/5 rounded-full" />
@@ -592,7 +620,7 @@ export default function FamilyDashboard() {
                     className="bg-white text-brand-700 border-white hover:bg-brand-50 rounded-full">
                     <Plus className="w-4 h-4" /> Post New Request
                   </Button>
-                  <Button size="sm" onClick={() => setActiveTab('My Requests')}
+                  <Button size="sm" onClick={() => setActiveTab('Matches')}
                     className="bg-white/10 border-white/20 text-white hover:bg-white/20 rounded-full border">
                     View Matches
                   </Button>
@@ -600,18 +628,19 @@ export default function FamilyDashboard() {
               </div>
 
               <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-                <StatCard label="Active Matches" value={matches.filter((m: any) => m.status === 'accepted').length}
-                  icon={<Shield className="w-4 h-4" />}
-                  sub={matches.filter((m: any) => m.status === 'pending').length > 0 ? `${matches.filter((m: any) => m.status === 'pending').length} awaiting response` : 'Up to date'}
+                <StatCard label="Active Requests" value={requests.filter((r: any) => r.status !== 'cancelled' && r.status !== 'completed').length}
+                  icon={<FileText className="w-4 h-4" />}
+                  sub={requests.filter((r: any) => r.status === 'matching').length > 0 ? `${requests.filter((r: any) => r.status === 'matching').length} finding matches` : requests.length > 0 ? 'All matched' : 'No requests yet'}
                   colorBg="bg-brand-50" colorText="text-brand-600" />
-                <StatCard label="Sessions" value={schedule.length} icon={<Calendar className="w-4 h-4" />}
-                  sub={schedule.length > 0 ? `Next: ${schedule[0]?.date || 'Upcoming'}` : 'None scheduled'}
+                <StatCard label="Matches Found" value={matches.length}
+                  icon={<Star className="w-4 h-4" />}
+                  sub={matches.filter((m: any) => m.status === 'accepted').length > 0 ? `${matches.filter((m: any) => m.status === 'accepted').length} accepted` : matches.length > 0 ? 'Awaiting response' : 'No matches yet'}
                   colorBg="bg-emerald-50" colorText="text-emerald-600" />
+                <StatCard label="Upcoming Sessions" value={schedule.length} icon={<Calendar className="w-4 h-4" />}
+                  sub={schedule.length > 0 ? `Next: ${schedule[0]?.date || 'Upcoming'}` : 'None scheduled'}
+                  colorBg="bg-sky-50" colorText="text-sky-600" />
                 <StatCard label="Messages" value={conversations.filter((c: any) => c.messagingUnlocked).length} icon={<MessageCircle className="w-4 h-4" />}
                   sub={totalUnread > 0 ? `${totalUnread} unread` : 'All caught up'}
-                  colorBg="bg-sky-50" colorText="text-sky-600" />
-                <StatCard label="Total Spent" value={totalSpentStr} icon={<CreditCard className="w-4 h-4" />}
-                  sub={payments.length > 0 ? `${payments.length} transactions` : 'No payments yet'}
                   colorBg="bg-violet-50" colorText="text-violet-600" />
               </div>
 
@@ -640,27 +669,42 @@ export default function FamilyDashboard() {
 
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
                   <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                    <h3 className="font-bold text-gray-900">Care Requests</h3>
-                    <button onClick={() => setActiveTab('My Requests')} className="text-sm text-brand-600 font-medium hover:underline">View all</button>
+                    <h3 className="font-bold text-gray-900">Recent Matches</h3>
+                    <button onClick={() => setActiveTab('Matches')} className="text-sm text-brand-600 font-medium hover:underline">View all</button>
                   </div>
-                  <div className="divide-y divide-gray-50">
-                    {requests.map((req: any) => (
-                      <div key={req.id} className="flex items-center gap-3 px-5 py-3.5">
-                        <div className="w-9 h-9 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
-                          <FileText className="w-4 h-4 text-brand-600" />
+                  {matches.length === 0 ? (
+                    <div className="px-5 py-8 text-center text-sm text-gray-400">
+                      <Star className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                      No matches yet — post a care request to get started.
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-50">
+                      {matches.slice(0, 3).map((match: any, i: number) => (
+                        <div key={match.id} className="flex items-center gap-3 px-5 py-3.5">
+                          {match.caregiver?.photoUrl ? (
+                            <img src={match.caregiver.photoUrl} alt={match.caregiver.name} className="w-9 h-9 rounded-xl object-cover shrink-0" />
+                          ) : (
+                            <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-xs shrink-0', avatarColors[i % avatarColors.length])}>
+                              {(match.caregiver?.name || '?').split(' ').map((n: string) => n[0]).join('')}
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm text-gray-900">{match.caregiver?.name}</p>
+                            <div className="flex items-center gap-1">
+                              <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                              <span className="text-xs text-gray-500">{match.caregiver?.rating || '—'}</span>
+                            </div>
+                          </div>
+                          <span className={cn('text-xs px-2.5 py-1 rounded-full font-semibold whitespace-nowrap',
+                            match.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                            match.messagingUnlocked ? 'bg-brand-100 text-brand-700' :
+                            'bg-amber-100 text-amber-700')}>
+                            {match.messagingUnlocked ? 'Chatting' : match.status}
+                          </span>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm text-gray-900">{req.label}</p>
-                          <p className="text-xs text-gray-500 truncate">{req.description}</p>
-                        </div>
-                        <span className={cn('text-xs px-2.5 py-1 rounded-full font-semibold whitespace-nowrap',
-                          req.status === 'matched' ? 'bg-green-100 text-green-700' :
-                          req.status === 'matching' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600')}>
-                          {req.status === 'matched' ? `${req.matchCount} matches` : req.status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -668,7 +712,7 @@ export default function FamilyDashboard() {
           )}
 
           {/* ── MY REQUESTS ── */}
-          {activeTab === 'My Requests' && (
+          {!dataLoading && activeTab === 'My Requests' && (
             <div className="space-y-5">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-900">My Care Requests</h2>
@@ -676,6 +720,16 @@ export default function FamilyDashboard() {
                   <Plus className="w-4 h-4" /> New Request
                 </Button>
               </div>
+              {requests.length === 0 && (
+                <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-12 text-center">
+                  <FileText className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+                  <p className="font-semibold text-gray-700 mb-1">No care requests yet</p>
+                  <p className="text-sm text-gray-400 mb-5">Post a request to start finding the right caregiver for your family.</p>
+                  <Button variant="primary" size="sm" onClick={() => navigate('/find-care')}>
+                    <Plus className="w-4 h-4" /> Post a Request
+                  </Button>
+                </div>
+              )}
               {requests.map((req: any) => {
                 const reqMatches = matches.filter((m: any) => m.careRequestId === req.id);
                 return (
@@ -766,7 +820,12 @@ export default function FamilyDashboard() {
                                 </Button>
                               ) : match.status === 'accepted' ? (
                                 <Button variant="coral" size="sm" onClick={async () => {
-                                  try { await post(`/matches/${match.id}/unlock-messaging`); setMatches(prev => prev.map((m: any) => m.id === match.id ? { ...m, messagingUnlocked: true } : m)); } catch {}
+                                  try {
+                                    await post(`/matches/${match.id}/unlock-messaging`);
+                                    setMatches(prev => prev.map((m: any) => m.id === match.id ? { ...m, messagingUnlocked: true } : m));
+                                    const d: any = await get('/conversations').catch(() => null);
+                                    if (d?.conversations) setConversations(d.conversations);
+                                  } catch {}
                                 }}>
                                   <DollarSign className="w-3.5 h-3.5" /> Unlock Messaging
                                 </Button>
@@ -819,7 +878,12 @@ export default function FamilyDashboard() {
                           </Button>
                         ) : match.status === 'accepted' ? (
                           <Button variant="coral" size="sm" onClick={async () => {
-                            try { await post(`/matches/${match.id}/unlock-messaging`); setMatches(prev => prev.map((m: any) => m.id === match.id ? { ...m, messagingUnlocked: true } : m)); } catch {}
+                            try {
+                              await post(`/matches/${match.id}/unlock-messaging`);
+                              setMatches(prev => prev.map((m: any) => m.id === match.id ? { ...m, messagingUnlocked: true } : m));
+                              const d: any = await get('/conversations').catch(() => null);
+                              if (d?.conversations) setConversations(d.conversations);
+                            } catch {}
                           }}>
                             <DollarSign className="w-3.5 h-3.5" /> Unlock Messaging
                           </Button>
@@ -835,8 +899,107 @@ export default function FamilyDashboard() {
             </div>
           )}
 
+          {/* ── MATCHES ── */}
+          {!dataLoading && activeTab === 'Matches' && (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-900">My Matches</h2>
+                <Button variant="primary" size="sm" onClick={() => navigate('/find-care')}>
+                  <Plus className="w-4 h-4" /> New Request
+                </Button>
+              </div>
+              {matches.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-12 text-center">
+                  <Star className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+                  <p className="font-semibold text-gray-700 mb-1">No matches yet</p>
+                  <p className="text-sm text-gray-400 mb-5">Post a care request and we'll match you with the right caregivers.</p>
+                  <Button variant="primary" size="sm" onClick={() => navigate('/find-care')}>
+                    <Plus className="w-4 h-4" /> Find Care
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {matches.map((match: any, i: number) => (
+                    <div key={match.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                      <div className="flex items-start gap-4">
+                        {match.caregiver?.photoUrl ? (
+                          <img src={match.caregiver.photoUrl} alt={match.caregiver.name} className="w-14 h-14 rounded-2xl object-cover shrink-0" />
+                        ) : (
+                          <div className={cn('w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0', avatarColors[i % avatarColors.length])}>
+                            {(match.caregiver?.name || '?').split(' ').map((n: string) => n[0]).join('')}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <h3 className="font-bold text-gray-900">{match.caregiver?.name}</h3>
+                            {match.caregiver?.verified && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 text-xs font-bold">
+                                <Shield className="w-3 h-3" /> Verified
+                              </span>
+                            )}
+                            {match.nearYou && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-bold">
+                                <MapPin className="w-3 h-3" /> Near You
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                            <span className="text-xs font-semibold text-gray-700">{match.caregiver?.rating || '—'}</span>
+                            {match.budget && <span className="text-xs text-gray-400">· {match.budget}</span>}
+                          </div>
+                          {match.caregiver?.specialties?.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5">
+                              {match.caregiver.specialties.slice(0, 3).map((s: string) => (
+                                <span key={s} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">{s}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <span className={cn('px-2.5 py-1 rounded-full text-xs font-bold shrink-0',
+                          match.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                          match.status === 'declined' ? 'bg-red-100 text-red-600' :
+                          'bg-amber-100 text-amber-700')}>
+                          {match.status}
+                        </span>
+                      </div>
+                      <div className="mt-4 flex gap-2 flex-wrap items-center border-t border-gray-50 pt-4">
+                        {match.messagingUnlocked ? (
+                          <Button variant="primary" size="sm" onClick={() => setActiveTab('Messages')}>
+                            <MessageCircle className="w-3.5 h-3.5" /> Message
+                          </Button>
+                        ) : match.status === 'accepted' ? (
+                          <Button variant="coral" size="sm" onClick={async () => {
+                            try {
+                              await post(`/matches/${match.id}/unlock-messaging`);
+                              setMatches(prev => prev.map((m: any) => m.id === match.id ? { ...m, messagingUnlocked: true } : m));
+                              const d: any = await get('/conversations').catch(() => null);
+                              if (d?.conversations) setConversations(d.conversations);
+                              showToast('Messaging unlocked!');
+                            } catch (err: any) {
+                              showToast(err.message || 'Failed to unlock messaging', 'error');
+                            }
+                          }}>
+                            <DollarSign className="w-3.5 h-3.5" /> Unlock Messaging
+                          </Button>
+                        ) : (
+                          <span className="text-xs px-3 py-1.5 rounded-full bg-amber-50 text-amber-600 font-semibold flex items-center gap-1.5">
+                            <Clock className="w-3 h-3" /> Awaiting acceptance
+                          </span>
+                        )}
+                        <Button variant="secondary" size="sm" onClick={() => navigate(`/caregivers/${match.caregiver?.id}`)}>
+                          View Profile
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ── SCHEDULE ── */}
-          {activeTab === 'Schedule' && (() => {
+          {!dataLoading && activeTab === 'Schedule' && (() => {
             const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
             const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
             const firstDay = new Date(calYear, calMonth, 1).getDay();
@@ -953,13 +1116,23 @@ export default function FamilyDashboard() {
           })()}
 
           {/* ── MESSAGES ── */}
-          {activeTab === 'Messages' && (() => {
+          {!dataLoading && activeTab === 'Messages' && (() => {
             const activeConv = selectedMessage ? conversations.find((c: any) => c.id === selectedMessage) : null;
             const activeMessages = selectedMessage ? (chatMessages[selectedMessage] || []) : [];
             const threadList = conversations.filter((c: any) => c.messagingUnlocked);
             return (
               <div className="space-y-4">
                 <h2 className="text-xl font-bold text-gray-900">Messages</h2>
+                {threadList.length === 0 && !activeConv && (
+                  <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-12 text-center">
+                    <MessageCircle className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+                    <p className="font-semibold text-gray-700 mb-1">No conversations yet</p>
+                    <p className="text-sm text-gray-400 mb-5">Unlock messaging with a matched caregiver to start chatting.</p>
+                    <Button variant="secondary" size="sm" onClick={() => setActiveTab('Matches')}>
+                      View Matches
+                    </Button>
+                  </div>
+                )}
                 {activeConv ? (
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col">
                     {/* Chat header */}
@@ -1078,7 +1251,7 @@ export default function FamilyDashboard() {
           })()}
 
           {/* ── PAYMENTS ── */}
-          {activeTab === 'Payments' && (
+          {!dataLoading && activeTab === 'Payments' && (
             <div className="space-y-5">
               <h2 className="text-xl font-bold text-gray-900">Payment History</h2>
               {(() => {
@@ -1113,21 +1286,30 @@ export default function FamilyDashboard() {
                   <h3 className="font-bold text-gray-900">Transactions</h3>
                 </div>
                 <div className="divide-y divide-gray-50">
-                  {payments.map((pay: any) => (
-                    <div key={pay.id} className="flex items-center gap-4 px-5 py-4">
-                      <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center shrink-0">
-                        <CreditCard className="w-4 h-4 text-green-600" />
+                  {payments.length === 0 ? (
+                    <div className="px-5 py-8 text-center text-sm text-gray-400">No transactions yet.</div>
+                  ) : payments.map((pay: any) => {
+                    const amountDisplay = pay.amount ?? (pay.amountCents != null ? `$${(pay.amountCents / 100).toFixed(2)}` : '—');
+                    const dateDisplay = pay.date ?? (pay.createdAt ? new Date(pay.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
+                    const methodDisplay = pay.method ?? (pay.brand ? `${pay.brand} ····${pay.last4}` : 'Card');
+                    return (
+                      <div key={pay.id} className="flex items-center gap-4 px-5 py-4">
+                        <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center shrink-0">
+                          <CreditCard className="w-4 h-4 text-green-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm text-gray-900">{pay.description}</p>
+                          <p className="text-xs text-gray-400">{dateDisplay} · {methodDisplay}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-gray-900">{amountDisplay}</p>
+                          <span className={cn('text-xs font-medium', pay.status === 'succeeded' ? 'text-green-600' : pay.status === 'failed' ? 'text-red-500' : 'text-amber-600')}>
+                            {pay.status}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm text-gray-900">{pay.description}</p>
-                        <p className="text-xs text-gray-400">{pay.date} · {pay.method}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-gray-900">{pay.amount}</p>
-                        <span className="text-xs text-green-600 font-medium">{pay.status}</span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
@@ -1169,7 +1351,7 @@ export default function FamilyDashboard() {
           )}
 
           {/* ── PROFILE ── */}
-          {activeTab === 'Profile' && (
+          {!dataLoading && activeTab === 'Profile' && (
             <div className="space-y-5 max-w-2xl">
               <h2 className="text-xl font-bold text-gray-900">Profile & Settings</h2>
               {/* Hidden file input for photo upload */}
@@ -1266,7 +1448,7 @@ export default function FamilyDashboard() {
 
       {/* ── BOTTOM NAV (mobile) ── */}
       {(() => {
-        const MOBILE_PRIMARY: Tab[] = ['Overview', 'My Requests', 'Schedule', 'Messages', 'Profile'];
+        const MOBILE_PRIMARY: Tab[] = ['Overview', 'My Requests', 'Matches', 'Messages', 'Profile'];
         const mobileNav = navItems.filter(n => MOBILE_PRIMARY.includes(n.id));
         const moreNav = navItems.filter(n => !MOBILE_PRIMARY.includes(n.id));
         const moreActive = moreNav.some(n => n.id === activeTab);
