@@ -1,0 +1,35 @@
+Changes to be made:
+Caregivers page should only be displayed to logged in family.
+And clicking the “request care” button on the  caregiver profile page  should go the caregiver specialist, like if the caregiver is a child care specialist, it should go through child care, but if the caregiver do more than that, the services the caregiver does should be listed not all services, then it will bypass the find caregivers screen and move to payment to unlock message and not to start a care request afresh since the caregivers have been filtered already.
+I signed up a new caregiver “Ebuka Njirika” but only sees the initial E on his profile card on the caregiver’s page instead of the uploaded photo of the caregiver.
+All the filter types of the caregiver page should work exactly, highest to lowest should filter caregivers with highest to lowest price range, background checked should filter only background checked caregivers etc.
+The google and apple login integrations should be active.
+
+If your first match isn't the right fit, our system will automatically rematch you with other available caregivers in your area.
+Optional paid features include background check badges and profile boosts for increased visibility.
+
+DASHBOARD CHANGES:
+I don't like the white space on the side menu of the dashboards as seen on the attached image, that whitespace should be covered and the logo should start from there, so there will be enough space for other items or menu.
+
+Family Dashboard changes:
+Overview Menu changes:
+Please these cards should display live data for the user: Active Matches, Sessions, Messages, Total Spent (which will be total unlock fee spent for that user)
+I do not see reason for having "Top Matches" there again, remove it.
+The “Upcoming Sessions” and “Care Requests” should reflect the real data.
+When the “New Request” is clicked from the family dashboard, the request questionnaire opens, there should be a “cancel” or “back to dashboard” incase the user wishes not to continue the request. While for a guest user, it should be “cancel” or “back to home”. So, you watch login state.
+I feel “Matches” should be under “My Requests” menu
+The “Edit Request” and “Cancel” on the “My Request” page is not working.
+When the care request is in the “Waiting for caregiver to accept” state, it means the caregiver has not accepted, so when the family user clicks on the “view profile” to view profile, the “message” should be disabled because the family has not paid to unlock message for that caregiver. Even when the message is unlocked, if the scheduled care date has passed by 48hrs, the family will need to pay again to unlock the message for that caregiver.
+The ”Schedule” page on the family dashboard, should display live responsive calendar for the request schedule dates highlighted and when hover, can see a little details, and when clicked can show care request details.
+The “Messages” should display live list of caregivers that the family has unlocked and has not passed the scheduled care date by 48hrs. So those are the caregivers they can message. Please not that they can click the call button to open the caregiver’s phone number and call. I don’t need the video icon there, they can’t do video call.
+The “Payment History” should display live and real info of the user.
+When I added a card through the “Add Payment Method” modal, the card didn’t reflect and was still showing the default, I don’t want any default, until the user adds the card. It should be live and saved for stripe payment during request.
+On the “Edit Profile” in the profile page, I tried to change the profile image but it was not active. And when I changed the Full name, It didn’t reflect on the side menu above the email, and the initial on the side bar should update to a profile image when the family uploads a profile image.
+The (Member since, Care requests, Matches found, Sessions booked) should display real signed up dates and requests stats of the user.
+The “Personal Information” modal didn’t show the updated full name I did from the “edit” button. These changes should update accordingly.
+The “Email Notifications” on the “Notification Preferences” modal when turned on should activate the resend email notification that user. Please make the “on toggle state” look better everywhere.
+When any changes is made or actions, there should be like a message confirming it has been done. Like “changes made” etc. related to the exact action. 
+When the “Request account deletion” is clicked on the “Privacy & Safety” modal, the user account should be deleted and removed from the database. However, there should be a warning for the user to confirm action. And all actions toggle on each modal should do the action required, don’t skip any step.
+When the User changes password from the “Account Settings” modal, it change the password live from the database.
+Fix all step by step, and don’t miss any step.
+When we done with this, then we will check other changes that will be made.
