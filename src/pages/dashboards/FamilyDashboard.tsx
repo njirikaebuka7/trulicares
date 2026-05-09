@@ -21,12 +21,12 @@ const careCategoryLabels: Record<string, string> = {
 
 type Tab = 'Overview' | 'My Requests' | 'Matches' | 'Schedule' | 'Messages' | 'Payments' | 'Profile';
 
-const navItems: { id: Tab; label: string; icon: React.ReactNode; badge?: number }[] = [
+const navItems: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'Overview', label: 'Overview', icon: <LayoutDashboard className="w-5 h-5" /> },
-  { id: 'My Requests', label: 'My Requests', icon: <FileText className="w-5 h-5" />, badge: 2 },
-  { id: 'Matches', label: 'Matches', icon: <Users className="w-5 h-5" />, badge: 3 },
+  { id: 'My Requests', label: 'My Requests', icon: <FileText className="w-5 h-5" /> },
+  { id: 'Matches', label: 'Matches', icon: <Users className="w-5 h-5" /> },
   { id: 'Schedule', label: 'Schedule', icon: <Calendar className="w-5 h-5" /> },
-  { id: 'Messages', label: 'Messages', icon: <MessageCircle className="w-5 h-5" />, badge: 1 },
+  { id: 'Messages', label: 'Messages', icon: <MessageCircle className="w-5 h-5" /> },
   { id: 'Payments', label: 'Payments', icon: <CreditCard className="w-5 h-5" /> },
   { id: 'Profile', label: 'Profile', icon: <User className="w-5 h-5" /> },
 ];
@@ -71,6 +71,10 @@ export default function FamilyDashboard() {
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<Record<string, Array<{text: string; fromMe: boolean; time: string}>>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [editingReq, setEditingReq] = useState<any | null>(null);
+  const [editLocation, setEditLocation] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
 
   const [matches, setMatches] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
@@ -122,6 +126,37 @@ export default function FamilyDashboard() {
   ];
   const unread = notificationsRead ? 0 : 2;
   const initials = user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() ?? 'U';
+
+  const navBadges: Partial<Record<Tab, number>> = {
+    'My Requests': requests.filter((r: any) => r.status === 'matching').length || 0,
+    'Matches': matches.filter((m: any) => m.status === 'pending').length || 0,
+    'Messages': conversations.reduce((s: number, c: any) => s + (c.unreadCount || 0), 0) || 0,
+  };
+
+  const totalSpentCents = payments
+    .filter((p: any) => p.status === 'succeeded')
+    .reduce((s: number, p: any) => s + (p.amountCents || 0), 0);
+  const totalSpentStr = totalSpentCents ? `$${(totalSpentCents / 100).toFixed(0)}` : '$0';
+  const totalUnread = conversations.reduce((s: number, c: any) => s + (c.unreadCount || 0), 0);
+
+  const handleEditRequest = async () => {
+    if (!editingReq) return;
+    setEditSaving(true);
+    try {
+      const updated: any = await put(`/care-requests/${editingReq.id}`, { location: editLocation });
+      setRequests(prev => prev.map((r: any) => r.id === editingReq.id ? updated.request : r));
+      setEditingReq(null);
+    } catch {}
+    setEditSaving(false);
+  };
+
+  const handleCancelRequest = async (id: string) => {
+    try {
+      await put(`/care-requests/${id}/cancel`);
+      setRequests(prev => prev.map((r: any) => r.id === id ? { ...r, status: 'cancelled' } : r));
+    } catch {}
+    setCancelConfirmId(null);
+  };
 
   const openNotifications = () => {
     setNotifOpen(true);
@@ -196,21 +231,21 @@ export default function FamilyDashboard() {
             >
               <span className="shrink-0 relative">
                 {item.icon}
-                {item.badge && collapsed && (
+                {(navBadges[item.id] ?? 0) > 0 && collapsed && (
                   <span className="absolute -top-1 -right-1 w-3 h-3 bg-coral-500 rounded-full text-white text-[8px] flex items-center justify-center font-bold">
-                    {item.badge}
+                    {navBadges[item.id]}
                   </span>
                 )}
               </span>
               {!collapsed && (
                 <>
                   <span className="flex-1 text-left">{item.label}</span>
-                  {item.badge && (
+                  {(navBadges[item.id] ?? 0) > 0 && (
                     <span className={cn(
                       'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
                       activeTab === item.id ? 'bg-white/20 text-white' : 'bg-coral-500/20 text-coral-300'
                     )}>
-                      {item.badge}
+                      {navBadges[item.id]}
                     </span>
                   )}
                 </>
@@ -339,13 +374,18 @@ export default function FamilyDashboard() {
 
               <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
                 <StatCard label="Active Matches" value={matches.filter((m: any) => m.status === 'accepted').length}
-                  icon={<Shield className="w-4 h-4" />} sub="2 new this week" colorBg="bg-brand-50" colorText="text-brand-600" />
-                <StatCard label="Sessions" value={2} icon={<Calendar className="w-4 h-4" />}
-                  sub="Next: Today 8am" colorBg="bg-emerald-50" colorText="text-emerald-600" />
-                <StatCard label="Messages" value={3} icon={<MessageCircle className="w-4 h-4" />}
-                  sub="1 unread" colorBg="bg-sky-50" colorText="text-sky-600" />
-                <StatCard label="Total Spent" value="$464" icon={<CreditCard className="w-4 h-4" />}
-                  sub="This month" colorBg="bg-violet-50" colorText="text-violet-600" />
+                  icon={<Shield className="w-4 h-4" />}
+                  sub={matches.filter((m: any) => m.status === 'pending').length > 0 ? `${matches.filter((m: any) => m.status === 'pending').length} awaiting response` : 'Up to date'}
+                  colorBg="bg-brand-50" colorText="text-brand-600" />
+                <StatCard label="Sessions" value={schedule.length} icon={<Calendar className="w-4 h-4" />}
+                  sub={schedule.length > 0 ? `Next: ${schedule[0]?.date || 'Upcoming'}` : 'None scheduled'}
+                  colorBg="bg-emerald-50" colorText="text-emerald-600" />
+                <StatCard label="Messages" value={conversations.length} icon={<MessageCircle className="w-4 h-4" />}
+                  sub={totalUnread > 0 ? `${totalUnread} unread` : 'All caught up'}
+                  colorBg="bg-sky-50" colorText="text-sky-600" />
+                <StatCard label="Total Spent" value={totalSpentStr} icon={<CreditCard className="w-4 h-4" />}
+                  sub={payments.length > 0 ? `${payments.length} transactions` : 'No payments yet'}
+                  colorBg="bg-violet-50" colorText="text-violet-600" />
               </div>
 
               <div className="grid lg:grid-cols-2 gap-6">
@@ -464,8 +504,17 @@ export default function FamilyDashboard() {
                         View {req.matchCount} Matches
                       </Button>
                     )}
-                    <Button variant="ghost" size="sm">Edit Request</Button>
-                    <Button variant="ghost" size="sm" className="text-red-500 hover:bg-red-50">Cancel</Button>
+                    {req.status !== 'cancelled' && req.status !== 'completed' && (
+                      <>
+                        <Button variant="ghost" size="sm" onClick={() => { setEditingReq(req); setEditLocation(req.location || ''); }}>
+                          Edit Request
+                        </Button>
+                        <Button variant="ghost" size="sm" className="text-red-500 hover:bg-red-50"
+                          onClick={() => setCancelConfirmId(req.id)}>
+                          Cancel
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
@@ -583,7 +632,7 @@ export default function FamilyDashboard() {
           {activeTab === 'Messages' && (() => {
             const activeConv = selectedMessage ? conversations.find((c: any) => c.id === selectedMessage) : null;
             const activeMessages = selectedMessage ? (chatMessages[selectedMessage] || []) : [];
-            const threadList = conversations.slice(0, 3);
+            const threadList = conversations;
             return (
               <div className="space-y-4">
                 <h2 className="text-xl font-bold text-gray-900">Messages</h2>
@@ -867,8 +916,8 @@ export default function FamilyDashboard() {
                       >
                         <span className={cn(activeTab === item.id ? 'text-brand-600' : 'text-gray-400')}>{item.icon}</span>
                         <span className="font-semibold text-sm flex-1 text-left">{item.label}</span>
-                        {item.badge && (
-                          <span className="px-2 py-0.5 bg-coral-500 text-white text-[10px] font-bold rounded-full">{item.badge}</span>
+                        {(navBadges[item.id] ?? 0) > 0 && (
+                          <span className="px-2 py-0.5 bg-coral-500 text-white text-[10px] font-bold rounded-full">{navBadges[item.id]}</span>
                         )}
                       </button>
                     ))}
@@ -888,9 +937,9 @@ export default function FamilyDashboard() {
                       activeTab === item.id ? 'text-brand-600' : 'text-gray-400'
                     )}
                   >
-                    {item.badge && (
+                    {(navBadges[item.id] ?? 0) > 0 && (
                       <span className="absolute top-2.5 right-[calc(50%-16px)] translate-x-3 w-4 h-4 bg-coral-500 rounded-full text-white text-[9px] flex items-center justify-center font-bold leading-none">
-                        {item.badge}
+                        {navBadges[item.id]}
                       </span>
                     )}
                     <span className={cn(
@@ -923,6 +972,66 @@ export default function FamilyDashboard() {
           </>
         );
       })()}
+
+      {/* ── EDIT REQUEST MODAL ── */}
+      {editingReq && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditingReq(null)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 text-lg">Edit Care Request</h3>
+              <button onClick={() => setEditingReq(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Care Type</label>
+                <div className="px-4 py-3 rounded-xl bg-gray-50 text-sm text-gray-500 border border-gray-200">
+                  {editingReq.label} <span className="text-xs text-gray-400 ml-1">(cannot be changed)</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Location</label>
+                <input
+                  type="text"
+                  value={editLocation}
+                  onChange={e => setEditLocation(e.target.value)}
+                  placeholder="City, State or ZIP"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <Button variant="secondary" fullWidth onClick={() => setEditingReq(null)}>Cancel</Button>
+                <Button variant="primary" fullWidth onClick={handleEditRequest} disabled={editSaving}>
+                  {editSaving ? 'Saving…' : 'Save Changes'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CANCEL REQUEST CONFIRM ── */}
+      {cancelConfirmId && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setCancelConfirmId(null)} />
+          <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl z-10 p-6 text-center">
+            <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+              <X className="w-7 h-7 text-red-500" />
+            </div>
+            <h3 className="font-bold text-gray-900 text-lg mb-2">Cancel Request?</h3>
+            <p className="text-sm text-gray-500 mb-6">This will cancel your care request and remove any pending matches. You can post a new one at any time.</p>
+            <div className="flex gap-3">
+              <Button variant="secondary" fullWidth onClick={() => setCancelConfirmId(null)}>Keep It</Button>
+              <Button fullWidth className="bg-red-500 text-white border-red-500 hover:bg-red-600"
+                onClick={() => handleCancelRequest(cancelConfirmId)}>
+                Yes, Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── EDIT PROFILE MODAL ── */}
       {showEditProfile && (

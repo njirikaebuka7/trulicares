@@ -164,4 +164,43 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// PUT /api/care-requests/:id — edit location / details
+router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { location, details } = req.body;
+    const result = await query(
+      `UPDATE care_requests
+       SET location = COALESCE($1, location),
+           details  = COALESCE($2, details)
+       WHERE id = $3 AND family_id = $4 AND status NOT IN ('cancelled','completed')
+       RETURNING *`,
+      [location ?? null, details ? JSON.stringify(details) : null, req.params.id, req.user!.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Request not found or cannot be edited' });
+    const count = await query('SELECT COUNT(*) as c FROM matches WHERE request_id = $1', [req.params.id]);
+    const row = { ...result.rows[0], match_count: count.rows[0]?.c ?? 0 };
+    res.json({ request: formatRequest(row) });
+  } catch (err) {
+    console.error('Edit care request error:', err);
+    res.status(500).json({ error: 'Failed to update care request' });
+  }
+});
+
+// PUT /api/care-requests/:id/cancel
+router.put('/:id/cancel', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const result = await query(
+      `UPDATE care_requests SET status = 'cancelled'
+       WHERE id = $1 AND family_id = $2 AND status NOT IN ('cancelled','completed')
+       RETURNING *`,
+      [req.params.id, req.user!.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Request not found or already closed' });
+    res.json({ request: formatRequest(result.rows[0]) });
+  } catch (err) {
+    console.error('Cancel care request error:', err);
+    res.status(500).json({ error: 'Failed to cancel care request' });
+  }
+});
+
 export default router;
