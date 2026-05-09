@@ -7,10 +7,12 @@ const router = Router();
 router.get('/', requireAuth, async (req, res) => {
     try {
         const { id, role } = req.user;
-        const result = await query(`SELECT c.id, c.family_id, c.caregiver_id, c.created_at, c.updated_at,
-              uf.name as family_name, uf.photo_url as family_photo,
-              uc.name as caregiver_name, uc.photo_url as caregiver_photo,
+        const result = await query(`SELECT c.id, c.family_id, c.caregiver_id, c.match_id, c.created_at, c.updated_at,
+              uf.name as family_name, uf.photo_url as family_photo, uf.phone as family_phone,
+              uc.name as caregiver_name, uc.photo_url as caregiver_photo, uc.phone as caregiver_phone,
               cp.job_title as caregiver_role,
+              COALESCE(m.messaging_unlocked, false) as messaging_unlocked,
+              m.care_date,
               (SELECT content FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message,
               (SELECT created_at FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message_at,
               (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id AND sender_id != $1 AND created_at > COALESCE(
@@ -20,6 +22,7 @@ router.get('/', requireAuth, async (req, res) => {
        JOIN users uf ON uf.id = c.family_id
        JOIN users uc ON uc.id = c.caregiver_id
        LEFT JOIN caregiver_profiles cp ON cp.user_id = c.caregiver_id
+       LEFT JOIN matches m ON m.id = c.match_id
        WHERE c.family_id = $1 OR c.caregiver_id = $1
        ORDER BY c.updated_at DESC`, [id]);
         const conversations = result.rows.map((row) => {
@@ -27,15 +30,23 @@ router.get('/', requireAuth, async (req, res) => {
             const otherId = isFamily ? row.caregiver_id : row.family_id;
             const otherName = isFamily ? row.caregiver_name : row.family_name;
             const otherPhoto = isFamily ? row.caregiver_photo : row.family_photo;
+            const otherPhone = isFamily ? row.caregiver_phone : row.family_phone;
             const otherRole = isFamily ? (row.caregiver_role || 'Caregiver') : 'Family';
+            const careDate = row.care_date ? new Date(row.care_date) : null;
+            const hoursElapsed = careDate ? (Date.now() - careDate.getTime()) / 3600000 : 0;
+            const messagingUnlocked = row.messaging_unlocked && (!careDate || hoursElapsed <= 48);
             return {
                 id: row.id,
                 familyId: row.family_id,
                 caregiverId: row.caregiver_id,
+                matchId: row.match_id,
                 otherId,
                 otherName,
                 otherPhoto: otherPhoto || `https://randomuser.me/api/portraits/women/1.jpg`,
+                otherPhone: otherPhone || null,
                 otherRole,
+                messagingUnlocked,
+                careDate: row.care_date || null,
                 lastMessage: row.last_message || '',
                 lastMessageAt: row.last_message_at || row.updated_at,
                 unreadCount: parseInt(row.unread_count) || 0,
@@ -49,6 +60,16 @@ router.get('/', requireAuth, async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch conversations' });
     }
 });
+// Helper — verify an active, unexpired messaging window exists between family + caregiver
+async function checkMessagingEligible(familyId, caregiverId) {
+    const r = await query(`SELECT id FROM matches
+     WHERE family_id = $1 AND caregiver_id = $2
+       AND status = 'accepted'
+       AND messaging_unlocked = true
+       AND (care_date IS NULL OR EXTRACT(EPOCH FROM (NOW() - care_date)) / 3600 < 48)
+     LIMIT 1`, [familyId, caregiverId]);
+    return r.rows.length > 0;
+}
 // POST /api/conversations — start or get existing
 router.post('/', requireAuth, async (req, res) => {
     try {
@@ -59,7 +80,6 @@ router.post('/', requireAuth, async (req, res) => {
         const otherUserResult = await query('SELECT id, role FROM users WHERE id = $1', [otherUserId]);
         if (otherUserResult.rows.length === 0)
             return res.status(404).json({ error: 'User not found' });
-        const otherUser = otherUserResult.rows[0];
         let familyId, caregiverId;
         if (role === 'family') {
             familyId = myId;
@@ -68,6 +88,14 @@ router.post('/', requireAuth, async (req, res) => {
         else {
             familyId = otherUserId;
             caregiverId = myId;
+        }
+        // Enforce: messaging must be unlocked via an accepted match within the 48 h window
+        // (admins bypass this check)
+        if (role !== 'admin') {
+            const eligible = await checkMessagingEligible(familyId, caregiverId);
+            if (!eligible) {
+                return res.status(403).json({ error: 'Messaging is not unlocked or has expired for this match.' });
+            }
         }
         // Upsert conversation
         const result = await query(`INSERT INTO conversations (family_id, caregiver_id)
@@ -116,13 +144,20 @@ router.get('/:id/messages', requireAuth, async (req, res) => {
 router.post('/:id/messages', requireAuth, async (req, res) => {
     try {
         const { content } = req.body;
-        const { id: userId } = req.user;
+        const { id: userId, role } = req.user;
         if (!content?.trim())
             return res.status(400).json({ error: 'Message content is required' });
         const convResult = await query('SELECT id, family_id, caregiver_id FROM conversations WHERE id = $1 AND (family_id = $2 OR caregiver_id = $2)', [req.params.id, userId]);
         if (convResult.rows.length === 0)
             return res.status(404).json({ error: 'Conversation not found' });
         const conv = convResult.rows[0];
+        // Enforce messaging eligibility (admins bypass)
+        if (role !== 'admin') {
+            const eligible = await checkMessagingEligible(conv.family_id, conv.caregiver_id);
+            if (!eligible) {
+                return res.status(403).json({ error: 'Messaging is not unlocked or has expired for this match.' });
+            }
+        }
         const msgResult = await query(`INSERT INTO messages (conversation_id, sender_id, content)
        VALUES ($1, $2, $3)
        RETURNING id, conversation_id, sender_id, content, created_at`, [req.params.id, userId, content.trim()]);

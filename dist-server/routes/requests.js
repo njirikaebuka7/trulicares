@@ -34,13 +34,42 @@ function formatRequest(row) {
 // POST /api/care-requests
 router.post('/', requireAuth, async (req, res) => {
     try {
-        const { careType, details, location, zip } = req.body;
+        const { careType, details, location, zip, caregiverId } = req.body;
         if (!careType)
             return res.status(400).json({ error: 'Care type is required' });
         const result = await query(`INSERT INTO care_requests (family_id, care_type, details, location, zip, status)
        VALUES ($1, $2, $3, $4, $5, 'matching')
        RETURNING id, care_type, details, location, zip, status, created_at`, [req.user.id, careType, details || {}, location || '', zip || '']);
         const careRequest = result.rows[0];
+        // Direct caregiver request: validate then create a single match immediately
+        if (caregiverId) {
+            // Validate the target user is an active caregiver offering this care type
+            const cgCheck = await query(`SELECT u.id FROM users u
+         JOIN caregiver_profiles cp ON cp.user_id = u.id
+         WHERE u.id = $1 AND u.role = 'caregiver' AND u.status = 'active'
+           AND ($2::text IS NULL OR $2 = ANY(cp.specialties))`, [caregiverId, careType || null]);
+            if (cgCheck.rows.length === 0) {
+                // Clean up the newly created request and return an error
+                await query('DELETE FROM care_requests WHERE id = $1', [careRequest.id]);
+                return res.status(400).json({ error: 'Caregiver not found or does not offer this care type' });
+            }
+            try {
+                const matchResult = await query(`INSERT INTO matches (family_id, caregiver_id, request_id, status)
+           VALUES ($1, $2, $3, 'pending')
+           RETURNING id`, [req.user.id, caregiverId, careRequest.id]);
+                await query(`UPDATE care_requests SET status = 'matched' WHERE id = $1`, [careRequest.id]);
+                return res.status(201).json({
+                    request: formatRequest(careRequest),
+                    matchId: matchResult.rows[0].id,
+                    message: 'Care request submitted directly to caregiver.',
+                });
+            }
+            catch (matchErr) {
+                console.error('Direct match creation error:', matchErr);
+                await query('DELETE FROM care_requests WHERE id = $1', [careRequest.id]);
+                return res.status(500).json({ error: 'Failed to create direct match. Please try again.' });
+            }
+        }
         createMatchesForRequest(careRequest.id, req.user.id, careType, location, zip)
             .then(async (matches) => {
             await query(`UPDATE care_requests SET status = 'matched' WHERE id = $1`, [careRequest.id]);
@@ -104,6 +133,41 @@ router.get('/:id', requireAuth, async (req, res) => {
     catch (err) {
         console.error('Get care request error:', err);
         res.status(500).json({ error: 'Failed to fetch request' });
+    }
+});
+// PUT /api/care-requests/:id — edit location / details
+router.put('/:id', requireAuth, async (req, res) => {
+    try {
+        const { location, details } = req.body;
+        const result = await query(`UPDATE care_requests
+       SET location = COALESCE($1, location),
+           details  = COALESCE($2, details)
+       WHERE id = $3 AND family_id = $4 AND status NOT IN ('cancelled','completed')
+       RETURNING *`, [location ?? null, details ? JSON.stringify(details) : null, req.params.id, req.user.id]);
+        if (result.rows.length === 0)
+            return res.status(404).json({ error: 'Request not found or cannot be edited' });
+        const count = await query('SELECT COUNT(*) as c FROM matches WHERE request_id = $1', [req.params.id]);
+        const row = { ...result.rows[0], match_count: count.rows[0]?.c ?? 0 };
+        res.json({ request: formatRequest(row) });
+    }
+    catch (err) {
+        console.error('Edit care request error:', err);
+        res.status(500).json({ error: 'Failed to update care request' });
+    }
+});
+// PUT /api/care-requests/:id/cancel
+router.put('/:id/cancel', requireAuth, async (req, res) => {
+    try {
+        const result = await query(`UPDATE care_requests SET status = 'cancelled'
+       WHERE id = $1 AND family_id = $2 AND status NOT IN ('cancelled','completed')
+       RETURNING *`, [req.params.id, req.user.id]);
+        if (result.rows.length === 0)
+            return res.status(404).json({ error: 'Request not found or already closed' });
+        res.json({ request: formatRequest(result.rows[0]) });
+    }
+    catch (err) {
+        console.error('Cancel care request error:', err);
+        res.status(500).json({ error: 'Failed to cancel care request' });
     }
 });
 export default router;

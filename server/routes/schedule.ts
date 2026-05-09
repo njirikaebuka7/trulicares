@@ -76,6 +76,17 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       [req.user!.id, familyId || null, familyName || '', service, dateLabel, timeLabel, location || '']
     );
 
+    // Stamp care_date on the related accepted match so the 48-hour expiry
+    // window starts from when care was booked/delivered.
+    if (familyId) {
+      await query(
+        `UPDATE matches SET care_date = NOW()
+         WHERE family_id = $1 AND caregiver_id = $2
+           AND status = 'accepted' AND messaging_unlocked = true`,
+        [familyId, req.user!.id]
+      );
+    }
+
     res.status(201).json({ schedule: result.rows[0] });
   } catch (err) {
     console.error('Create schedule error:', err);

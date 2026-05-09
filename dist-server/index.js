@@ -12,6 +12,21 @@ async function verifyDatabase() {
         throw err;
     }
 }
+async function runMigrations() {
+    const migrations = [
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20)`,
+        `ALTER TABLE matches ADD COLUMN IF NOT EXISTS care_date TIMESTAMP`,
+    ];
+    for (const sql of migrations) {
+        try {
+            await pool.query(sql);
+        }
+        catch (e) {
+            console.warn('Migration warning:', e.message);
+        }
+    }
+    console.log('✓ Migrations applied');
+}
 async function verifyStripe() {
     const key = process.env.STRIPE_SECRET_KEY;
     if (!key) {
@@ -38,6 +53,7 @@ async function verifyResend() {
 }
 async function start() {
     await verifyDatabase();
+    await runMigrations();
     await verifyStripe();
     await verifyResend();
     app.listen(PORT, '0.0.0.0', () => {

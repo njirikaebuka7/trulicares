@@ -161,8 +161,10 @@ router.put('/:id/decline', requireAuth, async (req: AuthRequest, res) => {
 // POST /api/matches/:id/unlock-messaging
 router.post('/:id/unlock-messaging', requireAuth, async (req: AuthRequest, res) => {
   try {
+    // Reset care_date to NULL so the 48-hour expiry window only starts after
+    // a care session is actually created (via POST /api/schedule).
     const result = await query(
-      `UPDATE matches SET messaging_unlocked = true WHERE id = $1 AND family_id = $2 RETURNING *`,
+      `UPDATE matches SET messaging_unlocked = true, care_date = NULL WHERE id = $1 AND family_id = $2 RETURNING *`,
       [req.params.id, req.user!.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Match not found' });

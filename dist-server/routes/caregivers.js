@@ -53,8 +53,10 @@ router.get('/', async (req, res) => {
         let orderBy = 'cp.rating DESC, cp.review_count DESC';
         if (sort === 'rating')
             orderBy = 'cp.rating DESC';
-        else if (sort === 'price')
+        else if (sort === 'price-asc' || sort === 'price')
             orderBy = 'cp.hourly_rate_min ASC';
+        else if (sort === 'price-desc' || sort === 'rate-high')
+            orderBy = 'cp.hourly_rate_max DESC';
         else if (sort === 'experience')
             orderBy = 'cp.years_experience DESC';
         const result = await query(`SELECT u.id, u.name, u.email, u.photo_url, u.status, u.created_at,
