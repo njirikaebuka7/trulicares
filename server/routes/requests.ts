@@ -82,7 +82,8 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
         });
       } catch (matchErr) {
         console.error('Direct match creation error:', matchErr);
-        // Fall through to normal matching if direct insert fails
+        await query('DELETE FROM care_requests WHERE id = $1', [careRequest.id]);
+        return res.status(500).json({ error: 'Failed to create direct match. Please try again.' });
       }
     }
 

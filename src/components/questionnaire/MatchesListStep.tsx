@@ -51,7 +51,16 @@ export default function MatchesListStep({ onSelectMatch, onBack, familyLocation,
           <div className="flex-1 flex justify-center">
             <Link to="/"><img src={logoImg} alt="TruliCares" className="h-6 w-auto" /></Link>
           </div>
-          <div className="w-10 shrink-0" />
+          {onCancel ? (
+            <button
+              onClick={onCancel}
+              className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-gray-100 transition-colors shrink-0 text-xs text-gray-400 font-medium"
+            >
+              Exit
+            </button>
+          ) : (
+            <div className="w-10 shrink-0" />
+          )}
         </div>
         <div className="max-w-lg mx-auto px-4 pb-3">
           <h1 className="text-xl font-bold text-gray-900">Your Matches</h1>

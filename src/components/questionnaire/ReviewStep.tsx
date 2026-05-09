@@ -17,6 +17,7 @@ interface Props {
   onSubmit: () => void;
   onBack: () => void;
   onCancel?: () => void;
+  errorMessage?: string | null;
 }
 
 function formatAge(years: number): string {
@@ -25,7 +26,7 @@ function formatAge(years: number): string {
   return `${years} years`;
 }
 
-export default function ReviewStep({ careCategory, careData, onSubmit, onBack, onCancel }: Props) {
+export default function ReviewStep({ careCategory, careData, onSubmit, onBack, onCancel, errorMessage }: Props) {
   const formatValue = (key: string, value: unknown): string => {
     if (key === 'childAges' && Array.isArray(value)) {
       return value.map(a => formatAge(Number(a))).join(', ');
@@ -145,6 +146,11 @@ export default function ReviewStep({ careCategory, careData, onSubmit, onBack, o
       {/* Bottom CTA */}
       <div className="sticky bottom-0 bg-white/90 backdrop-blur-lg border-t border-gray-100 p-4">
         <div className="max-w-lg mx-auto">
+          {errorMessage && (
+            <div className="mb-3 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-medium">
+              {errorMessage}
+            </div>
+          )}
           <Button variant="primary" size="xl" fullWidth onClick={onSubmit}>
             Submit Care Request
           </Button>

@@ -65,7 +65,10 @@ export default function FindCare() {
     setPhase('review');
   };
 
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
   const handleSubmitReview = async () => {
+    setSubmitError(null);
     try {
       const payload: any = {
         careType: careCategory,
@@ -76,18 +79,23 @@ export default function FindCare() {
       // For direct caregiver requests, pass caregiverId to create a match immediately
       if (isDirectRequest && directCaregiverId) {
         payload.caregiverId = directCaregiverId;
-      }
-
-      const result: any = await requestsApi.create(payload);
-
-      // Direct request: skip matching/matches, jump straight to payment
-      if (isDirectRequest && result?.matchId) {
+        const result: any = await requestsApi.create(payload);
+        if (!result?.matchId) {
+          throw new Error('Failed to create direct request — no match returned.');
+        }
         setSelectedMatchId(result.matchId);
-        setSelectedCaregiverId(directCaregiverId || null);
+        setSelectedCaregiverId(directCaregiverId);
         setPhase('payment');
         return;
       }
-    } catch {}
+
+      await requestsApi.create(payload);
+    } catch (err: any) {
+      if (isDirectRequest) {
+        setSubmitError(err?.message || 'Could not submit your care request. Please try again.');
+        return;
+      }
+    }
     setPhase('matching');
   };
 
@@ -145,6 +153,7 @@ export default function FindCare() {
           onSubmit={handleSubmitReview}
           onBack={() => setPhase(isAuthenticated ? 'care-details' : 'account')}
           onCancel={() => navigate(cancelDestination)}
+          errorMessage={submitError}
         />
       );
     case 'matching':
