@@ -29,15 +29,21 @@ function buildCaregiverProfile(row: any) {
 function formatFamilyMatch(row: any) {
   const caregiver = buildCaregiverProfile(row);
   const hr = caregiver?.hourlyRate;
+  const careDate = row.care_date ? new Date(row.care_date) : null;
+  const hoursElapsed = careDate ? (Date.now() - careDate.getTime()) / 3600000 : 0;
+  const messagingUnlocked: boolean = (row.messaging_unlocked || false) && (!careDate || hoursElapsed <= 48);
   return {
     id: row.id,
     careRequestId: row.request_id || '',
     caregiver,
+    caregiverId: row.caregiver_id,
     status: row.status,
     careType: row.care_type || '',
     budget: hr ? `$${hr[0]}–$${hr[1]}/hr` : '',
     location: row.request_location || caregiver?.location || '',
-    messagingUnlocked: row.messaging_unlocked || false,
+    messagingUnlocked,
+    careDate: row.care_date || null,
+    messagingExpired: (row.messaging_unlocked || false) && careDate && hoursElapsed > 48,
     nearYou: row.near_you || false,
   };
 }
@@ -70,7 +76,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
     if (role === 'family') {
       const result = await query(
         `SELECT m.id, m.request_id, m.caregiver_id, m.family_id, m.status,
-                m.near_you, m.messaging_unlocked, m.created_at,
+                m.near_you, m.messaging_unlocked, m.care_date, m.created_at,
                 uc.name as caregiver_name, uc.photo_url as caregiver_photo, uc.email as caregiver_email,
                 cp.bio, cp.specialties, cp.hourly_rate_min, cp.hourly_rate_max,
                 cp.rating, cp.review_count, cp.verified, cp.background_checked,

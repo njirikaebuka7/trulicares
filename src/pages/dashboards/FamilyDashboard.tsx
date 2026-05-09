@@ -4,7 +4,7 @@ import {
   Bell, MessageCircle, User, Settings, LogOut, Plus, MapPin, DollarSign,
   Star, Shield, Check, ChevronRight, Calendar, Clock, CreditCard,
   FileText, X, Home, LayoutDashboard, ChevronLeft, ChevronRight as ChevronRightIcon,
-  Edit3, Camera, MoreHorizontal, Send
+  Edit3, Camera, MoreHorizontal, Send, Phone
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
@@ -73,6 +73,7 @@ export default function FamilyDashboard() {
   const [calYear, setCalYear] = useState(() => new Date().getFullYear());
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
   const [calSelectedDay, setCalSelectedDay] = useState<number | null>(null);
+  const [showPhone, setShowPhone] = useState(false);
 
   const [matches, setMatches] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
@@ -581,12 +582,29 @@ export default function FamilyDashboard() {
             const prevMonth = () => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); } else setCalMonth(m => m - 1); setCalSelectedDay(null); };
             const nextMonth = () => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); } else setCalMonth(m => m + 1); setCalSelectedDay(null); };
 
-            const sessionDays = new Set<number>();
+            const parseSessionDate = (s: any): Date | null => {
+              if (!s.date) return null;
+              // Try ISO first, then "Mon, May 6" style label
+              let d = new Date(s.date);
+              if (isNaN(d.getTime())) {
+                // Strip weekday prefix "Mon, " → "May 6"
+                const stripped = s.date.replace(/^[A-Za-z]+,\s*/, '');
+                d = new Date(`${stripped}, ${calYear}`);
+              }
+              return isNaN(d.getTime()) ? null : d;
+            };
+
+            const sessionsByDay = new Map<number, any[]>();
             schedule.forEach((s: any) => {
-              try { const d = new Date(s.date); if (d.getFullYear() === calYear && d.getMonth() === calMonth) sessionDays.add(d.getDate()); } catch {}
+              const d = parseSessionDate(s);
+              if (d && d.getFullYear() === calYear && d.getMonth() === calMonth) {
+                const day = d.getDate();
+                sessionsByDay.set(day, [...(sessionsByDay.get(day) || []), s]);
+              }
             });
+            const sessionDays = new Set(sessionsByDay.keys());
             const selectedSessions = calSelectedDay
-              ? schedule.filter((s: any) => { try { const d = new Date(s.date); return d.getFullYear() === calYear && d.getMonth() === calMonth && d.getDate() === calSelectedDay; } catch { return false; } })
+              ? (sessionsByDay.get(calSelectedDay) || [])
               : schedule;
             const today = new Date();
             return (
@@ -612,8 +630,11 @@ export default function FamilyDashboard() {
                       const isToday = today.getFullYear() === calYear && today.getMonth() === calMonth && today.getDate() === day;
                       const hasSession = sessionDays.has(day);
                       const isSelected = calSelectedDay === day;
+                      const daySessions = sessionsByDay.get(day) || [];
+                      const tooltipText = daySessions.map((s: any) => `${s.service}${s.caregiverName ? ' · ' + s.caregiverName : ''} (${s.time || ''})`).join('\n');
                       return (
                         <button key={day} onClick={() => setCalSelectedDay(isSelected ? null : day)}
+                          title={hasSession ? tooltipText : undefined}
                           className={cn(
                             'relative flex flex-col items-center justify-center w-full aspect-square rounded-xl text-sm font-medium transition-all',
                             isSelected ? 'bg-brand-600 text-white' :
@@ -681,7 +702,7 @@ export default function FamilyDashboard() {
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col">
                     {/* Chat header */}
                     <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
-                      <button onClick={() => setSelectedMessage(null)} className="text-sm text-brand-600 hover:underline font-medium shrink-0">← Back</button>
+                      <button onClick={() => { setSelectedMessage(null); setShowPhone(false); }} className="text-sm text-brand-600 hover:underline font-medium shrink-0">← Back</button>
                       {activeConv?.otherPhoto ? (
                         <img src={activeConv.otherPhoto} alt={activeConv.otherName} className="w-9 h-9 rounded-full object-cover shrink-0" />
                       ) : (
@@ -689,9 +710,32 @@ export default function FamilyDashboard() {
                           {(activeConv?.otherName || '?').split(' ').map((n: string) => n[0]).join('')}
                         </div>
                       )}
-                      <div>
-                        <span className="font-semibold text-gray-900 block">{activeConv?.otherName}</span>
+                      <div className="flex-1 min-w-0">
+                        <span className="font-semibold text-gray-900 block truncate">{activeConv?.otherName}</span>
                         <span className="text-xs text-green-600">● Online</span>
+                      </div>
+                      {/* Call button */}
+                      <div className="relative shrink-0">
+                        <button
+                          onClick={() => setShowPhone(p => !p)}
+                          className="w-9 h-9 rounded-full bg-brand-50 hover:bg-brand-100 flex items-center justify-center text-brand-600 transition-colors"
+                          title="Call caregiver"
+                        >
+                          <Phone className="w-4 h-4" />
+                        </button>
+                        {showPhone && (
+                          <div className="absolute right-0 top-11 bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-52 z-20">
+                            <p className="text-xs text-gray-500 mb-1 font-medium">Caregiver phone</p>
+                            {activeConv?.otherPhone ? (
+                              <a href={`tel:${activeConv.otherPhone}`} className="text-sm font-semibold text-brand-600 hover:underline block">
+                                {activeConv.otherPhone}
+                              </a>
+                            ) : (
+                              <p className="text-xs text-gray-500">Phone not provided yet. Contact via message.</p>
+                            )}
+                            <button onClick={() => setShowPhone(false)} className="text-xs text-gray-400 hover:text-gray-600 mt-2 block">Close</button>
+                          </div>
+                        )}
                       </div>
                     </div>
                     {/* Messages */}

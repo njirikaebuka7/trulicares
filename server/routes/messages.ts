@@ -11,10 +11,12 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
     const { id, role } = req.user!;
 
     const result = await query(
-      `SELECT c.id, c.family_id, c.caregiver_id, c.created_at, c.updated_at,
-              uf.name as family_name, uf.photo_url as family_photo,
-              uc.name as caregiver_name, uc.photo_url as caregiver_photo,
+      `SELECT c.id, c.family_id, c.caregiver_id, c.match_id, c.created_at, c.updated_at,
+              uf.name as family_name, uf.photo_url as family_photo, uf.phone as family_phone,
+              uc.name as caregiver_name, uc.photo_url as caregiver_photo, uc.phone as caregiver_phone,
               cp.job_title as caregiver_role,
+              COALESCE(m.messaging_unlocked, false) as messaging_unlocked,
+              m.care_date,
               (SELECT content FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message,
               (SELECT created_at FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message_at,
               (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id AND sender_id != $1 AND created_at > COALESCE(
@@ -24,6 +26,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
        JOIN users uf ON uf.id = c.family_id
        JOIN users uc ON uc.id = c.caregiver_id
        LEFT JOIN caregiver_profiles cp ON cp.user_id = c.caregiver_id
+       LEFT JOIN matches m ON m.id = c.match_id
        WHERE c.family_id = $1 OR c.caregiver_id = $1
        ORDER BY c.updated_at DESC`,
       [id]
@@ -34,16 +37,25 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
       const otherId = isFamily ? row.caregiver_id : row.family_id;
       const otherName = isFamily ? row.caregiver_name : row.family_name;
       const otherPhoto = isFamily ? row.caregiver_photo : row.family_photo;
+      const otherPhone = isFamily ? row.caregiver_phone : row.family_phone;
       const otherRole = isFamily ? (row.caregiver_role || 'Caregiver') : 'Family';
+
+      const careDate = row.care_date ? new Date(row.care_date) : null;
+      const hoursElapsed = careDate ? (Date.now() - careDate.getTime()) / 3600000 : 0;
+      const messagingUnlocked: boolean = row.messaging_unlocked && (!careDate || hoursElapsed <= 48);
 
       return {
         id: row.id,
         familyId: row.family_id,
         caregiverId: row.caregiver_id,
+        matchId: row.match_id,
         otherId,
         otherName,
         otherPhoto: otherPhoto || `https://randomuser.me/api/portraits/women/1.jpg`,
+        otherPhone: otherPhone || null,
         otherRole,
+        messagingUnlocked,
+        careDate: row.care_date || null,
         lastMessage: row.last_message || '',
         lastMessageAt: row.last_message_at || row.updated_at,
         unreadCount: parseInt(row.unread_count) || 0,
