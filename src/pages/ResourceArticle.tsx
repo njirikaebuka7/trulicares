@@ -13,7 +13,7 @@ const articles = [
     title: '10 Questions to Ask When Hiring a Nanny',
     excerpt: 'Finding the right nanny is crucial. Here are the essential questions every parent should ask during the interview process to ensure a safe and nurturing fit.',
     readTime: '5 min read',
-    author: 'Sarah Mitchell',
+    author: 'Femi Oloyede',
     date: 'April 15, 2026',
     type: 'article',
     image: imgNannyInterview,

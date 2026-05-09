@@ -111,7 +111,7 @@ export default function About() {
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full bg-coral-400 flex items-center justify-center text-white font-bold">SM</div>
                   <div>
-                    <h4 className="font-bold text-gray-900">Sarah Mitchell</h4>
+                    <h4 className="font-bold text-gray-900">Femi Oloyede</h4>
                     <p className="text-sm text-gray-500">Founder & CEO, TruliCares</p>
                   </div>
                 </div>
