@@ -86,6 +86,21 @@ export async function sendPasswordResetEmail(to, name, resetToken) {
     `,
     });
 }
+export async function sendNotificationPreferenceEmail(to, name) {
+    return getResend().emails.send({
+        from: FROM,
+        to,
+        subject: `Email notifications enabled on TruliCares`,
+        html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+        <h1 style="color:#2d6a4f">Email Notifications Enabled</h1>
+        <p>Hi ${name}, you've successfully enabled email notifications for your TruliCares account.</p>
+        <p>You'll now receive updates about matches, messages, and upcoming sessions.</p>
+        <a href="${process.env.APP_URL || 'https://trulicares.replit.app'}/dashboard" style="background:#2d6a4f;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;margin-top:16px">Go to Dashboard</a>
+      </div>
+    `,
+    });
+}
 export async function sendVerificationStatusEmail(to, name, approved) {
     return getResend().emails.send({
         from: FROM,

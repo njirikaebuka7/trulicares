@@ -1,53 +1,16 @@
 {
-  "name": "react-vite-tailwind",
+  "name": "trulicares-monorepo",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "build:server": "tsc -p tsconfig.server.json",
-    "build:all": "npm run build && npm run build:server",
-    "preview": "vite preview",
-    "start": "node dist-server/index.js",
-    "server": "node --import tsx/esm server/index.ts",
-    "server:dev": "tsx watch server/index.ts",
-    "seed": "tsx server/seed.ts"
-  },
-  "dependencies": {
-    "@stripe/react-stripe-js": "^6.3.0",
-    "@stripe/stripe-js": "^9.4.0",
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/pg": "^8.20.0",
-    "bcryptjs": "^3.0.3",
-    "clsx": "2.1.1",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "lucide-react": "^1.14.0",
-    "pg": "^8.20.0",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "react-router-dom": "^7.15.0",
-    "resend": "^6.12.3",
-    "stripe": "^22.1.1",
-    "stripe-replit-sync": "^1.0.0",
-    "tailwind-merge": "3.4.0",
-    "tsx": "^4.21.0"
+    "dev": "concurrently \"npm run dev -w apps/web\" \"npm run dev -w apps/api\"",
+    "build": "npm run build -w apps/web && npm run build -w apps/api",
+    "start": "npm start -w apps/api",
+    "lint": "npm run lint -w apps/web && npm run lint -w apps/api"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "4.1.17",
-    "@types/node": "22.19.17",
-    "@types/react": "19.2.7",
-    "@types/react-dom": "19.2.3",
-    "@vitejs/plugin-react": "5.1.1",
-    "tailwindcss": "4.1.17",
-    "typescript": "5.9.3",
-    "vite": "7.3.2",
-    "vite-plugin-singlefile": "2.3.0"
+    "concurrently": "^9.1.2"
   }
 }

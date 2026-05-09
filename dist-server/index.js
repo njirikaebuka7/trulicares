@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import app from './app.js';
 import { pool } from './db.js';
-const PORT = parseInt(process.env.PORT || process.env.API_PORT || (process.env.NODE_ENV === 'production' ? '5000' : '3001'), 10);
+const PORT = parseInt(process.env.PORT || '3001', 10);
 async function verifyDatabase() {
     try {
         await pool.query('SELECT 1');
@@ -16,6 +16,9 @@ async function runMigrations() {
     const migrations = [
         `ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20)`,
         `ALTER TABLE matches ADD COLUMN IF NOT EXISTS care_date TIMESTAMP`,
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_prefs JSONB`,
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_prefs JSONB`,
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS address TEXT`,
     ];
     for (const sql of migrations) {
         try {
@@ -54,8 +57,6 @@ async function verifyResend() {
 async function start() {
     await verifyDatabase();
     await runMigrations();
-    await verifyStripe();
-    await verifyResend();
     app.listen(PORT, '0.0.0.0', () => {
         console.log(`✓ API server running on port ${PORT}`);
     });

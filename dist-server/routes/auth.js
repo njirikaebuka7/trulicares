@@ -2,7 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { query } from '../db.js';
 import { generateToken, requireAuth } from '../middleware/auth.js';
-import { sendWelcomeEmail, sendPasswordResetEmail } from '../services/email.js';
+import { sendWelcomeEmail, sendPasswordResetEmail, sendNotificationPreferenceEmail } from '../services/email.js';
 import crypto from 'crypto';
 const router = Router();
 function detectRole(email, explicitRole) {
@@ -111,10 +111,150 @@ router.get('/me', requireAuth, async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch user' });
     }
 });
+// GET /api/auth/settings — extended profile fields (phone, prefs, address, stats)
+router.get('/settings', requireAuth, async (req, res) => {
+    try {
+        const { id } = req.user;
+        const [userRes, requestsRes, matchesRes, sessionsRes] = await Promise.all([
+            query('SELECT phone, address, notification_prefs, privacy_prefs, created_at FROM users WHERE id = $1', [id]),
+            query("SELECT COUNT(*) FROM care_requests WHERE family_id = $1", [id]),
+            query("SELECT COUNT(*) FROM matches WHERE family_id = $1", [id]),
+            query("SELECT COUNT(*) FROM schedules WHERE family_id = $1", [id]),
+        ]);
+        const u = userRes.rows[0];
+        if (!u)
+            return res.status(404).json({ error: 'User not found' });
+        res.json({
+            phone: u.phone || '',
+            address: u.address || '',
+            notificationPrefs: u.notification_prefs || { email: true, sms: true, push: false, marketing: false },
+            privacyPrefs: u.privacy_prefs || { profileVisible: true, shareActivity: false, dataAnalytics: true },
+            memberSince: u.created_at
+                ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+                : 'Unknown',
+            careRequestsCount: parseInt(requestsRes.rows[0].count),
+            matchesCount: parseInt(matchesRes.rows[0].count),
+            sessionsCount: parseInt(sessionsRes.rows[0].count),
+        });
+    }
+    catch (err) {
+        console.error('Settings error:', err);
+        res.status(500).json({ error: 'Failed to fetch settings' });
+    }
+});
+// POST /api/auth/profile-photo — base64 data URL stored directly
+router.post('/profile-photo', requireAuth, async (req, res) => {
+    try {
+        const { photoData } = req.body;
+        if (!photoData)
+            return res.status(400).json({ error: 'photoData is required' });
+        if (photoData.length > 8_000_000)
+            return res.status(413).json({ error: 'Image too large (max 6 MB)' });
+        await query('UPDATE users SET photo_url = $1, updated_at = NOW() WHERE id = $2', [photoData, req.user.id]);
+        res.json({ photoUrl: photoData, message: 'Photo updated' });
+    }
+    catch (err) {
+        console.error('Profile photo error:', err);
+        res.status(500).json({ error: 'Failed to update photo' });
+    }
+});
+// PUT /api/auth/password — change password (requires current password)
+router.put('/password', requireAuth, async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ error: 'Both current and new passwords are required' });
+        }
+        if (newPassword.length < 8) {
+            return res.status(400).json({ error: 'New password must be at least 8 characters' });
+        }
+        const result = await query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
+        if (result.rows.length === 0)
+            return res.status(404).json({ error: 'User not found' });
+        const valid = await bcrypt.compare(currentPassword, result.rows[0].password_hash);
+        if (!valid)
+            return res.status(401).json({ error: 'Current password is incorrect' });
+        const hash = await bcrypt.hash(newPassword, 12);
+        await query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [hash, req.user.id]);
+        res.json({ message: 'Password changed successfully' });
+    }
+    catch (err) {
+        console.error('Password change error:', err);
+        res.status(500).json({ error: 'Failed to change password' });
+    }
+});
+// DELETE /api/auth/account — permanently delete user and all related data
+router.delete('/account', requireAuth, async (req, res) => {
+    try {
+        const { id } = req.user;
+        // Delete in FK-safe order
+        await query('DELETE FROM messages WHERE sender_id = $1', [id]);
+        await query('DELETE FROM conversations WHERE family_id = $1 OR caregiver_id = $1', [id]);
+        await query('DELETE FROM matches WHERE family_id = $1 OR caregiver_id = $1', [id]);
+        await query('DELETE FROM care_requests WHERE family_id = $1', [id]);
+        await query('DELETE FROM schedules WHERE family_id = $1 OR caregiver_id = $1', [id]);
+        await query('DELETE FROM payments WHERE user_id = $1', [id]);
+        await query('DELETE FROM reviews WHERE reviewer_id = $1 OR reviewed_id = $1', [id]).catch(() => { });
+        await query('DELETE FROM notifications WHERE user_id = $1', [id]).catch(() => { });
+        await query('DELETE FROM caregiver_profiles WHERE user_id = $1', [id]);
+        await query('DELETE FROM verification_queue WHERE caregiver_id = $1', [id]).catch(() => { });
+        await query('DELETE FROM reports WHERE reporter_id = $1 OR reported_id = $1', [id]).catch(() => { });
+        await query('DELETE FROM users WHERE id = $1', [id]);
+        res.json({ message: 'Account deleted' });
+    }
+    catch (err) {
+        console.error('Account deletion error:', err);
+        res.status(500).json({ error: 'Failed to delete account' });
+    }
+});
+// PUT /api/auth/notifications — persist notification preferences
+router.put('/notifications', requireAuth, async (req, res) => {
+    try {
+        const prefs = req.body;
+        const allowed = ['email', 'sms', 'push', 'marketing'];
+        const safe = {};
+        for (const k of allowed) {
+            if (typeof prefs[k] === 'boolean')
+                safe[k] = prefs[k];
+        }
+        // Read previous prefs before updating so we only send confirmation on OFF→ON transition
+        const prevRes = await query('SELECT notification_prefs, name, email FROM users WHERE id = $1', [req.user.id]);
+        const prevPrefs = prevRes.rows[0]?.notification_prefs || {};
+        const wasEmailOff = !prevPrefs.email;
+        await query('UPDATE users SET notification_prefs = $1, updated_at = NOW() WHERE id = $2', [JSON.stringify(safe), req.user.id]);
+        // Only send confirmation email when the email-notifications toggle transitions false → true
+        if (safe.email && wasEmailOff && prevRes.rows[0]) {
+            sendNotificationPreferenceEmail(prevRes.rows[0].email, prevRes.rows[0].name).catch(console.error);
+        }
+        res.json({ message: 'Notification preferences saved', prefs: safe });
+    }
+    catch (err) {
+        console.error('Notification prefs error:', err);
+        res.status(500).json({ error: 'Failed to save notification preferences' });
+    }
+});
+// PUT /api/auth/privacy — persist privacy preferences
+router.put('/privacy', requireAuth, async (req, res) => {
+    try {
+        const prefs = req.body;
+        const allowed = ['profileVisible', 'shareActivity', 'dataAnalytics'];
+        const safe = {};
+        for (const k of allowed) {
+            if (typeof prefs[k] === 'boolean')
+                safe[k] = prefs[k];
+        }
+        await query('UPDATE users SET privacy_prefs = $1, updated_at = NOW() WHERE id = $2', [JSON.stringify(safe), req.user.id]);
+        res.json({ message: 'Privacy settings saved', prefs: safe });
+    }
+    catch (err) {
+        console.error('Privacy prefs error:', err);
+        res.status(500).json({ error: 'Failed to save privacy settings' });
+    }
+});
 // PUT /api/auth/profile
 router.put('/profile', requireAuth, async (req, res) => {
     try {
-        const { name, photoUrl } = req.body;
+        const { name, photoUrl, phone, address } = req.body;
         const updates = [];
         const params = [];
         let idx = 1;
@@ -126,15 +266,49 @@ router.put('/profile', requireAuth, async (req, res) => {
             updates.push(`photo_url = $${idx++}`);
             params.push(photoUrl);
         }
+        if (phone !== undefined) {
+            updates.push(`phone = $${idx++}`);
+            params.push(phone.trim());
+        }
+        if (address !== undefined) {
+            updates.push(`address = $${idx++}`);
+            params.push(address.trim());
+        }
         updates.push(`updated_at = NOW()`);
         params.push(req.user.id);
-        const result = await query(`UPDATE users SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id, name, email, role, photo_url`, params);
+        const result = await query(`UPDATE users SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id, name, email, role, photo_url, phone, address`, params);
         const u = result.rows[0];
-        res.json({ id: u.id, name: u.name, email: u.email, role: u.role, photoUrl: u.photo_url });
+        res.json({ id: u.id, name: u.name, email: u.email, role: u.role, photoUrl: u.photo_url, phone: u.phone, address: u.address });
     }
     catch (err) {
         console.error('Profile update error:', err);
         res.status(500).json({ error: 'Failed to update profile' });
+    }
+});
+// GET /api/auth/stats — activity stats (care requests, matches, sessions booked)
+router.get('/stats', requireAuth, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const [userRow, requests, matches, sessions] = await Promise.all([
+            query('SELECT created_at FROM users WHERE id = $1', [userId]),
+            query('SELECT COUNT(*) FROM care_requests WHERE family_id = $1', [userId]),
+            query('SELECT COUNT(*) FROM matches WHERE family_id = $1', [userId]),
+            query('SELECT COUNT(*) FROM schedules WHERE family_id = $1', [userId]),
+        ]);
+        const createdAt = userRow.rows[0]?.created_at;
+        const memberSince = createdAt
+            ? new Date(createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+            : 'Recently';
+        res.json({
+            memberSince,
+            careRequestsCount: parseInt(requests.rows[0]?.count ?? '0'),
+            matchesCount: parseInt(matches.rows[0]?.count ?? '0'),
+            sessionsCount: parseInt(sessions.rows[0]?.count ?? '0'),
+        });
+    }
+    catch (err) {
+        console.error('Stats error:', err);
+        res.status(500).json({ error: 'Failed to fetch stats' });
     }
 });
 // POST /api/auth/forgot-password

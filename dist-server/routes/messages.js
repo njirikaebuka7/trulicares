@@ -13,6 +13,7 @@ router.get('/', requireAuth, async (req, res) => {
               cp.job_title as caregiver_role,
               COALESCE(m.messaging_unlocked, false) as messaging_unlocked,
               m.care_date,
+              m.id as resolved_match_id,
               (SELECT content FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message,
               (SELECT created_at FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message_at,
               (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id AND sender_id != $1 AND created_at > COALESCE(
@@ -22,7 +23,14 @@ router.get('/', requireAuth, async (req, res) => {
        JOIN users uf ON uf.id = c.family_id
        JOIN users uc ON uc.id = c.caregiver_id
        LEFT JOIN caregiver_profiles cp ON cp.user_id = c.caregiver_id
-       LEFT JOIN matches m ON m.id = c.match_id
+       LEFT JOIN LATERAL (
+         SELECT m2.id, m2.messaging_unlocked, m2.care_date
+         FROM matches m2
+         WHERE m2.family_id = c.family_id AND m2.caregiver_id = c.caregiver_id
+           AND m2.status = 'accepted'
+         ORDER BY m2.messaging_unlocked DESC, m2.created_at DESC
+         LIMIT 1
+       ) m ON true
        WHERE c.family_id = $1 OR c.caregiver_id = $1
        ORDER BY c.updated_at DESC`, [id]);
         const conversations = result.rows.map((row) => {
@@ -39,7 +47,7 @@ router.get('/', requireAuth, async (req, res) => {
                 id: row.id,
                 familyId: row.family_id,
                 caregiverId: row.caregiver_id,
-                matchId: row.match_id,
+                matchId: row.resolved_match_id || row.match_id || null,
                 otherId,
                 otherName,
                 otherPhoto: otherPhoto || `https://randomuser.me/api/portraits/women/1.jpg`,
@@ -97,11 +105,17 @@ router.post('/', requireAuth, async (req, res) => {
                 return res.status(403).json({ error: 'Messaging is not unlocked or has expired for this match.' });
             }
         }
-        // Upsert conversation
-        const result = await query(`INSERT INTO conversations (family_id, caregiver_id)
-       VALUES ($1, $2)
-       ON CONFLICT (family_id, caregiver_id) DO UPDATE SET updated_at = NOW()
-       RETURNING id`, [familyId, caregiverId]);
+        // Look up the accepted match to link it to the conversation
+        const matchLookup = await query(`SELECT id FROM matches WHERE family_id = $1 AND caregiver_id = $2 AND status = 'accepted'
+       ORDER BY messaging_unlocked DESC, created_at DESC LIMIT 1`, [familyId, caregiverId]);
+        const matchId = matchLookup.rows[0]?.id || null;
+        // Upsert conversation, storing match_id; backfill if previously null
+        const result = await query(`INSERT INTO conversations (family_id, caregiver_id, match_id)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (family_id, caregiver_id) DO UPDATE
+         SET updated_at = NOW(),
+             match_id = COALESCE(conversations.match_id, EXCLUDED.match_id)
+       RETURNING id`, [familyId, caregiverId, matchId]);
         res.json({ conversationId: result.rows[0].id });
     }
     catch (err) {

@@ -2,6 +2,23 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 const router = Router();
+const MONTH_NAMES = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+function parseDateLabel(label) {
+    if (!label)
+        return null;
+    const m = label.match(/([A-Za-z]+)\s+(\d+)/);
+    if (!m)
+        return null;
+    const monthIdx = MONTH_NAMES.indexOf(m[1].toLowerCase().slice(0, 3));
+    if (monthIdx === -1)
+        return null;
+    const day = parseInt(m[2], 10);
+    const now = new Date();
+    const d = new Date(now.getFullYear(), monthIdx, day);
+    if (d < now)
+        d.setFullYear(now.getFullYear() + 1);
+    return d;
+}
 const colorMap = {
     'Child Care': 'bg-brand-500',
     'Senior Care': 'bg-coral-400',
@@ -60,6 +77,15 @@ router.post('/', requireAuth, async (req, res) => {
         const result = await query(`INSERT INTO schedules (caregiver_id, family_id, family_name, service, date_label, time_label, location, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, 'confirmed')
        RETURNING *`, [req.user.id, familyId || null, familyName || '', service, dateLabel, timeLabel, location || '']);
+        // Stamp care_date on the related accepted match using the actual scheduled
+        // session date (parsed from dateLabel, e.g. "Mon, May 6") so the 48-hour
+        // expiry window begins after care occurs, not at booking time.
+        if (familyId) {
+            const parsedCareDate = parseDateLabel(dateLabel);
+            await query(`UPDATE matches SET care_date = $3
+         WHERE family_id = $1 AND caregiver_id = $2
+           AND status = 'accepted' AND messaging_unlocked = true`, [familyId, req.user.id, parsedCareDate ?? new Date()]);
+        }
         res.status(201).json({ schedule: result.rows[0] });
     }
     catch (err) {
