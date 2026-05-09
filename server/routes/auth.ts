@@ -240,13 +240,19 @@ router.put('/notifications', requireAuth, async (req: AuthRequest, res) => {
     const allowed = ['email', 'sms', 'push', 'marketing'];
     const safe: Record<string, boolean> = {};
     for (const k of allowed) { if (typeof prefs[k] === 'boolean') safe[k] = prefs[k]; }
+
+    // Read previous prefs before updating so we only send confirmation on OFF→ON transition
+    const prevRes = await query('SELECT notification_prefs, name, email FROM users WHERE id = $1', [req.user!.id]);
+    const prevPrefs: Record<string, boolean> = prevRes.rows[0]?.notification_prefs || {};
+    const wasEmailOff = !prevPrefs.email;
+
     await query('UPDATE users SET notification_prefs = $1, updated_at = NOW() WHERE id = $2', [JSON.stringify(safe), req.user!.id]);
-    if (safe.email) {
-      const uRes = await query('SELECT name, email FROM users WHERE id = $1', [req.user!.id]);
-      if (uRes.rows[0]) {
-        sendNotificationPreferenceEmail(uRes.rows[0].email, uRes.rows[0].name).catch(console.error);
-      }
+
+    // Only send confirmation email when the email-notifications toggle transitions false → true
+    if (safe.email && wasEmailOff && prevRes.rows[0]) {
+      sendNotificationPreferenceEmail(prevRes.rows[0].email, prevRes.rows[0].name).catch(console.error);
     }
+
     res.json({ message: 'Notification preferences saved', prefs: safe });
   } catch (err) {
     console.error('Notification prefs error:', err);

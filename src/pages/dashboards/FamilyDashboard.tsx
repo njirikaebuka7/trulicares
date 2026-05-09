@@ -272,7 +272,9 @@ export default function FamilyDashboard() {
       setProfileModal(null);
       showToast('Password changed successfully!');
     } catch (err: any) {
-      setPwError(err.message || 'Failed to change password');
+      const msg = err.message || 'Failed to change password';
+      setPwError(msg);
+      showToast(msg, 'error');
     } finally {
       setPwSaving(false);
     }
