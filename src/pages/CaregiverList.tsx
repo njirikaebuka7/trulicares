@@ -16,8 +16,8 @@ const CATEGORIES: { id: CareCategory | 'all'; label: string; icon: string }[] = 
 
 const SORT_OPTIONS = [
   { value: 'rating', label: 'Highest Rated' },
-  { value: 'rate-low', label: 'Price: Low to High' },
-  { value: 'rate-high', label: 'Price: High to Low' },
+  { value: 'price-asc', label: 'Price: Low to High' },
+  { value: 'price-desc', label: 'Price: High to Low' },
   { value: 'experience', label: 'Most Experienced' },
 ];
 
@@ -43,46 +43,34 @@ export default function CaregiverList() {
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [bgCheckedOnly, setBgCheckedOnly] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [allCaregivers, setAllCaregivers] = useState<CaregiverProfile[]>([]);
+  const [serverCaregivers, setServerCaregivers] = useState<CaregiverProfile[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Re-fetch from API whenever server-driven params change
   useEffect(() => {
-    caregiverApi.list()
-      .then((d: any) => setAllCaregivers(d.caregivers || []))
+    setLoading(true);
+    caregiverApi.list({
+      category: activeCategory !== 'all' ? activeCategory : undefined,
+      sort: sortBy,
+      verified: verifiedOnly || undefined,
+      backgroundChecked: bgCheckedOnly || undefined,
+    })
+      .then((d: any) => setServerCaregivers(d.caregivers || []))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  }, [activeCategory, sortBy, verifiedOnly, bgCheckedOnly]);
 
+  // Client-side search filter on top of server results
   const filtered = useMemo(() => {
-    let results = [...allCaregivers];
-
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      results = results.filter(cg =>
-        cg.name.toLowerCase().includes(q) ||
-        cg.bio.toLowerCase().includes(q) ||
-        cg.location.toLowerCase().includes(q) ||
-        cg.specialties.some(s => s.includes(q))
-      );
-    }
-
-    if (activeCategory !== 'all') {
-      results = results.filter(cg => cg.specialties.includes(activeCategory));
-    }
-
-    if (verifiedOnly) results = results.filter(cg => cg.verified);
-    if (bgCheckedOnly) results = results.filter(cg => cg.backgroundChecked);
-
-    results.sort((a, b) => {
-      if (sortBy === 'rating') return b.rating - a.rating;
-      if (sortBy === 'rate-low') return a.hourlyRate[0] - b.hourlyRate[0];
-      if (sortBy === 'rate-high') return b.hourlyRate[1] - a.hourlyRate[1];
-      if (sortBy === 'experience') return b.yearsExperience - a.yearsExperience;
-      return 0;
-    });
-
-    return results;
-  }, [search, activeCategory, sortBy, verifiedOnly, bgCheckedOnly, allCaregivers]);
+    if (!search.trim()) return serverCaregivers;
+    const q = search.toLowerCase();
+    return serverCaregivers.filter(cg =>
+      cg.name.toLowerCase().includes(q) ||
+      cg.bio.toLowerCase().includes(q) ||
+      cg.location.toLowerCase().includes(q) ||
+      cg.specialties.some(s => s.includes(q))
+    );
+  }, [search, serverCaregivers]);
 
   const activeFiltersCount = (verifiedOnly ? 1 : 0) + (bgCheckedOnly ? 1 : 0);
 
@@ -92,7 +80,7 @@ export default function CaregiverList() {
       <section className="bg-gradient-to-br from-brand-900 via-brand-800 to-brand-950 pt-28 pb-16 lg:pt-36 lg:pb-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <span className="inline-block px-4 py-1.5 rounded-full bg-white/10 text-brand-200 text-sm font-semibold mb-5 backdrop-blur-sm border border-white/10">
-            {loading ? '…' : allCaregivers.length} Verified Caregivers
+            {loading ? '…' : serverCaregivers.length} Verified Caregivers
           </span>
           <h1 className="text-4xl sm:text-5xl font-black text-white mb-5 leading-tight">
             Find Your Perfect<br />

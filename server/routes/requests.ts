@@ -50,8 +50,22 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
 
     const careRequest = result.rows[0];
 
-    // Direct caregiver request: create a single match immediately and return matchId
+    // Direct caregiver request: validate then create a single match immediately
     if (caregiverId) {
+      // Validate the target user is an active caregiver offering this care type
+      const cgCheck = await query(
+        `SELECT u.id FROM users u
+         JOIN caregiver_profiles cp ON cp.user_id = u.id
+         WHERE u.id = $1 AND u.role = 'caregiver' AND u.status = 'active'
+           AND ($2::text IS NULL OR $2 = ANY(cp.specialties))`,
+        [caregiverId, careType || null]
+      );
+      if (cgCheck.rows.length === 0) {
+        // Clean up the newly created request and return an error
+        await query('DELETE FROM care_requests WHERE id = $1', [careRequest.id]);
+        return res.status(400).json({ error: 'Caregiver not found or does not offer this care type' });
+      }
+
       try {
         const matchResult = await query(
           `INSERT INTO matches (family_id, caregiver_id, request_id, status)
