@@ -4,6 +4,21 @@ import { requireAuth, AuthRequest } from '../middleware/auth.js';
 
 const router = Router();
 
+const MONTH_NAMES = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+
+function parseDateLabel(label: string): Date | null {
+  if (!label) return null;
+  const m = label.match(/([A-Za-z]+)\s+(\d+)/);
+  if (!m) return null;
+  const monthIdx = MONTH_NAMES.indexOf(m[1].toLowerCase().slice(0, 3));
+  if (monthIdx === -1) return null;
+  const day = parseInt(m[2], 10);
+  const now = new Date();
+  const d = new Date(now.getFullYear(), monthIdx, day);
+  if (d < now) d.setFullYear(now.getFullYear() + 1);
+  return d;
+}
+
 const colorMap: Record<string, string> = {
   'Child Care': 'bg-brand-500',
   'Senior Care': 'bg-coral-400',
@@ -76,14 +91,16 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       [req.user!.id, familyId || null, familyName || '', service, dateLabel, timeLabel, location || '']
     );
 
-    // Stamp care_date on the related accepted match so the 48-hour expiry
-    // window starts from when care was booked/delivered.
+    // Stamp care_date on the related accepted match using the actual scheduled
+    // session date (parsed from dateLabel, e.g. "Mon, May 6") so the 48-hour
+    // expiry window begins after care occurs, not at booking time.
     if (familyId) {
+      const parsedCareDate = parseDateLabel(dateLabel as string);
       await query(
-        `UPDATE matches SET care_date = NOW()
+        `UPDATE matches SET care_date = $3
          WHERE family_id = $1 AND caregiver_id = $2
            AND status = 'accepted' AND messaging_unlocked = true`,
-        [familyId, req.user!.id]
+        [familyId, req.user!.id, parsedCareDate ?? new Date()]
       );
     }
 

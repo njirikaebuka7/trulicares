@@ -381,7 +381,7 @@ export default function FamilyDashboard() {
                 <StatCard label="Sessions" value={schedule.length} icon={<Calendar className="w-4 h-4" />}
                   sub={schedule.length > 0 ? `Next: ${schedule[0]?.date || 'Upcoming'}` : 'None scheduled'}
                   colorBg="bg-emerald-50" colorText="text-emerald-600" />
-                <StatCard label="Messages" value={matches.filter((m: any) => m.messagingUnlocked).length} icon={<MessageCircle className="w-4 h-4" />}
+                <StatCard label="Messages" value={conversations.filter((c: any) => c.messagingUnlocked).length} icon={<MessageCircle className="w-4 h-4" />}
                   sub={totalUnread > 0 ? `${totalUnread} unread` : 'All caught up'}
                   colorBg="bg-sky-50" colorText="text-sky-600" />
                 <StatCard label="Total Spent" value={totalSpentStr} icon={<CreditCard className="w-4 h-4" />}
