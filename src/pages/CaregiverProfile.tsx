@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   Star, Shield, Check, MapPin, Clock, DollarSign,
-  Briefcase, CheckCircle, MessageCircle, Award, Calendar, ArrowLeft, X
+  Briefcase, CheckCircle, MessageCircle, Award, Calendar, ArrowLeft, X, LockKeyhole
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
-import { caregivers } from '@/lib/api';
+import { caregivers, get, post } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 import type { CaregiverProfile as CGProfile, CareCategory } from '@/types';
 import { cn } from '@/utils/cn';
 
@@ -33,11 +34,14 @@ const categoryIcons: Record<string, string> = {
 export default function CaregiverProfile() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { isAuthenticated, user } = useAuth();
   const [caregiver, setCaregiver] = useState<CGProfile | null>(null);
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [showSpecialtyPicker, setShowSpecialtyPicker] = useState(false);
+  const [existingMatch, setExistingMatch] = useState<any | null>(null);
+  const [unlockingMsg, setUnlockingMsg] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -49,6 +53,16 @@ export default function CaregiverProfile() {
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !id || user?.role !== 'family') return;
+    get('/matches')
+      .then((d: any) => {
+        const m = (d.matches || []).find((x: any) => x.caregiver?.id === id || x.caregiverId === id);
+        if (m) setExistingMatch(m);
+      })
+      .catch(() => {});
+  }, [id, isAuthenticated, user]);
 
   const handleRequestCare = () => {
     if (!caregiver) return;
@@ -216,9 +230,65 @@ export default function CaregiverProfile() {
             <Button variant="primary" size="lg" onClick={handleRequestCare} className="flex-1 sm:flex-none">
               Request Care
             </Button>
-            <Button variant="secondary" size="lg" onClick={handleRequestCare} className="flex-1 sm:flex-none">
-              <MessageCircle className="w-4 h-4" /> Message
-            </Button>
+            {/* ── Messaging CTA — gated on match status ── */}
+            {(() => {
+              if (!isAuthenticated) {
+                return (
+                  <Button variant="secondary" size="lg" onClick={handleRequestCare} className="flex-1 sm:flex-none">
+                    <MessageCircle className="w-4 h-4" /> Message
+                  </Button>
+                );
+              }
+              if (!existingMatch) {
+                return (
+                  <Button variant="secondary" size="lg" onClick={handleRequestCare} className="flex-1 sm:flex-none">
+                    <MessageCircle className="w-4 h-4" /> Message
+                  </Button>
+                );
+              }
+              if (existingMatch.status === 'pending') {
+                return (
+                  <div className="relative group">
+                    <Button variant="secondary" size="lg" disabled className="flex-1 sm:flex-none opacity-60 cursor-not-allowed">
+                      <Clock className="w-4 h-4" /> Awaiting Acceptance
+                    </Button>
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 text-center text-xs bg-gray-900 text-white rounded-xl px-3 py-2 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-10">
+                      Messaging unlocks once the caregiver accepts your request.
+                    </div>
+                  </div>
+                );
+              }
+              const careDate = existingMatch.careDate ? new Date(existingMatch.careDate) : null;
+              const hoursElapsed = careDate ? (Date.now() - careDate.getTime()) / 3600000 : 0;
+              const messagingExpired = existingMatch.messagingUnlocked && careDate && hoursElapsed > 48;
+              if (messagingExpired) {
+                return (
+                  <Button variant="coral" size="lg" disabled={unlockingMsg} onClick={async () => {
+                    setUnlockingMsg(true);
+                    try { await post(`/matches/${existingMatch.id}/unlock-messaging`); setExistingMatch((m: any) => ({ ...m, messagingUnlocked: true, careDate: null })); } catch {}
+                    setUnlockingMsg(false);
+                  }} className="flex-1 sm:flex-none">
+                    <LockKeyhole className="w-4 h-4" /> Re-unlock Messaging
+                  </Button>
+                );
+              }
+              if (existingMatch.status === 'accepted' && !existingMatch.messagingUnlocked) {
+                return (
+                  <Button variant="coral" size="lg" disabled={unlockingMsg} onClick={async () => {
+                    setUnlockingMsg(true);
+                    try { await post(`/matches/${existingMatch.id}/unlock-messaging`); setExistingMatch((m: any) => ({ ...m, messagingUnlocked: true })); } catch {}
+                    setUnlockingMsg(false);
+                  }} className="flex-1 sm:flex-none">
+                    <LockKeyhole className="w-4 h-4" /> {unlockingMsg ? 'Unlocking…' : 'Unlock Messaging'}
+                  </Button>
+                );
+              }
+              return (
+                <Button variant="secondary" size="lg" onClick={() => navigate('/dashboard', { state: { tab: 'Messages' } })} className="flex-1 sm:flex-none">
+                  <MessageCircle className="w-4 h-4" /> Message
+                </Button>
+              );
+            })()}
           </div>
         </div>
 

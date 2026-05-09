@@ -157,7 +157,7 @@ export default function FindCare() {
         />
       );
     case 'matching':
-      return <MatchingStep onComplete={handleMatchingComplete} />;
+      return <MatchingStep onComplete={handleMatchingComplete} onCancel={() => navigate(cancelDestination)} />;
     case 'matches':
       return (
         <MatchesListStep

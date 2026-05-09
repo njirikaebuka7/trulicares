@@ -128,14 +128,14 @@ export default function CaregiverDashboard() {
 
       {/* ── LEFT SIDEBAR (desktop) ── */}
       <aside className={cn(
-        'hidden lg:flex flex-col fixed top-14 left-0 bottom-0 z-20 transition-all duration-300',
+        'hidden lg:flex flex-col fixed top-0 left-0 bottom-0 z-20 transition-all duration-300',
         collapsed ? 'w-16' : 'w-64',
         'bg-emerald-950'
       )}>
         {/* Logo + collapse toggle */}
         <div className={cn(
-          'flex items-center border-b border-emerald-800/60 shrink-0',
-          collapsed ? 'justify-center px-3 py-4' : 'justify-between px-4 py-4'
+          'flex items-center h-14 border-b border-emerald-800/60 shrink-0',
+          collapsed ? 'justify-center px-3' : 'justify-between px-4'
         )}>
           {!collapsed && (
             <img src={logoImg} alt="TruliCares" className="h-7 w-auto brightness-0 invert opacity-80" />

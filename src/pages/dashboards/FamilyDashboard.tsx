@@ -70,6 +70,9 @@ export default function FamilyDashboard() {
   const [editSched, setEditSched] = useState('');
   const [editSaving, setEditSaving] = useState(false);
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
+  const [calYear, setCalYear] = useState(() => new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
+  const [calSelectedDay, setCalSelectedDay] = useState<number | null>(null);
 
   const [matches, setMatches] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
@@ -128,7 +131,7 @@ export default function FamilyDashboard() {
   };
 
   const totalSpentCents = payments
-    .filter((p: any) => p.status === 'succeeded')
+    .filter((p: any) => p.status === 'succeeded' && (p.type === 'messaging_unlock' || p.description?.toLowerCase().includes('messag')))
     .reduce((s: number, p: any) => s + (p.amountCents || 0), 0);
   const totalSpentStr = totalSpentCents ? `$${(totalSpentCents / 100).toFixed(0)}` : '$0';
   const totalUnread = conversations.reduce((s: number, c: any) => s + (c.unreadCount || 0), 0);
@@ -570,40 +573,107 @@ export default function FamilyDashboard() {
           )}
 
           {/* ── SCHEDULE ── */}
-          {activeTab === 'Schedule' && (
-            <div className="space-y-4">
-              <h2 className="text-xl font-bold text-gray-900">Upcoming Schedule</h2>
-              <div className="space-y-3">
-                {schedule.map((session: any) => (
-                  <div key={session.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
-                    <div className={cn('w-1.5 h-16 rounded-full shrink-0', session.colorClass)} />
-                    <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center shrink-0">
-                      <Calendar className="w-5 h-5 text-gray-500" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-gray-900">{session.caregiverName}</p>
-                      <p className="text-sm text-gray-500">{session.service}</p>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-400 flex-wrap">
-                        <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {session.date}</span>
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {session.time}</span>
-                        <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {session.location}</span>
-                      </div>
-                    </div>
-                    <span className={cn('text-xs px-3 py-1 rounded-full font-semibold shrink-0',
-                      session.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700')}>
-                      {session.status}
-                    </span>
+          {activeTab === 'Schedule' && (() => {
+            const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+            const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+            const firstDay = new Date(calYear, calMonth, 1).getDay();
+            const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+            const prevMonth = () => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); } else setCalMonth(m => m - 1); setCalSelectedDay(null); };
+            const nextMonth = () => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); } else setCalMonth(m => m + 1); setCalSelectedDay(null); };
+
+            const sessionDays = new Set<number>();
+            schedule.forEach((s: any) => {
+              try { const d = new Date(s.date); if (d.getFullYear() === calYear && d.getMonth() === calMonth) sessionDays.add(d.getDate()); } catch {}
+            });
+            const selectedSessions = calSelectedDay
+              ? schedule.filter((s: any) => { try { const d = new Date(s.date); return d.getFullYear() === calYear && d.getMonth() === calMonth && d.getDate() === calSelectedDay; } catch { return false; } })
+              : schedule;
+            const today = new Date();
+            return (
+              <div className="space-y-5">
+                <h2 className="text-xl font-bold text-gray-900">Schedule</h2>
+                {/* Month calendar */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <button onClick={prevMonth} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-800 transition-colors">
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span className="font-bold text-gray-900">{monthNames[calMonth]} {calYear}</span>
+                    <button onClick={nextMonth} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-800 transition-colors">
+                      <ChevronRightIcon className="w-4 h-4" />
+                    </button>
                   </div>
-                ))}
+                  <div className="grid grid-cols-7 mb-2">
+                    {dayNames.map(d => <div key={d} className="text-center text-xs font-semibold text-gray-400 py-1">{d}</div>)}
+                  </div>
+                  <div className="grid grid-cols-7 gap-y-1">
+                    {Array.from({ length: firstDay }).map((_, i) => <div key={`e-${i}`} />)}
+                    {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+                      const isToday = today.getFullYear() === calYear && today.getMonth() === calMonth && today.getDate() === day;
+                      const hasSession = sessionDays.has(day);
+                      const isSelected = calSelectedDay === day;
+                      return (
+                        <button key={day} onClick={() => setCalSelectedDay(isSelected ? null : day)}
+                          className={cn(
+                            'relative flex flex-col items-center justify-center w-full aspect-square rounded-xl text-sm font-medium transition-all',
+                            isSelected ? 'bg-brand-600 text-white' :
+                            isToday ? 'bg-brand-50 text-brand-700 font-bold' :
+                            hasSession ? 'hover:bg-brand-50 text-gray-800' : 'hover:bg-gray-50 text-gray-500'
+                          )}>
+                          {day}
+                          {hasSession && !isSelected && (
+                            <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-brand-500" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {calSelectedDay && (
+                    <p className="text-xs text-center text-brand-600 font-medium mt-3">
+                      Showing sessions for {monthNames[calMonth]} {calSelectedDay} · <button onClick={() => setCalSelectedDay(null)} className="underline">Clear</button>
+                    </p>
+                  )}
+                </div>
+                {/* Session list */}
+                {selectedSessions.length === 0 ? (
+                  <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-10 text-center">
+                    <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500 font-medium">{calSelectedDay ? 'No sessions on this day' : 'No upcoming sessions'}</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {selectedSessions.map((session: any) => (
+                      <div key={session.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
+                        <div className={cn('w-1.5 h-16 rounded-full shrink-0', session.colorClass || 'bg-brand-400')} />
+                        <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
+                          <Calendar className="w-5 h-5 text-brand-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-gray-900">{session.caregiverName}</p>
+                          <p className="text-sm text-gray-500">{session.service}</p>
+                          <div className="flex items-center gap-3 mt-1 text-xs text-gray-400 flex-wrap">
+                            <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {session.date}</span>
+                            <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {session.time}</span>
+                            {session.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {session.location}</span>}
+                          </div>
+                        </div>
+                        <span className={cn('text-xs px-3 py-1 rounded-full font-semibold shrink-0',
+                          session.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700')}>
+                          {session.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* ── MESSAGES ── */}
           {activeTab === 'Messages' && (() => {
             const activeConv = selectedMessage ? conversations.find((c: any) => c.id === selectedMessage) : null;
             const activeMessages = selectedMessage ? (chatMessages[selectedMessage] || []) : [];
-            const threadList = conversations;
+            const threadList = conversations.filter((c: any) => c.messagingUnlocked);
             return (
               <div className="space-y-4">
                 <h2 className="text-xl font-bold text-gray-900">Messages</h2>

@@ -3,6 +3,7 @@ import { Search, CheckCircle2 } from 'lucide-react';
 
 interface Props {
   onComplete: () => void;
+  onCancel?: () => void;
 }
 
 const steps = [
@@ -13,7 +14,7 @@ const steps = [
   'Waiting for responses...',
 ];
 
-export default function MatchingStep({ onComplete }: Props) {
+export default function MatchingStep({ onComplete, onCancel }: Props) {
   const [currentStep, setCurrentStep] = useState(0);
   const [progress, setProgress] = useState(0);
 
@@ -109,6 +110,15 @@ export default function MatchingStep({ onComplete }: Props) {
               </div>
             </div>
           </div>
+        )}
+
+        {onCancel && (
+          <button
+            onClick={onCancel}
+            className="mt-8 text-brand-300 hover:text-white text-sm underline underline-offset-2 transition-colors"
+          >
+            Cancel and go back
+          </button>
         )}
       </div>
     </div>
