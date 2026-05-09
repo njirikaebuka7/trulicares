@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Bell, MessageCircle, User, Settings, LogOut, Plus, MapPin, DollarSign,
   Star, Shield, Check, ChevronRight, Calendar, Clock, CreditCard,
-  FileText, X, Home, LayoutDashboard, Users, ChevronLeft, ChevronRight as ChevronRightIcon,
+  FileText, X, Home, LayoutDashboard, ChevronLeft, ChevronRight as ChevronRightIcon,
   Edit3, Camera, MoreHorizontal, Send
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
@@ -12,19 +12,12 @@ import { get, post, put } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
 
-const careCategoryLabels: Record<string, string> = {
-  'child-care': 'Child Care',
-  'senior-care': 'Senior Care',
-  'adult-care': 'Adult Care',
-  'cleaning': 'Cleaning Services',
-};
 
-type Tab = 'Overview' | 'My Requests' | 'Matches' | 'Schedule' | 'Messages' | 'Payments' | 'Profile';
+type Tab = 'Overview' | 'My Requests' | 'Schedule' | 'Messages' | 'Payments' | 'Profile';
 
 const navItems: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'Overview', label: 'Overview', icon: <LayoutDashboard className="w-5 h-5" /> },
   { id: 'My Requests', label: 'My Requests', icon: <FileText className="w-5 h-5" /> },
-  { id: 'Matches', label: 'Matches', icon: <Users className="w-5 h-5" /> },
   { id: 'Schedule', label: 'Schedule', icon: <Calendar className="w-5 h-5" /> },
   { id: 'Messages', label: 'Messages', icon: <MessageCircle className="w-5 h-5" /> },
   { id: 'Payments', label: 'Payments', icon: <CreditCard className="w-5 h-5" /> },
@@ -73,6 +66,8 @@ export default function FamilyDashboard() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [editingReq, setEditingReq] = useState<any | null>(null);
   const [editLocation, setEditLocation] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editSched, setEditSched] = useState('');
   const [editSaving, setEditSaving] = useState(false);
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
 
@@ -129,7 +124,6 @@ export default function FamilyDashboard() {
 
   const navBadges: Partial<Record<Tab, number>> = {
     'My Requests': requests.filter((r: any) => r.status === 'matching').length || 0,
-    'Matches': matches.filter((m: any) => m.status === 'pending').length || 0,
     'Messages': conversations.reduce((s: number, c: any) => s + (c.unreadCount || 0), 0) || 0,
   };
 
@@ -143,7 +137,10 @@ export default function FamilyDashboard() {
     if (!editingReq) return;
     setEditSaving(true);
     try {
-      const updated: any = await put(`/care-requests/${editingReq.id}`, { location: editLocation });
+      const payload: any = { location: editLocation };
+      if (editDesc.trim()) payload.details = { ...editingReq.details, description: editDesc };
+      if (editSched.trim()) payload.details = { ...(payload.details ?? editingReq.details), schedule: editSched };
+      const updated: any = await put(`/care-requests/${editingReq.id}`, payload);
       setRequests(prev => prev.map((r: any) => r.id === editingReq.id ? updated.request : r));
       setEditingReq(null);
     } catch {}
@@ -168,14 +165,14 @@ export default function FamilyDashboard() {
 
       {/* ── LEFT SIDEBAR (desktop) ── */}
       <aside className={cn(
-        'hidden lg:flex flex-col fixed top-14 left-0 bottom-0 z-20 transition-all duration-300',
+        'hidden lg:flex flex-col fixed top-0 left-0 bottom-0 z-20 transition-all duration-300',
         collapsed ? 'w-16' : 'w-64',
         'bg-brand-950'
       )}>
         {/* Logo + collapse toggle */}
         <div className={cn(
-          'flex items-center border-b border-brand-800/60 shrink-0',
-          collapsed ? 'justify-center px-3 py-4' : 'justify-between px-4 py-4'
+          'flex items-center h-14 border-b border-brand-800/60 shrink-0',
+          collapsed ? 'justify-center px-3' : 'justify-between px-4'
         )}>
           {!collapsed && (
             <img src={logoImg} alt="TruliCares" className="h-7 w-auto brightness-0 invert opacity-80" />
@@ -365,7 +362,7 @@ export default function FamilyDashboard() {
                     className="bg-white text-brand-700 border-white hover:bg-brand-50 rounded-full">
                     <Plus className="w-4 h-4" /> Post New Request
                   </Button>
-                  <Button size="sm" onClick={() => setActiveTab('Matches')}
+                  <Button size="sm" onClick={() => setActiveTab('My Requests')}
                     className="bg-white/10 border-white/20 text-white hover:bg-white/20 rounded-full border">
                     View Matches
                   </Button>
@@ -380,7 +377,7 @@ export default function FamilyDashboard() {
                 <StatCard label="Sessions" value={schedule.length} icon={<Calendar className="w-4 h-4" />}
                   sub={schedule.length > 0 ? `Next: ${schedule[0]?.date || 'Upcoming'}` : 'None scheduled'}
                   colorBg="bg-emerald-50" colorText="text-emerald-600" />
-                <StatCard label="Messages" value={conversations.length} icon={<MessageCircle className="w-4 h-4" />}
+                <StatCard label="Messages" value={matches.filter((m: any) => m.messagingUnlocked).length} icon={<MessageCircle className="w-4 h-4" />}
                   sub={totalUnread > 0 ? `${totalUnread} unread` : 'All caught up'}
                   colorBg="bg-sky-50" colorText="text-sky-600" />
                 <StatCard label="Total Spent" value={totalSpentStr} icon={<CreditCard className="w-4 h-4" />}
@@ -437,32 +434,6 @@ export default function FamilyDashboard() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                  <h3 className="font-bold text-gray-900">Top Matches</h3>
-                  <button onClick={() => setActiveTab('Matches')} className="text-sm text-brand-600 font-medium hover:underline">View all</button>
-                </div>
-                <div className="divide-y divide-gray-50">
-                  {matches.slice(0, 2).map((match: any, i: number) => (
-                    <div key={match.id} className="flex items-center gap-4 px-5 py-4">
-                      <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0', avatarColors[i % avatarColors.length])}>
-                        {match.caregiver.name.split(' ').map((n: string) => n[0]).join('')}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-sm text-gray-900">{match.caregiver.name}</p>
-                          {match.caregiver.verified && <Shield className="w-3.5 h-3.5 text-brand-500" />}
-                        </div>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                          <span className="text-xs text-gray-600">{match.caregiver.rating} · {careCategoryLabels[match.careType]}</span>
-                        </div>
-                      </div>
-                      <Button variant="secondary" size="sm" onClick={() => setActiveTab('Matches')}>View</Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
           )}
 
@@ -499,14 +470,14 @@ export default function FamilyDashboard() {
                     </div>
                   </div>
                   <div className="mt-4 flex gap-3 flex-wrap">
-                    {req.status === 'matched' && (
-                      <Button variant="primary" size="sm" onClick={() => setActiveTab('Matches')}>
-                        View {req.matchCount} Matches
-                      </Button>
+                    {req.status === 'matched' && req.matchCount > 0 && (
+                      <span className="text-xs px-3 py-1.5 rounded-full bg-green-50 text-green-700 font-semibold flex items-center gap-1.5">
+                        <Check className="w-3 h-3" /> {req.matchCount} match{req.matchCount !== 1 ? 'es' : ''} found
+                      </span>
                     )}
                     {req.status !== 'cancelled' && req.status !== 'completed' && (
                       <>
-                        <Button variant="ghost" size="sm" onClick={() => { setEditingReq(req); setEditLocation(req.location || ''); }}>
+                        <Button variant="ghost" size="sm" onClick={() => { setEditingReq(req); setEditLocation(req.location || ''); setEditDesc(req.details?.description || req.description || ''); setEditSched(req.details?.schedule || ''); }}>
                           Edit Request
                         </Button>
                         <Button variant="ghost" size="sm" className="text-red-500 hover:bg-red-50"
@@ -526,75 +497,75 @@ export default function FamilyDashboard() {
                 <p className="font-semibold text-gray-700">Post a New Care Request</p>
                 <p className="text-sm text-gray-400">Find the right caregiver for your needs</p>
               </div>
-            </div>
-          )}
 
-          {/* ── MATCHES ── */}
-          {activeTab === 'Matches' && (
-            <div className="space-y-5">
-              <h2 className="text-xl font-bold text-gray-900">Your Matches</h2>
-              {matches.map((match: any, i: number) => (
-                <div key={match.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                  <div className="flex items-start gap-4">
-                    {match.caregiver.photoUrl ? (
-                      <img src={match.caregiver.photoUrl} alt={match.caregiver.name} className="w-14 h-14 rounded-2xl object-cover shrink-0" />
-                    ) : (
-                      <div className={cn('w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0', avatarColors[i % avatarColors.length])}>
-                        {match.caregiver.name.split(' ').map((n: string) => n[0]).join('')}
-                      </div>
-                    )}
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-bold text-gray-900">{match.caregiver.name}</h3>
-                        {match.caregiver.verified && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 text-xs font-bold">
-                            <Shield className="w-3 h-3" /> Verified
+              {/* ── MATCHED CAREGIVERS (inline below requests) ── */}
+              {matches.length > 0 && (
+                <div className="pt-2">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">Matched Caregivers</h3>
+                  <div className="space-y-4">
+                    {matches.map((match: any, i: number) => (
+                      <div key={match.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                        <div className="flex items-start gap-4">
+                          {match.caregiver?.photoUrl ? (
+                            <img src={match.caregiver.photoUrl} alt={match.caregiver.name} className="w-14 h-14 rounded-2xl object-cover shrink-0" />
+                          ) : (
+                            <div className={cn('w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0', avatarColors[i % avatarColors.length])}>
+                              {(match.caregiver?.name || '?').split(' ').map((n: string) => n[0]).join('')}
+                            </div>
+                          )}
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-bold text-gray-900">{match.caregiver?.name}</h3>
+                              {match.caregiver?.verified && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 text-xs font-bold">
+                                  <Shield className="w-3 h-3" /> Verified
+                                </span>
+                              )}
+                              {match.caregiver?.backgroundChecked && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-bold">
+                                  <Check className="w-3 h-3" /> Background Checked
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 mt-1">
+                              <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                              <span className="font-semibold text-gray-800 text-sm">{match.caregiver?.rating}</span>
+                              <span className="text-sm text-gray-400">({match.caregiver?.reviewCount} reviews)</span>
+                            </div>
+                            <div className="flex flex-wrap gap-3 mt-2 text-sm">
+                              <span className="flex items-center gap-1 text-gray-500"><MapPin className="w-4 h-4" /> {match.location}</span>
+                              <span className="flex items-center gap-1 text-brand-600 font-semibold"><DollarSign className="w-4 h-4" /> {match.budget}</span>
+                              <span className="flex items-center gap-1 text-gray-500"><Clock className="w-4 h-4" /> {match.caregiver?.yearsExperience} yrs exp</span>
+                            </div>
+                          </div>
+                          <span className={cn('px-3 py-1 rounded-full text-xs font-bold shrink-0',
+                            match.status === 'accepted' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700')}>
+                            {match.status}
                           </span>
-                        )}
-                        {match.caregiver.backgroundChecked && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-bold">
-                            <Check className="w-3 h-3" /> Background Checked
-                          </span>
-                        )}
+                        </div>
+                        <div className="mt-4 pt-4 border-t border-gray-50 flex gap-3 flex-wrap items-center">
+                          {match.messagingUnlocked ? (
+                            <Button variant="primary" size="sm" onClick={() => setActiveTab('Messages')}>
+                              <MessageCircle className="w-4 h-4" /> Message
+                            </Button>
+                          ) : match.status === 'accepted' ? (
+                            <Button variant="coral" size="sm" onClick={async () => {
+                              try { await post(`/matches/${match.id}/unlock-messaging`); setMatches(prev => prev.map((m: any) => m.id === match.id ? { ...m, messagingUnlocked: true } : m)); } catch {}
+                            }}>
+                              <DollarSign className="w-4 h-4" /> Unlock Messaging
+                            </Button>
+                          ) : (
+                            <span className="text-xs px-3 py-1.5 rounded-full bg-amber-50 text-amber-600 font-semibold flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5" /> Waiting for caregiver to accept
+                            </span>
+                          )}
+                          <Button variant="secondary" size="sm" onClick={() => navigate(`/caregivers/${match.caregiver?.id}`)}>View Profile</Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1 mt-1">
-                        <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-                        <span className="font-semibold text-gray-800 text-sm">{match.caregiver.rating}</span>
-                        <span className="text-sm text-gray-400">({match.caregiver.reviewCount} reviews)</span>
-                      </div>
-                      <p className="text-sm text-gray-600 mt-2 leading-relaxed">{match.caregiver.bio}</p>
-                      <div className="flex flex-wrap gap-3 mt-3 text-sm">
-                        <span className="flex items-center gap-1 text-gray-500"><MapPin className="w-4 h-4" /> {match.location}</span>
-                        <span className="flex items-center gap-1 text-brand-600 font-semibold"><DollarSign className="w-4 h-4" /> {match.budget}</span>
-                        <span className="flex items-center gap-1 text-gray-500"><Clock className="w-4 h-4" /> {match.caregiver.yearsExperience} yrs exp</span>
-                        <span className="flex items-center gap-1 text-gray-500"><Calendar className="w-4 h-4" /> {match.caregiver.availability}</span>
-                      </div>
-                    </div>
-                    <span className={cn('px-3 py-1 rounded-full text-xs font-bold shrink-0',
-                      match.status === 'accepted' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700')}>
-                      {match.status}
-                    </span>
-                  </div>
-                  <div className="mt-4 pt-4 border-t border-gray-50 flex gap-3 flex-wrap items-center">
-                    {match.messagingUnlocked ? (
-                      <Button variant="primary" size="sm" onClick={() => setActiveTab('Messages')}>
-                        <MessageCircle className="w-4 h-4" /> Message
-                      </Button>
-                    ) : match.status === 'accepted' ? (
-                      <Button variant="coral" size="sm" onClick={async () => {
-                        try { await post(`/matches/${match.id}/unlock-messaging`); setMatches(prev => prev.map((m: any) => m.id === match.id ? { ...m, messagingUnlocked: true } : m)); } catch {}
-                      }}>
-                        <DollarSign className="w-4 h-4" /> Pay to Unlock Messaging
-                      </Button>
-                    ) : (
-                      <span className="text-xs px-3 py-1.5 rounded-full bg-amber-50 text-amber-600 font-semibold flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5" /> Waiting for caregiver to accept
-                      </span>
-                    )}
-                    <Button variant="secondary" size="sm" onClick={() => navigate(`/caregivers/${match.caregiver.id}`)}>View Full Profile</Button>
+                    ))}
                   </div>
                 </div>
-              ))}
+              )}
             </div>
           )}
 
@@ -888,7 +859,7 @@ export default function FamilyDashboard() {
 
       {/* ── BOTTOM NAV (mobile) ── */}
       {(() => {
-        const MOBILE_PRIMARY: Tab[] = ['Overview', 'My Requests', 'Matches', 'Messages', 'Profile'];
+        const MOBILE_PRIMARY: Tab[] = ['Overview', 'My Requests', 'Schedule', 'Messages', 'Profile'];
         const mobileNav = navItems.filter(n => MOBILE_PRIMARY.includes(n.id));
         const moreNav = navItems.filter(n => !MOBILE_PRIMARY.includes(n.id));
         const moreActive = moreNav.some(n => n.id === activeTab);
@@ -999,6 +970,26 @@ export default function FamilyDashboard() {
                   onChange={e => setEditLocation(e.target.value)}
                   placeholder="City, State or ZIP"
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Schedule / Availability</label>
+                <input
+                  type="text"
+                  value={editSched}
+                  onChange={e => setEditSched(e.target.value)}
+                  placeholder="e.g. Weekdays 9am–5pm, part-time"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Additional Details</label>
+                <textarea
+                  rows={3}
+                  value={editDesc}
+                  onChange={e => setEditDesc(e.target.value)}
+                  placeholder="Any specific needs or preferences…"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm resize-none"
                 />
               </div>
               <div className="flex gap-3 pt-2">
