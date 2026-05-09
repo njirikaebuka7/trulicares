@@ -76,7 +76,14 @@ export const auth = {
   register: (name: string, email: string, password: string, role: string) =>
     post('/auth/register', { name, email, password, role }),
   me: () => get('/auth/me'),
+  settings: () => get('/auth/settings'),
   updateProfile: (data: any) => put('/auth/profile', data),
+  uploadPhoto: (photoData: string) => post('/auth/profile-photo', { photoData }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    put('/auth/password', { currentPassword, newPassword }),
+  deleteAccount: () => del('/auth/account'),
+  updateNotifications: (prefs: Record<string, boolean>) => put('/auth/notifications', prefs),
+  updatePrivacy: (prefs: Record<string, boolean>) => put('/auth/privacy', prefs),
   forgotPassword: (email: string) => post('/auth/forgot-password', { email }),
   resetPassword: (token: string, password: string) => post('/auth/reset-password', { token, password }),
 };
@@ -148,6 +155,11 @@ export const payments = {
   list: () => get('/payments'),
   createIntent: (matchId: string) => post('/payments/intent', { matchId }),
   createCheckout: (priceId: string) => post('/payments/checkout', { priceId }),
+  paymentMethods: () => get('/payments/payment-methods'),
+  addPaymentMethod: (paymentMethodId: string) =>
+    post('/payments/payment-method', { paymentMethodId }),
+  removePaymentMethod: (id: string) => del(`/payments/payment-method/${id}`),
+  setDefaultPaymentMethod: (id: string) => put(`/payments/payment-method/${id}/default`),
 };
 
 // ── Notifications ─────────────────────────────────────────────────────────────

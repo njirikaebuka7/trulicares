@@ -1,14 +1,15 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell, MessageCircle, User, Settings, LogOut, Plus, MapPin, DollarSign,
   Star, Shield, Check, ChevronRight, Calendar, Clock, CreditCard,
   FileText, X, Home, LayoutDashboard, ChevronLeft, ChevronRight as ChevronRightIcon,
-  Edit3, Camera, MoreHorizontal, Send, Phone
+  Edit3, Camera, MoreHorizontal, Send, Phone, Lock, Trash2, CheckCircle, AlertCircle,
+  Loader2
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
-import { get, post, put } from '@/lib/api';
+import { get, post, put, auth as authApi, payments as paymentsApi } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
 
@@ -46,7 +47,7 @@ function StatCard({ label, value, icon, sub, colorBg, colorText }: {
 
 export default function FamilyDashboard() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('Overview');
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -54,7 +55,7 @@ export default function FamilyDashboard() {
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showAddPayment, setShowAddPayment] = useState(false);
   const [editName, setEditName] = useState(user?.name || '');
-  const [editPhone, setEditPhone] = useState('(555) 000-1234');
+  const [editPhone, setEditPhone] = useState('');
   const [newCard, setNewCard] = useState({ number: '', expiry: '', cvc: '' });
   const [notificationsRead, setNotificationsRead] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -74,6 +75,49 @@ export default function FamilyDashboard() {
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
   const [calSelectedDay, setCalSelectedDay] = useState<number | null>(null);
   const [showPhone, setShowPhone] = useState(false);
+
+  // ── Toast ──────────────────────────────────────────────────────────────────
+  const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: 'success' | 'error' }>>([]);
+  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    const id = Math.random().toString(36).slice(2);
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
+  }, []);
+
+  // ── Profile settings (stats + prefs loaded on Profile tab open) ────────────
+  const [profileSettings, setProfileSettings] = useState<any>(null);
+  const [profileSettingsLoaded, setProfileSettingsLoaded] = useState(false);
+
+  // ── Photo upload ───────────────────────────────────────────────────────────
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+
+  // ── Personal info form ─────────────────────────────────────────────────────
+  const [personalForm, setPersonalForm] = useState({ name: user?.name || '', phone: '', address: '' });
+  const [personalSaving, setPersonalSaving] = useState(false);
+
+  // ── Edit-profile quick modal ───────────────────────────────────────────────
+  const [editProfileSaving, setEditProfileSaving] = useState(false);
+
+  // ── Password change ────────────────────────────────────────────────────────
+  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwError, setPwError] = useState('');
+
+  // ── Account deletion ───────────────────────────────────────────────────────
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteProcessing, setDeleteProcessing] = useState(false);
+
+  // ── Notification / privacy saving ─────────────────────────────────────────
+  const [notifSaving, setNotifSaving] = useState(false);
+  const [privacySaving, setPrivacySaving] = useState(false);
+
+  // ── Stripe payment methods ─────────────────────────────────────────────────
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [pmLoading, setPmLoading] = useState(false);
+  const [pmSaving, setPmSaving] = useState(false);
+  const [pmError, setPmError] = useState('');
 
   const [matches, setMatches] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
@@ -102,6 +146,193 @@ export default function FamilyDashboard() {
       get('/conversations').then((d: any) => setConversations(d.conversations || [])).catch(() => {}),
     ]).catch(console.error);
   }, []);
+
+  // Load profile settings when Profile tab opens (once per session)
+  useEffect(() => {
+    if (activeTab === 'Profile' && !profileSettingsLoaded) {
+      setProfileSettingsLoaded(true);
+      authApi.settings()
+        .then((data: any) => {
+          setProfileSettings(data);
+          setPersonalForm({ name: user?.name || '', phone: data.phone || '', address: data.address || '' });
+          setEditPhone(data.phone || '');
+          setNotifPrefs(data.notificationPrefs || { email: true, sms: true, push: false, marketing: false });
+          setPrivacyPrefs(data.privacyPrefs || { profileVisible: true, shareActivity: false, dataAnalytics: true });
+        })
+        .catch(() => {});
+    }
+  }, [activeTab]);
+
+  // Load Stripe payment methods when Payments tab opens
+  useEffect(() => {
+    if (activeTab === 'Payments') {
+      setPmLoading(true);
+      paymentsApi.paymentMethods()
+        .then((d: any) => setPaymentMethods(d.paymentMethods || []))
+        .catch(() => {})
+        .finally(() => setPmLoading(false));
+    }
+  }, [activeTab]);
+
+  // ── Photo upload handler ───────────────────────────────────────────────────
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5_000_000) { showToast('Image must be under 5 MB', 'error'); return; }
+    setPhotoUploading(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const res: any = await authApi.uploadPhoto(reader.result as string);
+        updateUser({ photoUrl: res.photoUrl });
+        showToast('Profile photo updated!');
+      } catch (err: any) {
+        showToast(err.message || 'Failed to upload photo', 'error');
+      } finally {
+        setPhotoUploading(false);
+        e.target.value = '';
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // ── Save edit-profile quick modal ─────────────────────────────────────────
+  const handleSaveEditProfile = async () => {
+    setEditProfileSaving(true);
+    try {
+      const res: any = await authApi.updateProfile({ name: editName, phone: editPhone });
+      updateUser({ name: res.name });
+      setPersonalForm(p => ({ ...p, name: res.name, phone: res.phone || '' }));
+      setShowEditProfile(false);
+      showToast('Profile updated!');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save', 'error');
+    } finally {
+      setEditProfileSaving(false);
+    }
+  };
+
+  // ── Save personal information modal ───────────────────────────────────────
+  const handleSavePersonalInfo = async () => {
+    setPersonalSaving(true);
+    try {
+      const res: any = await authApi.updateProfile(personalForm);
+      updateUser({ name: res.name });
+      setEditName(res.name);
+      setProfileModal(null);
+      showToast('Personal information saved!');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save', 'error');
+    } finally {
+      setPersonalSaving(false);
+    }
+  };
+
+  // ── Save notification preferences ─────────────────────────────────────────
+  const handleSaveNotifications = async () => {
+    setNotifSaving(true);
+    try {
+      await authApi.updateNotifications(notifPrefs as Record<string, boolean>);
+      setProfileModal(null);
+      showToast('Notification preferences saved!');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save', 'error');
+    } finally {
+      setNotifSaving(false);
+    }
+  };
+
+  // ── Save privacy preferences ───────────────────────────────────────────────
+  const handleSavePrivacy = async () => {
+    setPrivacySaving(true);
+    try {
+      await authApi.updatePrivacy(privacyPrefs as Record<string, boolean>);
+      setProfileModal(null);
+      showToast('Privacy settings saved!');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save', 'error');
+    } finally {
+      setPrivacySaving(false);
+    }
+  };
+
+  // ── Change password ────────────────────────────────────────────────────────
+  const handleChangePassword = async () => {
+    setPwError('');
+    if (!pwForm.current || !pwForm.next || !pwForm.confirm) { setPwError('All fields are required'); return; }
+    if (pwForm.next.length < 8) { setPwError('New password must be at least 8 characters'); return; }
+    if (pwForm.next !== pwForm.confirm) { setPwError('Passwords do not match'); return; }
+    setPwSaving(true);
+    try {
+      await authApi.changePassword(pwForm.current, pwForm.next);
+      setPwForm({ current: '', next: '', confirm: '' });
+      setProfileModal(null);
+      showToast('Password changed successfully!');
+    } catch (err: any) {
+      setPwError(err.message || 'Failed to change password');
+    } finally {
+      setPwSaving(false);
+    }
+  };
+
+  // ── Delete account ─────────────────────────────────────────────────────────
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE') return;
+    setDeleteProcessing(true);
+    try {
+      await authApi.deleteAccount();
+      logout();
+      navigate('/');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete account', 'error');
+      setDeleteProcessing(false);
+    }
+  };
+
+  // ── Add payment method (using Stripe test PM tokens) ──────────────────────
+  const handleAddPaymentMethod = async (pmId?: string) => {
+    setPmError('');
+    const tokenToUse = pmId || newCard.number.trim();
+    if (!tokenToUse) { setPmError('Select a test card or enter a payment method ID'); return; }
+    setPmSaving(true);
+    try {
+      const res: any = await paymentsApi.addPaymentMethod(tokenToUse);
+      setPaymentMethods(prev => {
+        const updated = [...prev, res.paymentMethod];
+        if (res.paymentMethod.isDefault) return updated.map(m => ({ ...m, isDefault: m.id === res.paymentMethod.id }));
+        return updated;
+      });
+      setNewCard({ number: '', expiry: '', cvc: '' });
+      setShowAddPayment(false);
+      showToast('Payment method added!');
+    } catch (err: any) {
+      setPmError(err.message || 'Failed to add card');
+    } finally {
+      setPmSaving(false);
+    }
+  };
+
+  // ── Remove payment method ──────────────────────────────────────────────────
+  const handleRemovePaymentMethod = async (id: string) => {
+    try {
+      await paymentsApi.removePaymentMethod(id);
+      setPaymentMethods(prev => prev.filter(pm => pm.id !== id));
+      showToast('Card removed');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to remove card', 'error');
+    }
+  };
+
+  // ── Set default payment method ─────────────────────────────────────────────
+  const handleSetDefaultPaymentMethod = async (id: string) => {
+    try {
+      await paymentsApi.setDefaultPaymentMethod(id);
+      setPaymentMethods(prev => prev.map(pm => ({ ...pm, isDefault: pm.id === id })));
+      showToast('Default card updated!');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update default', 'error');
+    }
+  };
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   useEffect(() => { scrollToBottom(); }, [chatMessages, selectedMessage]);
@@ -194,8 +425,10 @@ export default function FamilyDashboard() {
         {!collapsed && (
           <div className="px-4 py-4 border-b border-brand-800/60">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
-                {initials}
+              <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center text-white font-bold text-sm shrink-0 overflow-hidden">
+                {user?.photoUrl
+                  ? <img src={user.photoUrl} alt={user.name} className="w-full h-full object-cover" />
+                  : initials}
               </div>
               <div className="min-w-0">
                 <p className="font-semibold text-white text-sm truncate">{user?.name}</p>
@@ -209,8 +442,10 @@ export default function FamilyDashboard() {
         )}
         {collapsed && (
           <div className="flex justify-center py-3 border-b border-brand-800/60">
-            <div className="w-8 h-8 rounded-xl bg-brand-600 flex items-center justify-center text-white font-bold text-xs">
-              {initials}
+            <div className="w-8 h-8 rounded-xl bg-brand-600 flex items-center justify-center text-white font-bold text-xs overflow-hidden">
+              {user?.photoUrl
+                ? <img src={user.photoUrl} alt={user.name} className="w-full h-full object-cover" />
+                : initials}
             </div>
           </div>
         )}
@@ -317,10 +552,12 @@ export default function FamilyDashboard() {
               )}
             </div>
             <button
-              className="w-9 h-9 rounded-full bg-brand-600 flex items-center justify-center text-white text-xs font-bold lg:hidden transition-all active:scale-95"
+              className="w-9 h-9 rounded-full bg-brand-600 flex items-center justify-center text-white text-xs font-bold lg:hidden transition-all active:scale-95 overflow-hidden"
               onClick={() => setActiveTab('Profile')}
             >
-              {initials}
+              {user?.photoUrl
+                ? <img src={user.photoUrl} alt={user.name} className="w-full h-full object-cover" />
+                : initials}
             </button>
           </div>
         </div>
@@ -906,16 +1143,34 @@ export default function FamilyDashboard() {
               </div>
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                 <h3 className="font-bold text-gray-900 mb-4">Payment Methods</h3>
-                <div className="flex items-center gap-4 p-4 border border-gray-200 rounded-xl">
-                  <CreditCard className="w-8 h-8 text-gray-400" />
-                  <div>
-                    <p className="font-semibold text-gray-900">Visa ending in 4242</p>
-                    <p className="text-sm text-gray-400">Expires 08/27</p>
+                {pmLoading ? (
+                  <div className="flex items-center gap-2 text-gray-400 text-sm py-2">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Loading cards…
                   </div>
-                  <span className="ml-auto text-xs px-2.5 py-1 bg-green-100 text-green-700 rounded-full font-semibold">Default</span>
-                </div>
+                ) : paymentMethods.length === 0 ? (
+                  <p className="text-sm text-gray-400 italic py-2">No payment methods added yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {paymentMethods.map(pm => (
+                      <div key={pm.id} className="flex items-center gap-4 p-4 border border-gray-200 rounded-xl">
+                        <CreditCard className="w-8 h-8 text-gray-400 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-gray-900 capitalize">{pm.brand} ending in {pm.last4}</p>
+                          <p className="text-sm text-gray-400">Expires {pm.expMonth}/{pm.expYear}</p>
+                        </div>
+                        {pm.isDefault
+                          ? <span className="text-xs px-2.5 py-1 bg-green-100 text-green-700 rounded-full font-semibold shrink-0">Default</span>
+                          : <button onClick={() => handleSetDefaultPaymentMethod(pm.id)} className="text-xs text-brand-600 hover:underline shrink-0 font-medium">Set default</button>
+                        }
+                        <button onClick={() => handleRemovePaymentMethod(pm.id)} className="text-gray-300 hover:text-red-400 transition-colors shrink-0 ml-1">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <button
-                  onClick={() => setShowAddPayment(true)}
+                  onClick={() => { setPmError(''); setShowAddPayment(true); }}
                   className="mt-3 text-sm font-semibold text-brand-600 hover:text-brand-700 flex items-center gap-1"
                 >
                   <Plus className="w-4 h-4" /> Add Payment Method
@@ -928,22 +1183,35 @@ export default function FamilyDashboard() {
           {activeTab === 'Profile' && (
             <div className="space-y-5 max-w-2xl">
               <h2 className="text-xl font-bold text-gray-900">Profile & Settings</h2>
+              {/* Hidden file input for photo upload */}
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoUpload}
+              />
               {/* Profile header card */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                 <div className="flex items-center gap-5 mb-6 pb-6 border-b border-gray-100">
                   <div className="relative shrink-0">
-                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-2xl font-bold">
-                      {initials}
+                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-2xl font-bold overflow-hidden">
+                      {user?.photoUrl
+                        ? <img src={user.photoUrl} alt={user.name} className="w-full h-full object-cover" />
+                        : initials}
                     </div>
                     <button
-                      onClick={() => setShowEditProfile(true)}
-                      className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-brand-600 flex items-center justify-center text-white shadow-md hover:bg-brand-700 transition-colors"
+                      onClick={() => photoInputRef.current?.click()}
+                      disabled={photoUploading}
+                      className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-brand-600 flex items-center justify-center text-white shadow-md hover:bg-brand-700 transition-colors disabled:opacity-60"
                     >
-                      <Camera className="w-3.5 h-3.5" />
+                      {photoUploading
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : <Camera className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                   <div className="flex-1">
-                    <h2 className="text-xl font-bold text-gray-900">{editName || user?.name || 'User'}</h2>
+                    <h2 className="text-xl font-bold text-gray-900">{user?.name || 'User'}</h2>
                     <p className="text-gray-500 text-sm">{user?.email}</p>
                     <span className="inline-flex items-center gap-1 mt-2 px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-xs font-bold">
                       <Check className="w-3 h-3" /> Verified Account
@@ -954,13 +1222,13 @@ export default function FamilyDashboard() {
                   </Button>
                 </div>
 
-                {/* Quick info */}
+                {/* Quick stats from API */}
                 <div className="grid grid-cols-2 gap-3 mb-6">
                   {[
-                    { label: 'Member since', value: 'Jan 2026' },
-                    { label: 'Care requests', value: '2 active' },
-                    { label: 'Matches found', value: '3 caregivers' },
-                    { label: 'Sessions booked', value: '12 total' },
+                    { label: 'Member since', value: profileSettings?.memberSince ?? '—' },
+                    { label: 'Care requests', value: profileSettings != null ? `${profileSettings.careRequestsCount} total` : '—' },
+                    { label: 'Matches found', value: profileSettings != null ? `${profileSettings.matchesCount} caregivers` : '—' },
+                    { label: 'Sessions booked', value: profileSettings != null ? `${profileSettings.sessionsCount} total` : '—' },
                   ].map((f, i) => (
                     <div key={i} className="p-3 rounded-xl bg-gray-50">
                       <p className="text-xs text-gray-400 mb-0.5">{f.label}</p>
@@ -1188,11 +1456,17 @@ export default function FamilyDashboard() {
             <div className="p-6 space-y-4">
               <div className="flex justify-center mb-4">
                 <div className="relative">
-                  <div className="w-20 h-20 rounded-2xl bg-brand-600 flex items-center justify-center text-white text-2xl font-bold">
-                    {initials}
+                  <div className="w-20 h-20 rounded-2xl bg-brand-600 flex items-center justify-center text-white text-2xl font-bold overflow-hidden">
+                    {user?.photoUrl
+                      ? <img src={user.photoUrl} alt={user.name} className="w-full h-full object-cover" />
+                      : initials}
                   </div>
-                  <button className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-brand-600 flex items-center justify-center text-white shadow-md">
-                    <Camera className="w-3.5 h-3.5" />
+                  <button
+                    onClick={() => photoInputRef.current?.click()}
+                    disabled={photoUploading}
+                    className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-brand-600 flex items-center justify-center text-white shadow-md hover:bg-brand-700 transition-colors disabled:opacity-60"
+                  >
+                    {photoUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
                   </button>
                 </div>
               </div>
@@ -1209,11 +1483,14 @@ export default function FamilyDashboard() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number</label>
                 <input type="tel" value={editPhone} onChange={e => setEditPhone(e.target.value)}
+                  placeholder="(555) 000-0000"
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
               </div>
               <div className="flex gap-3 pt-2">
                 <Button variant="secondary" fullWidth onClick={() => setShowEditProfile(false)}>Cancel</Button>
-                <Button variant="primary" fullWidth onClick={() => setShowEditProfile(false)}>Save Changes</Button>
+                <Button variant="primary" fullWidth onClick={handleSaveEditProfile} disabled={editProfileSaving}>
+                  {editProfileSaving ? 'Saving…' : 'Save Changes'}
+                </Button>
               </div>
             </div>
           </div>
@@ -1230,21 +1507,34 @@ export default function FamilyDashboard() {
               <button onClick={() => setProfileModal(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><X className="w-4 h-4 text-gray-500" /></button>
             </div>
             <div className="p-6 space-y-4">
-              {[
-                { label: 'Full Name', value: user?.name || '', type: 'text', placeholder: 'Your full name' },
-                { label: 'Email Address', value: user?.email || '', type: 'email', placeholder: 'your@email.com' },
-                { label: 'Phone Number', value: '(555) 000-1234', type: 'tel', placeholder: '(555) 000-0000' },
-                { label: 'Address', value: 'Brooklyn, NY 11201', type: 'text', placeholder: 'Your address' },
-              ].map((f, i) => (
-                <div key={i}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">{f.label}</label>
-                  <input type={f.type} defaultValue={f.value} placeholder={f.placeholder}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
-                </div>
-              ))}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
+                <input type="text" value={personalForm.name} placeholder="Your full name"
+                  onChange={e => setPersonalForm(p => ({ ...p, name: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
+                <input type="email" value={user?.email || ''} disabled
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-400 outline-none text-sm cursor-not-allowed" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number</label>
+                <input type="tel" value={personalForm.phone} placeholder="(555) 000-0000"
+                  onChange={e => setPersonalForm(p => ({ ...p, phone: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Address</label>
+                <input type="text" value={personalForm.address} placeholder="City, State ZIP"
+                  onChange={e => setPersonalForm(p => ({ ...p, address: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+              </div>
               <div className="flex gap-3 pt-2">
                 <Button variant="secondary" fullWidth onClick={() => setProfileModal(null)}>Cancel</Button>
-                <Button variant="primary" fullWidth onClick={() => setProfileModal(null)}>Save Changes</Button>
+                <Button variant="primary" fullWidth onClick={handleSavePersonalInfo} disabled={personalSaving}>
+                  {personalSaving ? 'Saving…' : 'Save Changes'}
+                </Button>
               </div>
             </div>
           </div>
@@ -1282,7 +1572,9 @@ export default function FamilyDashboard() {
                   </button>
                 </div>
               ))}
-              <Button variant="primary" fullWidth onClick={() => setProfileModal(null)} className="mt-2">Save Preferences</Button>
+              <Button variant="primary" fullWidth onClick={handleSaveNotifications} disabled={notifSaving} className="mt-2">
+                {notifSaving ? 'Saving…' : 'Save Preferences'}
+              </Button>
             </div>
           </div>
         </div>
@@ -1319,9 +1611,16 @@ export default function FamilyDashboard() {
                 </div>
               ))}
               <div className="pt-2 border-t border-gray-100">
-                <button className="text-sm text-red-500 font-medium hover:underline">Request account deletion</button>
+                <button
+                  onClick={() => { setProfileModal(null); setShowDeleteConfirm(true); setDeleteConfirmText(''); }}
+                  className="text-sm text-red-500 font-medium hover:underline flex items-center gap-1"
+                >
+                  <Trash2 className="w-4 h-4" /> Request account deletion
+                </button>
               </div>
-              <Button variant="primary" fullWidth onClick={() => setProfileModal(null)}>Save Settings</Button>
+              <Button variant="primary" fullWidth onClick={handleSavePrivacy} disabled={privacySaving}>
+                {privacySaving ? 'Saving…' : 'Save Settings'}
+              </Button>
             </div>
           </div>
         </div>
@@ -1330,42 +1629,41 @@ export default function FamilyDashboard() {
       {/* ── ACCOUNT SETTINGS MODAL ── */}
       {profileModal === 'account' && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setProfileModal(null)} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setProfileModal(null); setPwForm({ current: '', next: '', confirm: '' }); setPwError(''); }} />
           <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h3 className="font-bold text-gray-900 text-lg">Account Settings</h3>
-              <button onClick={() => setProfileModal(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><X className="w-4 h-4 text-gray-500" /></button>
+              <h3 className="font-bold text-gray-900 text-lg">Change Password</h3>
+              <button onClick={() => { setProfileModal(null); setPwForm({ current: '', next: '', confirm: '' }); setPwError(''); }} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><X className="w-4 h-4 text-gray-500" /></button>
             </div>
             <div className="p-6 space-y-4">
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Current Password</label>
+                <input type="password" value={pwForm.current} placeholder="Enter current password"
+                  onChange={e => setPwForm(p => ({ ...p, current: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">New Password</label>
-                <input type="password" placeholder="Enter new password"
+                <input type="password" value={pwForm.next} placeholder="At least 8 characters"
+                  onChange={e => setPwForm(p => ({ ...p, next: e.target.value }))}
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirm Password</label>
-                <input type="password" placeholder="Confirm new password"
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirm New Password</label>
+                <input type="password" value={pwForm.confirm} placeholder="Re-enter new password"
+                  onChange={e => setPwForm(p => ({ ...p, confirm: e.target.value }))}
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Language</label>
-                <select className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none text-sm bg-white">
-                  <option>English (US)</option>
-                  <option>Spanish</option>
-                  <option>French</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Timezone</label>
-                <select className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none text-sm bg-white">
-                  <option>Eastern Time (ET)</option>
-                  <option>Central Time (CT)</option>
-                  <option>Pacific Time (PT)</option>
-                </select>
-              </div>
+              {pwError && (
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 text-red-600 text-sm">
+                  <AlertCircle className="w-4 h-4 shrink-0" /> {pwError}
+                </div>
+              )}
               <div className="flex gap-3 pt-2">
-                <Button variant="secondary" fullWidth onClick={() => setProfileModal(null)}>Cancel</Button>
-                <Button variant="primary" fullWidth onClick={() => setProfileModal(null)}>Save Changes</Button>
+                <Button variant="secondary" fullWidth onClick={() => { setProfileModal(null); setPwForm({ current: '', next: '', confirm: '' }); setPwError(''); }}>Cancel</Button>
+                <Button variant="primary" fullWidth onClick={handleChangePassword} disabled={pwSaving}>
+                  {pwSaving ? 'Saving…' : 'Change Password'}
+                </Button>
               </div>
             </div>
           </div>
@@ -1375,51 +1673,121 @@ export default function FamilyDashboard() {
       {/* ── ADD PAYMENT METHOD MODAL ── */}
       {showAddPayment && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowAddPayment(false)} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setShowAddPayment(false); setPmError(''); }} />
           <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h3 className="font-bold text-gray-900 text-lg">Add Payment Method</h3>
-              <button onClick={() => setShowAddPayment(false)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+              <button onClick={() => { setShowAddPayment(false); setPmError(''); }} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
                 <X className="w-4 h-4 text-gray-500" />
               </button>
             </div>
             <div className="p-6 space-y-4">
-              <div className="bg-gradient-to-br from-brand-600 to-brand-800 rounded-2xl p-5 text-white mb-2">
-                <p className="text-brand-200 text-xs mb-4">Card Number</p>
-                <p className="font-mono text-lg tracking-widest">{newCard.number || '•••• •••• •••• ••••'}</p>
-                <div className="flex justify-between mt-4 text-xs text-brand-200">
-                  <span>{newCard.expiry || 'MM/YY'}</span>
-                  <span>CVV</span>
+              <p className="text-sm text-gray-500">
+                This is a test environment. Select a test card to add to your account.
+              </p>
+              {/* Quick-add test cards */}
+              <div className="space-y-2">
+                {[
+                  { id: 'pm_card_visa', label: 'Visa', last4: '4242', color: 'from-blue-600 to-blue-800' },
+                  { id: 'pm_card_mastercard', label: 'Mastercard', last4: '4444', color: 'from-orange-500 to-red-700' },
+                  { id: 'pm_card_amex', label: 'American Express', last4: '8431', color: 'from-emerald-600 to-emerald-800' },
+                ].map(card => (
+                  <button
+                    key={card.id}
+                    onClick={() => handleAddPaymentMethod(card.id)}
+                    disabled={pmSaving}
+                    className={cn(
+                      'w-full flex items-center gap-4 p-4 rounded-2xl text-white transition-opacity',
+                      `bg-gradient-to-br ${card.color}`,
+                      pmSaving ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'
+                    )}
+                  >
+                    <CreditCard className="w-6 h-6 shrink-0" />
+                    <div className="flex-1 text-left">
+                      <p className="font-semibold text-sm">{card.label} •••• {card.last4}</p>
+                      <p className="text-xs opacity-75">Click to add this test card</p>
+                    </div>
+                    {pmSaving ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Plus className="w-4 h-4 shrink-0" />}
+                  </button>
+                ))}
+              </div>
+              {pmError && (
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 text-red-600 text-sm">
+                  <AlertCircle className="w-4 h-4 shrink-0" /> {pmError}
+                </div>
+              )}
+              <Button variant="secondary" fullWidth onClick={() => { setShowAddPayment(false); setPmError(''); }}>Cancel</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── DELETE ACCOUNT CONFIRM MODAL ── */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !deleteProcessing && setShowDeleteConfirm(false)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 text-lg text-red-600">Delete Account</h3>
+              <button disabled={deleteProcessing} onClick={() => setShowDeleteConfirm(false)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center disabled:opacity-40">
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex items-start gap-3 p-4 bg-red-50 rounded-2xl">
+                <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                <div className="text-sm text-red-700">
+                  <p className="font-semibold mb-1">This action is permanent and cannot be undone.</p>
+                  <p>Your profile, care requests, matches, messages, and all data will be permanently deleted.</p>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Card Number</label>
-                <input type="text" placeholder="1234 5678 9012 3456" maxLength={19}
-                  value={newCard.number} onChange={e => setNewCard(p => ({ ...p, number: e.target.value }))}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm font-mono" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Expiry Date</label>
-                  <input type="text" placeholder="MM/YY" maxLength={5}
-                    value={newCard.expiry} onChange={e => setNewCard(p => ({ ...p, expiry: e.target.value }))}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">CVV</label>
-                  <input type="text" placeholder="123" maxLength={4}
-                    value={newCard.cvc} onChange={e => setNewCard(p => ({ ...p, cvc: e.target.value }))}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
-                </div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Type <span className="font-mono font-bold text-red-600">DELETE</span> to confirm
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={e => setDeleteConfirmText(e.target.value)}
+                  placeholder="Type DELETE here"
+                  className="w-full px-4 py-3 rounded-xl border border-red-200 focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none text-sm font-mono"
+                />
               </div>
               <div className="flex gap-3 pt-2">
-                <Button variant="secondary" fullWidth onClick={() => setShowAddPayment(false)}>Cancel</Button>
-                <Button variant="primary" fullWidth onClick={() => setShowAddPayment(false)}>Add Card</Button>
+                <Button variant="secondary" fullWidth onClick={() => setShowDeleteConfirm(false)} disabled={deleteProcessing}>Cancel</Button>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleteConfirmText !== 'DELETE' || deleteProcessing}
+                  className="flex-1 px-4 py-3 rounded-xl bg-red-600 text-white font-semibold text-sm hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                >
+                  {deleteProcessing ? <><Loader2 className="w-4 h-4 animate-spin" /> Deleting…</> : <><Trash2 className="w-4 h-4" /> Delete My Account</>}
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* ── TOAST OVERLAY ── */}
+      <div className="fixed bottom-24 lg:bottom-6 right-4 z-[200] flex flex-col gap-2 pointer-events-none">
+        {toasts.map(t => (
+          <div
+            key={t.id}
+            className={cn(
+              'flex items-center gap-3 px-4 py-3 rounded-2xl shadow-lg text-sm font-medium animate-fade-in-up pointer-events-auto',
+              t.type === 'success'
+                ? 'bg-gray-900 text-white'
+                : 'bg-red-600 text-white'
+            )}
+          >
+            {t.type === 'success'
+              ? <CheckCircle className="w-4 h-4 shrink-0 text-green-400" />
+              : <AlertCircle className="w-4 h-4 shrink-0" />
+            }
+            {t.message}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

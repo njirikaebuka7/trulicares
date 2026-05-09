@@ -76,6 +76,7 @@ export interface User {
   verified: boolean;
   avatarUrl?: string;
   photoUrl?: string;
+  phone?: string;
 }
 
 export interface CaregiverProfile extends User {

@@ -117,4 +117,122 @@ router.post('/checkout', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+async function getOrCreateCustomer(stripe: any, userId: string) {
+  const userResult = await query('SELECT name, email, stripe_customer_id FROM users WHERE id = $1', [userId]);
+  const user = userResult.rows[0];
+  if (!user) throw new Error('User not found');
+  let customerId = user.stripe_customer_id;
+  if (!customerId) {
+    const customer = await stripe.customers.create({ email: user.email, name: user.name });
+    customerId = customer.id;
+    await query('UPDATE users SET stripe_customer_id = $1 WHERE id = $2', [customerId, userId]);
+  }
+  return customerId;
+}
+
+// GET /api/payments/payment-methods
+router.get('/payment-methods', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    let stripe: any;
+    try { stripe = await getUncachableStripeClient(); } catch {
+      return res.json({ paymentMethods: [] });
+    }
+    const userResult = await query('SELECT stripe_customer_id FROM users WHERE id = $1', [req.user!.id]);
+    const customerId = userResult.rows[0]?.stripe_customer_id;
+    if (!customerId) return res.json({ paymentMethods: [] });
+
+    const [methods, customer] = await Promise.all([
+      stripe.paymentMethods.list({ customer: customerId, type: 'card' }),
+      stripe.customers.retrieve(customerId),
+    ]);
+    const defaultPmId = (customer as any).invoice_settings?.default_payment_method;
+    res.json({
+      paymentMethods: methods.data.map((pm: any) => ({
+        id: pm.id,
+        brand: pm.card?.brand ?? 'card',
+        last4: pm.card?.last4 ?? '••••',
+        expMonth: pm.card?.exp_month,
+        expYear: pm.card?.exp_year,
+        isDefault: pm.id === defaultPmId,
+      })),
+    });
+  } catch (err: any) {
+    console.error('Payment methods list error:', err);
+    res.status(500).json({ error: 'Failed to list payment methods' });
+  }
+});
+
+// POST /api/payments/payment-method — attach a payment method by pm_ token
+// In test mode use Stripe's built-in tokens: pm_card_visa, pm_card_mastercard, etc.
+router.post('/payment-method', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { paymentMethodId } = req.body;
+    if (!paymentMethodId) {
+      return res.status(400).json({ error: 'paymentMethodId is required' });
+    }
+    let stripe: any;
+    try { stripe = await getUncachableStripeClient(); } catch {
+      return res.status(503).json({ error: 'Payment service not configured' });
+    }
+    const customerId = await getOrCreateCustomer(stripe, req.user!.id);
+    // attach() returns the full PM object — use it directly (avoids a second retrieve)
+    const pm = await stripe.paymentMethods.attach(paymentMethodId, { customer: customerId });
+    // Set as default if this is the first card
+    const existing = await stripe.paymentMethods.list({ customer: customerId, type: 'card' });
+    const isFirst = existing.data.length === 1;
+    if (isFirst) {
+      await stripe.customers.update(customerId, { invoice_settings: { default_payment_method: pm.id } });
+    }
+    res.json({
+      paymentMethod: {
+        id: pm.id,
+        brand: pm.card?.brand ?? 'card',
+        last4: pm.card?.last4 ?? '••••',
+        expMonth: pm.card?.exp_month,
+        expYear: pm.card?.exp_year,
+        isDefault: isFirst,
+      },
+    });
+  } catch (err: any) {
+    console.error('Add payment method error:', err);
+    const msg = err?.raw?.message || err?.message || 'Failed to add card';
+    res.status(400).json({ error: msg });
+  }
+});
+
+// DELETE /api/payments/payment-method/:id
+router.delete('/payment-method/:id', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    let stripe: any;
+    try { stripe = await getUncachableStripeClient(); } catch {
+      return res.status(503).json({ error: 'Payment service not configured' });
+    }
+    await stripe.paymentMethods.detach(req.params.id);
+    res.json({ message: 'Payment method removed' });
+  } catch (err: any) {
+    console.error('Remove payment method error:', err);
+    res.status(500).json({ error: 'Failed to remove payment method' });
+  }
+});
+
+// PUT /api/payments/payment-method/:id/default
+router.put('/payment-method/:id/default', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    let stripe: any;
+    try { stripe = await getUncachableStripeClient(); } catch {
+      return res.status(503).json({ error: 'Payment service not configured' });
+    }
+    const userResult = await query('SELECT stripe_customer_id FROM users WHERE id = $1', [req.user!.id]);
+    const customerId = userResult.rows[0]?.stripe_customer_id;
+    if (!customerId) return res.status(400).json({ error: 'No Stripe customer found' });
+    await stripe.customers.update(customerId, { invoice_settings: { default_payment_method: req.params.id } });
+    res.json({ message: 'Default payment method updated' });
+  } catch (err: any) {
+    console.error('Set default payment method error:', err);
+    res.status(500).json({ error: 'Failed to set default' });
+  }
+});
+
 export default router;

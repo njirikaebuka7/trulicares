@@ -18,6 +18,9 @@ async function runMigrations() {
   const migrations = [
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20)`,
     `ALTER TABLE matches ADD COLUMN IF NOT EXISTS care_date TIMESTAMP`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_prefs JSONB`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_prefs JSONB`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS address TEXT`,
   ];
   for (const sql of migrations) {
     try { await pool.query(sql); } catch (e: any) { console.warn('Migration warning:', e.message); }
