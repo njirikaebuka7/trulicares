@@ -28,7 +28,7 @@ interface LocationState {
 export default function FindCare() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
 
   const state = (location.state as LocationState) || {};
   const preselected = state.preselectedCategory;
@@ -120,6 +120,14 @@ export default function FindCare() {
   const handleGoToDashboard = () => {
     navigate('/dashboard');
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-9 h-9 rounded-full border-4 border-brand-600 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
 
   switch (phase) {
     case 'care-type':
