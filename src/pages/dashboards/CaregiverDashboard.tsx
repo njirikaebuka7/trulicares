@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Bell, MessageCircle, User, Settings, LogOut, MapPin, DollarSign,
   Star, Shield, Check, ChevronRight, Calendar, Clock, TrendingUp,
-  Briefcase, X, CheckCircle, XCircle, Edit3, LayoutDashboard, Users,
+  Briefcase, X, CheckCircle, XCircle, Edit3, LayoutDashboard,
   ChevronLeft, ChevronRight as ChevronRightIcon, Camera, Send, MoreHorizontal, Loader2, Plus
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
@@ -13,15 +13,13 @@ import { get, post, put } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
 
-type Tab = 'Overview' | 'Job Requests' | 'Messages' | 'My Clients' | 'Schedule' | 'Earnings' | 'Reviews' | 'Profile';
+type Tab = 'Overview' | 'Job Requests' | 'Messages' | 'Schedule' | 'Reviews' | 'Profile';
 
-const navItems: { id: Tab; label: string; icon: React.ReactNode; badge?: number }[] = [
+const navItems: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'Overview', label: 'Overview', icon: <LayoutDashboard className="w-5 h-5" /> },
-  { id: 'Job Requests', label: 'Job Requests', icon: <Briefcase className="w-5 h-5" />, badge: 3 },
-  { id: 'Messages', label: 'Messages', icon: <MessageCircle className="w-5 h-5" />, badge: 2 },
-  { id: 'My Clients', label: 'My Clients', icon: <Users className="w-5 h-5" /> },
+  { id: 'Job Requests', label: 'Job Requests', icon: <Briefcase className="w-5 h-5" /> },
+  { id: 'Messages', label: 'Messages', icon: <MessageCircle className="w-5 h-5" /> },
   { id: 'Schedule', label: 'Schedule', icon: <Calendar className="w-5 h-5" /> },
-  { id: 'Earnings', label: 'Earnings', icon: <DollarSign className="w-5 h-5" /> },
   { id: 'Reviews', label: 'Reviews', icon: <Star className="w-5 h-5" /> },
   { id: 'Profile', label: 'Profile', icon: <User className="w-5 h-5" /> },
 ];
@@ -39,13 +37,6 @@ export default function CaregiverDashboard() {
   const [availabilityStatus, setAvailabilityStatus] = useState<'available' | 'busy' | 'away'>('available');
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const [msgClientId, setMsgClientId] = useState<string | null>(null);
-  const [clientMsgInput, setClientMsgInput] = useState('');
-  const [clientMessages, setClientMessages] = useState<Record<string, {text: string; fromMe: boolean; time: string}[]>>({
-    cl1: [{ text: 'Hi! Just confirming tomorrow\'s session at 8am. See you then!', fromMe: false, time: '9:00 AM' }],
-    cl2: [{ text: 'Good morning! Ready for Friday\'s session?', fromMe: true, time: 'Yesterday' }],
-    cl3: [{ text: 'Thank you for all your help this month!', fromMe: false, time: 'May 1' }],
-  });
   const [moreOpen, setMoreOpen] = useState(false);
   const [cgModal, setCgModal] = useState<null | 'bio' | 'rates' | 'availability' | 'notifications' | 'account' | 'serviceArea'>(null);
   const [cgBio, setCgBio] = useState('');
@@ -58,13 +49,21 @@ export default function CaregiverDashboard() {
   const [cgMsgInput, setCgMsgInput] = useState('');
   const [cgFamilyMessages, setCgFamilyMessages] = useState<Record<string, { text: string; fromMe: boolean; time: string }[]>>({});
   const cgMsgEndRef = useRef<HTMLDivElement>(null);
+  const [cgSaving, setCgSaving] = useState(false);
+  const [cgToast, setCgToast] = useState<string | null>(null);
+  const [cgSpecialties, setCgSpecialties] = useState<string[]>([]);
+  const [cgAvailType, setCgAvailType] = useState('Flexible');
 
   const [jobRequests, setJobRequests] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
-  const [earnings, setEarnings] = useState<any>({ thisWeek: 0, thisMonth: 0, lastMonth: 0, totalAllTime: 0, weeklyBreakdown: [], recentPayouts: [] });
   const [cgSchedule, setCgSchedule] = useState<any[]>([]);
   const [cgReviews, setCgReviews] = useState<any[]>([]);
   const [conversations, setConversations] = useState<any[]>([]);
+
+  const showToast = (msg: string) => {
+    setCgToast(msg);
+    setTimeout(() => setCgToast(null), 3000);
+  };
 
   const loadCgMessages = async (convId: string) => {
     try {
@@ -83,7 +82,6 @@ export default function CaregiverDashboard() {
     Promise.all([
       get('/matches').then((d: any) => setJobRequests(d.matches || [])).catch(() => {}),
       get('/schedule').then((d: any) => setCgSchedule(d.schedule || [])).catch(() => {}),
-      get('/earnings').then((d: any) => setEarnings(d.earnings || {})).catch(() => {}),
       get('/reviews').then((d: any) => setCgReviews(d.reviews || [])).catch(() => {}),
       get('/conversations').then((d: any) => setConversations(d.conversations || [])).catch(() => {}),
       get('/clients').then((d: any) => setClients(d.clients || [])).catch(() => {}),
@@ -93,6 +91,7 @@ export default function CaregiverDashboard() {
           if (cg.bio) setCgBio(cg.bio);
           if (cg.hourlyRate) setCgRate({ min: cg.hourlyRate[0], max: cg.hourlyRate[1] });
           if (cg.serviceZips?.length) setCgServiceZips(cg.serviceZips);
+          if (cg.specialties?.length) setCgSpecialties(cg.specialties);
         }
       }).catch(() => {}),
     ]).catch(console.error);
@@ -114,9 +113,10 @@ export default function CaregiverDashboard() {
     if (file) setPhotoUrl(URL.createObjectURL(file));
   };
 
-  const maxEarning = Math.max(...(earnings.weeklyBreakdown || []).map((d: any) => d.amount), 1);
+  const pendingJobsCount = jobRequests.filter((j: any) => !jobStatuses[j.id]).length;
+  const unreadMsgCount = conversations.reduce((acc: number, c: any) => acc + (c.unreadCount || 0), 0);
   const initials = user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() ?? 'C';
-  const unread = notificationsRead ? 0 : 2;
+  const unread = notificationsRead ? 0 : unreadMsgCount + pendingJobsCount;
 
   const openNotifications = () => {
     setNotifOpen(true);
@@ -125,6 +125,13 @@ export default function CaregiverDashboard() {
 
   return (
     <div className="flex bg-gray-50 min-h-screen">
+
+      {/* ── TOAST ── */}
+      {cgToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[200] px-5 py-3 bg-gray-900 text-white text-sm font-medium rounded-2xl shadow-xl animate-fade-in-up pointer-events-none">
+          {cgToast}
+        </div>
+      )}
 
       {/* ── LEFT SIDEBAR (desktop) ── */}
       <aside className={cn(
@@ -208,19 +215,19 @@ export default function CaregiverDashboard() {
             >
               <span className="shrink-0 relative">
                 {item.icon}
-                {item.badge && collapsed && (
+                {(item.id === 'Job Requests' ? pendingJobsCount : item.id === 'Messages' ? unreadMsgCount : 0) > 0 && collapsed && (
                   <span className="absolute -top-1 -right-1 w-3 h-3 bg-coral-500 rounded-full text-white text-[8px] flex items-center justify-center font-bold">
-                    {item.badge}
+                    {item.id === 'Job Requests' ? pendingJobsCount : unreadMsgCount}
                   </span>
                 )}
               </span>
               {!collapsed && (
                 <>
                   <span className="flex-1 text-left">{item.label}</span>
-                  {item.badge && (
+                  {(item.id === 'Job Requests' ? pendingJobsCount : item.id === 'Messages' ? unreadMsgCount : 0) > 0 && (
                     <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-full',
                       activeTab === item.id ? 'bg-white/20 text-white' : 'bg-coral-500/20 text-coral-300')}>
-                      {item.badge}
+                      {item.id === 'Job Requests' ? pendingJobsCount : unreadMsgCount}
                     </span>
                   )}
                 </>
@@ -343,10 +350,6 @@ export default function CaregiverDashboard() {
                     className="bg-white text-emerald-700 border-white hover:bg-emerald-50 rounded-full">
                     View Job Requests
                   </Button>
-                  <Button size="sm" onClick={() => setActiveTab('Earnings')}
-                    className="bg-white/10 border-white/20 text-white hover:bg-white/20 rounded-full border">
-                    View Earnings
-                  </Button>
                 </div>
               </div>
 
@@ -354,8 +357,8 @@ export default function CaregiverDashboard() {
                 {[
                   { label: 'Active Clients', value: clients.filter((c: any) => c.status === 'active').length,
                     icon: <User className="w-4 h-4" />, sub: '2 ongoing', bg: 'bg-emerald-50', txt: 'text-emerald-600' },
-                  { label: 'This Week', value: `$${earnings.thisWeek || 0}`,
-                    icon: <DollarSign className="w-4 h-4" />, sub: '↑ 9% vs last week', bg: 'bg-sky-50', txt: 'text-sky-600' },
+                  { label: 'Sessions', value: cgSchedule.length,
+                    icon: <Calendar className="w-4 h-4" />, sub: 'Upcoming sessions', bg: 'bg-sky-50', txt: 'text-sky-600' },
                   { label: 'Avg Rating', value: '4.9',
                     icon: <Star className="w-4 h-4" />, sub: 'Top 5% of caregivers', bg: 'bg-amber-50', txt: 'text-amber-600' },
                   { label: 'Profile Views', value: 128,
@@ -415,23 +418,6 @@ export default function CaregiverDashboard() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-gray-900">Earnings This Week</h3>
-                  <span className="text-sm font-bold text-emerald-600">${earnings.thisWeek || 0} total</span>
-                </div>
-                <div className="flex items-end gap-2 h-24">
-                  {(earnings.weeklyBreakdown || []).map((d: any) => (
-                    <div key={d.day} className="flex-1 flex flex-col items-center gap-1">
-                      <div className="w-full relative flex items-end" style={{ height: '72px' }}>
-                        <div className={cn('w-full rounded-t-lg transition-all', d.amount > 0 ? 'bg-emerald-500' : 'bg-gray-100')}
-                          style={{ height: d.amount > 0 ? `${(d.amount / maxEarning) * 72}px` : '8px' }} />
-                      </div>
-                      <span className="text-xs text-gray-400">{d.day}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
           )}
 
@@ -506,99 +492,6 @@ export default function CaregiverDashboard() {
                   </div>
                 );
               })}
-            </div>
-          )}
-
-          {/* ── MY CLIENTS ── */}
-          {activeTab === 'My Clients' && (
-            <div className="space-y-5">
-              <h2 className="text-xl font-bold text-gray-900">My Clients</h2>
-              {msgClientId ? (() => {
-                const client = clients.find((c: any) => c.id === msgClientId) ?? { name: 'Client', active: true, careTypeLabel: '' };
-                const msgs = clientMessages[msgClientId] || [];
-                const sendMsg = () => {
-                  if (!clientMsgInput.trim()) return;
-                  setClientMessages(prev => ({
-                    ...prev,
-                    [msgClientId]: [...(prev[msgClientId] || []), {
-                      text: clientMsgInput.trim(), fromMe: true,
-                      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                    }]
-                  }));
-                  setClientMsgInput('');
-                };
-                return (
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                    <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
-                      <button onClick={() => setMsgClientId(null)} className="text-sm text-emerald-600 font-medium hover:underline">← Back</button>
-                      <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0', avatarColors[0])}>
-                        {(client.name || 'C').charAt(0)}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-900 text-sm">{client.name}</p>
-                        <p className="text-xs text-green-600">● {client.active ? 'Active client' : 'Past client'}</p>
-                      </div>
-                    </div>
-                    <div className="px-5 py-5 space-y-3 min-h-48 max-h-72 overflow-y-auto">
-                      {msgs.map((m, i) => (
-                        <div key={i} className={cn('flex', m.fromMe ? 'justify-end' : 'justify-start')}>
-                          <div className={cn('max-w-[80%] px-4 py-2.5 rounded-2xl text-sm',
-                            m.fromMe ? 'bg-emerald-600 text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm')}>
-                            <p>{m.text}</p>
-                            <p className={cn('text-[10px] mt-0.5', m.fromMe ? 'text-emerald-200' : 'text-gray-400')}>{m.time}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
-                      <input
-                        type="text" value={clientMsgInput}
-                        onChange={e => setClientMsgInput(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && sendMsg()}
-                        placeholder="Type a message…"
-                        className="flex-1 border border-gray-200 rounded-full px-4 py-2.5 text-sm outline-none focus:border-emerald-400"
-                      />
-                      <Button variant="primary" size="sm" onClick={sendMsg}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full">
-                        <Send className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })() : (
-                clients.map((client: any, i: number) => (
-                  <div key={client.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                    <div className="flex items-center gap-4">
-                      <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0', avatarColors[i % avatarColors.length])}>
-                        {(client.name || 'F').charAt(0)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <h3 className="font-bold text-gray-900">{client.name}</h3>
-                          <span className={cn('text-xs px-2.5 py-0.5 rounded-full font-semibold',
-                            client.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>
-                            {client.active ? 'active' : client.status}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-500">{client.careTypeLabel}{client.matchedAt ? ` · Since ${client.matchedAt}` : ''}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{client.location}</p>
-                      </div>
-                    </div>
-                    <div className="mt-4 pt-4 border-t border-gray-50 flex gap-3">
-                      <Button
-                        variant="primary" size="sm"
-                        onClick={() => setMsgClientId(client.id)}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full"
-                      >
-                        <MessageCircle className="w-4 h-4" /> Message
-                      </Button>
-                      {client.active && (
-                        <Button variant="ghost" size="sm">Schedule Session</Button>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
             </div>
           )}
 
@@ -730,6 +623,13 @@ export default function CaregiverDashboard() {
           {activeTab === 'Schedule' && (
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-gray-900">My Schedule</h2>
+              {cgSchedule.length === 0 && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center text-gray-400">
+                  <Calendar className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">No upcoming sessions</p>
+                  <p className="text-sm mt-1">When families book sessions with you, they'll appear here.</p>
+                </div>
+              )}
               {cgSchedule.map((session: any) => (
                 <div key={session.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
                   <div className="w-1.5 h-16 rounded-full bg-emerald-500 shrink-0" />
@@ -751,65 +651,19 @@ export default function CaregiverDashboard() {
             </div>
           )}
 
-          {/* ── EARNINGS ── */}
-          {activeTab === 'Earnings' && (
-            <div className="space-y-5">
-              <h2 className="text-xl font-bold text-gray-900">Earnings</h2>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {[
-                  { label: 'This Week', value: `$${earnings.thisWeek || 0}`, highlight: true },
-                  { label: 'This Month', value: `$${(earnings.thisMonth || 0).toLocaleString()}` },
-                  { label: 'Last Month', value: `$${(earnings.lastMonth || 0).toLocaleString()}` },
-                  { label: 'All Time', value: `$${(earnings.totalAllTime || 0).toLocaleString()}` },
-                ].map((e, i) => (
-                  <div key={i} className={cn('rounded-2xl p-5', e.highlight ? 'bg-emerald-600 text-white' : 'bg-white border border-gray-100')}>
-                    <p className={cn('text-sm mb-1', e.highlight ? 'text-emerald-200' : 'text-gray-500')}>{e.label}</p>
-                    <p className={cn('text-3xl font-bold', e.highlight ? 'text-white' : 'text-gray-900')}>{e.value}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <h3 className="font-bold text-gray-900 mb-4">Weekly Breakdown</h3>
-                <div className="flex items-end gap-2" style={{ height: '100px' }}>
-                  {(earnings.weeklyBreakdown || []).map((d: any) => (
-                    <div key={d.day} className="flex-1 flex flex-col items-center gap-1">
-                      <div className="w-full relative flex items-end" style={{ height: '72px' }}>
-                        <div className={cn('w-full rounded-t-lg', d.amount > 0 ? 'bg-emerald-500' : 'bg-gray-100')}
-                          style={{ height: d.amount > 0 ? `${(d.amount / maxEarning) * 72}px` : '8px' }} />
-                      </div>
-                      <span className="text-xs text-gray-400">{d.day}</span>
-                      {d.amount > 0 && <span className="text-xs text-emerald-600 font-semibold">${d.amount}</span>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-100"><h3 className="font-bold text-gray-900">Recent Payouts</h3></div>
-                <div className="divide-y divide-gray-50">
-                  {(earnings.recentPayouts || []).map((payout: any, i: number) => (
-                    <div key={i} className="flex items-center gap-4 px-5 py-4">
-                      <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
-                        <DollarSign className="w-4 h-4 text-emerald-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-semibold text-sm text-gray-900">{payout.sessions} sessions</p>
-                        <p className="text-xs text-gray-400">{payout.date}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-gray-900">{payout.amount}</p>
-                        <span className="text-xs text-emerald-600 font-medium">{payout.status}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
+
 
           {/* ── REVIEWS ── */}
           {activeTab === 'Reviews' && (
-            <div className="space-y-5">
+            <div className="space-y-5 mt-1">
               <h2 className="text-xl font-bold text-gray-900">Reviews & Ratings</h2>
+              {cgReviews.length === 0 && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center text-gray-400">
+                  <Star className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">No reviews yet</p>
+                  <p className="text-sm mt-1">Reviews from families will show up here after sessions.</p>
+                </div>
+              )}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex items-center gap-8">
                 <div className="text-center shrink-0">
                   <p className="text-5xl font-bold text-gray-900">4.9</p>
@@ -1009,7 +863,11 @@ export default function CaregiverDashboard() {
               </div>
               <div className="flex gap-3 pt-2">
                 <Button variant="secondary" fullWidth onClick={() => setCgModal(null)}>Cancel</Button>
-                <Button variant="primary" fullWidth onClick={() => setCgModal(null)} className="bg-emerald-600 hover:bg-emerald-700">Save Changes</Button>
+                <Button variant="primary" fullWidth disabled={cgSaving} onClick={async () => {
+                  setCgSaving(true);
+                  try { await put('/caregivers/profile', { bio: cgBio, specialties: cgSpecialties }); showToast('Bio saved!'); setCgModal(null); } catch { showToast('Failed to save.'); }
+                  finally { setCgSaving(false); }
+                }} className="bg-emerald-600 hover:bg-emerald-700">{cgSaving ? 'Saving…' : 'Save Changes'}</Button>
               </div>
             </div>
           </div>
@@ -1045,7 +903,11 @@ export default function CaregiverDashboard() {
               </div>
               <div className="flex gap-3 pt-2">
                 <Button variant="secondary" fullWidth onClick={() => setCgModal(null)}>Cancel</Button>
-                <Button variant="primary" fullWidth onClick={() => setCgModal(null)} className="bg-emerald-600 hover:bg-emerald-700">Save Rates</Button>
+                <Button variant="primary" fullWidth disabled={cgSaving} onClick={async () => {
+                  setCgSaving(true);
+                  try { await put('/caregivers/profile', { hourlyRateMin: cgRate.min, hourlyRateMax: cgRate.max }); showToast('Rates saved!'); setCgModal(null); } catch { showToast('Failed to save.'); }
+                  finally { setCgSaving(false); }
+                }} className="bg-emerald-600 hover:bg-emerald-700">{cgSaving ? 'Saving…' : 'Save Rates'}</Button>
               </div>
             </div>
           </div>
@@ -1088,7 +950,7 @@ export default function CaregiverDashboard() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Arrangement Type</label>
-                <select className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none text-sm bg-white">
+                <select value={cgAvailType} onChange={e => setCgAvailType(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none text-sm bg-white">
                   <option>Full-time</option>
                   <option>Part-time</option>
                   <option>Weekends only</option>
@@ -1098,7 +960,11 @@ export default function CaregiverDashboard() {
               </div>
               <div className="flex gap-3 pt-2">
                 <Button variant="secondary" fullWidth onClick={() => setCgModal(null)}>Cancel</Button>
-                <Button variant="primary" fullWidth onClick={() => setCgModal(null)} className="bg-emerald-600 hover:bg-emerald-700">Save Availability</Button>
+                <Button variant="primary" fullWidth disabled={cgSaving} onClick={async () => {
+                  setCgSaving(true);
+                  try { await put('/caregivers/profile', { availability: cgAvailType }); showToast('Availability saved!'); setCgModal(null); } catch { showToast('Failed to save.'); }
+                  finally { setCgSaving(false); }
+                }} className="bg-emerald-600 hover:bg-emerald-700">{cgSaving ? 'Saving…' : 'Save Availability'}</Button>
               </div>
             </div>
           </div>
@@ -1136,7 +1002,11 @@ export default function CaregiverDashboard() {
                   </button>
                 </div>
               ))}
-              <Button variant="primary" fullWidth onClick={() => setCgModal(null)} className="mt-2 bg-emerald-600 hover:bg-emerald-700">Save Preferences</Button>
+              <Button variant="primary" fullWidth disabled={cgSaving} onClick={async () => {
+                setCgSaving(true);
+                try { await put('/auth/notifications', cgNotifPrefs); showToast('Preferences saved!'); setCgModal(null); } catch { showToast('Failed to save.'); }
+                finally { setCgSaving(false); }
+              }} className="mt-2 bg-emerald-600 hover:bg-emerald-700">{cgSaving ? 'Saving…' : 'Save Preferences'}</Button>
             </div>
           </div>
         </div>
@@ -1270,7 +1140,11 @@ export default function CaregiverDashboard() {
 
               <div className="flex gap-3 pt-2">
                 <Button variant="secondary" fullWidth onClick={() => setCgModal(null)}>Cancel</Button>
-                <Button variant="primary" fullWidth onClick={() => setCgModal(null)} className="bg-emerald-600 hover:bg-emerald-700">Save Area</Button>
+                <Button variant="primary" fullWidth disabled={cgSaving} onClick={async () => {
+                  setCgSaving(true);
+                  try { await put('/caregivers/profile', { serviceZips: cgServiceZips }); showToast('Service area saved!'); setCgModal(null); } catch { showToast('Failed to save.'); }
+                  finally { setCgSaving(false); }
+                }} className="bg-emerald-600 hover:bg-emerald-700">{cgSaving ? 'Saving…' : 'Save Area'}</Button>
               </div>
             </div>
           </div>
@@ -1279,7 +1153,7 @@ export default function CaregiverDashboard() {
 
       {/* ── BOTTOM NAV (mobile) ── */}
       {(() => {
-        const MOBILE_PRIMARY: Tab[] = ['Overview', 'Job Requests', 'Messages', 'Earnings', 'Profile'];
+        const MOBILE_PRIMARY: Tab[] = ['Overview', 'Job Requests', 'Messages', 'Schedule', 'Profile'];
         const mobileNav = navItems.filter(n => MOBILE_PRIMARY.includes(n.id));
         const moreNav = navItems.filter(n => !MOBILE_PRIMARY.includes(n.id));
         const moreActive = moreNav.some(n => n.id === activeTab);
@@ -1307,8 +1181,10 @@ export default function CaregiverDashboard() {
                       >
                         <span className={cn(activeTab === item.id ? 'text-emerald-600' : 'text-gray-400')}>{item.icon}</span>
                         <span className="font-semibold text-sm flex-1 text-left">{item.label}</span>
-                        {item.badge && (
-                          <span className="px-2 py-0.5 bg-coral-500 text-white text-[10px] font-bold rounded-full">{item.badge}</span>
+                        {(item.id === 'Job Requests' ? pendingJobsCount : item.id === 'Messages' ? unreadMsgCount : 0) > 0 && (
+                          <span className="px-2 py-0.5 bg-coral-500 text-white text-[10px] font-bold rounded-full">
+                            {item.id === 'Job Requests' ? pendingJobsCount : unreadMsgCount}
+                          </span>
                         )}
                       </button>
                     ))}
@@ -1328,9 +1204,9 @@ export default function CaregiverDashboard() {
                       activeTab === item.id ? 'text-emerald-600' : 'text-gray-400'
                     )}
                   >
-                    {item.badge && (
+                    {(item.id === 'Job Requests' ? pendingJobsCount : item.id === 'Messages' ? unreadMsgCount : 0) > 0 && (
                       <span className="absolute top-2.5 right-[calc(50%-16px)] translate-x-3 w-4 h-4 bg-coral-500 rounded-full text-white text-[9px] flex items-center justify-center font-bold leading-none">
-                        {item.badge}
+                        {item.id === 'Job Requests' ? pendingJobsCount : unreadMsgCount}
                       </span>
                     )}
                     <span className={cn(

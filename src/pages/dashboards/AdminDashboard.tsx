@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
-import { get } from '@/lib/api';
+import { get, put, del } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
 
@@ -98,29 +98,33 @@ export default function AdminDashboard() {
   const handleFilterChange = (f: typeof userFilter) => { setUserFilter(f); setCurrentPage(1); };
   const handleSearchChange = (q: string) => { setSearchQuery(q); setCurrentPage(1); };
 
-  const handleSuspend = (id: string) => {
+  const handleSuspend = async (id: string) => {
     setUsers(prev => prev.map(u => u.id === id ? { ...u, status: 'suspended' } : u));
     if (selectedUser?.id === id) setSelectedUser(prev => prev ? { ...prev, status: 'suspended' } : prev);
+    try { await put(`/admin/users/${id}/suspend`, {}); } catch { }
   };
-  const handleRestore = (id: string) => {
+  const handleRestore = async (id: string) => {
     setUsers(prev => prev.map(u => u.id === id ? { ...u, status: 'active' } : u));
     if (selectedUser?.id === id) setSelectedUser(prev => prev ? { ...prev, status: 'active' } : prev);
+    try { await put(`/admin/users/${id}/restore`, {}); } catch { }
   };
   const handleDelete = (u: AdminUser) => { setDeletingUser(u); setSelectedUser(null); };
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deletingUser) return;
     setUsers(prev => prev.filter(u => u.id !== deletingUser.id));
     setDeletingUser(null);
+    try { await del(`/admin/users/${deletingUser.id}`); } catch { }
   };
   const openEdit = (u: AdminUser) => {
     setEditingUser(u);
     setEditForm({ name: u.name, email: u.email, role: u.role });
     setSelectedUser(null);
   };
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!editingUser) return;
     setUsers(prev => prev.map(u => u.id === editingUser.id ? { ...u, ...editForm } : u));
     setEditingUser(null);
+    try { await put(`/admin/users/${editingUser.id}`, editForm); } catch { }
   };
 
   const unread = notificationsRead ? 0 : (adminStats.pendingVerifications || 0) + (adminStats.openReports || 0);
@@ -597,11 +601,17 @@ export default function AdminDashboard() {
                         </div>
                       ) : (
                         <div className="flex gap-3 flex-wrap">
-                          <Button size="sm" onClick={() => setVerificationActions(prev => ({...prev, [item.id]: 'approved'}))}
+                          <Button size="sm" onClick={async () => {
+                            setVerificationActions(prev => ({...prev, [item.id]: 'approved'}));
+                            try { await put(`/admin/verification/${item.id}`, { status: 'approved' }); } catch { }
+                          }}
                             className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-sm">
                             <CheckCircle className="w-4 h-4" /> Approve
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => setVerificationActions(prev => ({...prev, [item.id]: 'rejected'}))}
+                          <Button variant="ghost" size="sm" onClick={async () => {
+                            setVerificationActions(prev => ({...prev, [item.id]: 'rejected'}));
+                            try { await put(`/admin/verification/${item.id}`, { status: 'rejected' }); } catch { }
+                          }}
                             className="text-red-500 hover:bg-red-50">
                             <XCircle className="w-4 h-4" /> Reject
                           </Button>
@@ -662,7 +672,10 @@ export default function AdminDashboard() {
                         </div>
                       ) : (
                         <div className="flex gap-3 flex-wrap">
-                          <Button size="sm" onClick={() => setReportActions(prev => ({...prev, [report.id]: 'resolved'}))}
+                          <Button size="sm" onClick={async () => {
+                            setReportActions(prev => ({...prev, [report.id]: 'resolved'}));
+                            try { await put(`/admin/reports/${report.id}`, { status: 'resolved' }); } catch { }
+                          }}
                             className="bg-slate-700 hover:bg-slate-800 text-white rounded-full shadow-sm">
                             <CheckCircle className="w-4 h-4" /> Mark Resolved
                           </Button>
@@ -670,7 +683,10 @@ export default function AdminDashboard() {
                             <FileText className="w-4 h-4" /> View Details
                           </Button>
                           {report.status !== 'resolved' && (
-                            <Button variant="ghost" size="sm" onClick={() => setReportActions(prev => ({...prev, [report.id]: 'dismissed'}))}
+                            <Button variant="ghost" size="sm" onClick={async () => {
+                              setReportActions(prev => ({...prev, [report.id]: 'dismissed'}));
+                              try { await put(`/admin/reports/${report.id}`, { status: 'dismissed' }); } catch { }
+                            }}
                               className="text-gray-400 hover:bg-gray-100">Dismiss</Button>
                           )}
                         </div>

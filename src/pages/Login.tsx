@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Shield, Check, ArrowLeft } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
@@ -8,7 +8,7 @@ import logoImg from '@/assets/logo.png';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, isLoading: authLoading, isAuthenticated } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -18,6 +18,15 @@ export default function Login() {
   const [forgotMode, setForgotMode] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSent, setForgotSent] = useState(false);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-9 h-9 rounded-full border-4 border-brand-600 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
 
   const handleForgotPassword = async () => {
     if (!forgotEmail.trim()) return;

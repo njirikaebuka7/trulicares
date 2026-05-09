@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { useNavigate, Link, Navigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { ArrowRight, ArrowLeft, Check, Mail, Lock, Eye, EyeOff, User, DollarSign, Calendar, Shield, Star, Heart, X, MapPin, Loader2, Camera } from 'lucide-react';
 import { detectLocationWithZip } from '@/utils/geolocation';
 import Button from '@/components/ui/Button';
@@ -44,6 +44,7 @@ export default function ProvideCare() {
   const [experience, setExperience] = useState('');
   const [hourlyRate, setHourlyRate] = useState(20);
   const [bio, setBio] = useState('');
+  const [showAnyway, setShowAnyway] = useState(false);
 
   if (isLoading) {
     return (
@@ -53,8 +54,30 @@ export default function ProvideCare() {
     );
   }
 
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+  if (isAuthenticated && !showAnyway) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="w-full max-w-md bg-white rounded-3xl shadow-xl p-8 text-center">
+          <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
+            <Check className="w-8 h-8 text-emerald-600" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">You already have a caregiver account</h2>
+          <p className="text-gray-500 text-sm mb-6">Head to your dashboard to manage your profile, job requests, and schedule.</p>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3.5 rounded-2xl transition-colors mb-3"
+          >
+            Go to Dashboard
+          </button>
+          <button
+            onClick={() => setShowAnyway(true)}
+            className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            Continue Anyway
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {

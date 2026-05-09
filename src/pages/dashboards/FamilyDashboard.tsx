@@ -4,7 +4,7 @@ import {
   Bell, MessageCircle, User, Settings, LogOut, Plus, MapPin, DollarSign,
   Star, Shield, Check, ChevronRight, Calendar, Clock, CreditCard,
   FileText, X, Home, LayoutDashboard, ChevronLeft, ChevronRight as ChevronRightIcon,
-  Edit3, Camera, MoreHorizontal, Send, Phone, Lock, Trash2, CheckCircle, AlertCircle,
+  Edit3, Camera, MoreHorizontal, Send, Phone, Trash2, CheckCircle, AlertCircle,
   Loader2
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
