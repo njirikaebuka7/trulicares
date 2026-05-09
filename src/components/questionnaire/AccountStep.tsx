@@ -8,9 +8,10 @@ interface Props {
   onComplete: () => void;
   onBack: () => void;
   onCancel?: () => void;
+  cancelLabel?: string;
 }
 
-export default function AccountStep({ onComplete, onBack, onCancel }: Props) {
+export default function AccountStep({ onComplete, onBack, onCancel, cancelLabel }: Props) {
   const { isAuthenticated, signup } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -62,7 +63,7 @@ export default function AccountStep({ onComplete, onBack, onCancel }: Props) {
             <span className="text-sm font-medium text-gray-500">Almost there!</span>
           </div>
           {onCancel ? (
-            <button onClick={onCancel} className="text-sm text-gray-400 hover:text-gray-600 font-medium px-2">Cancel</button>
+            <button onClick={onCancel} className="text-sm text-gray-400 hover:text-gray-600 font-medium px-2">{cancelLabel || 'Cancel'}</button>
           ) : (
             <div className="w-10" />
           )}

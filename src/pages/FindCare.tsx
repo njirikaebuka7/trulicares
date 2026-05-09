@@ -144,7 +144,7 @@ export default function FindCare() {
           return null;
       }
     case 'account':
-      return <AccountStep onComplete={handleAccountComplete} onBack={() => setPhase('care-details')} onCancel={() => navigate(cancelDestination)} />;
+      return <AccountStep onComplete={handleAccountComplete} onBack={() => setPhase('care-details')} onCancel={() => navigate(cancelDestination)} cancelLabel={isAuthenticated ? 'Back to Dashboard' : 'Back to Home'} />;
     case 'review':
       return (
         <ReviewStep
@@ -175,6 +175,7 @@ export default function FindCare() {
           onComplete={handlePaymentComplete}
           onBack={() => setPhase(isDirectRequest ? 'review' : 'matches')}
           onCancel={() => navigate(cancelDestination)}
+          cancelLabel={isAuthenticated ? 'Back to Dashboard' : 'Back to Home'}
         />
       );
     case 'verification':
@@ -183,6 +184,7 @@ export default function FindCare() {
           onComplete={handleVerificationComplete}
           onBack={() => setPhase('payment')}
           onCancel={() => navigate(cancelDestination)}
+          cancelLabel={isAuthenticated ? 'Back to Dashboard' : 'Back to Home'}
         />
       );
     case 'messaging':

@@ -258,9 +258,7 @@ export default function CaregiverProfile() {
                   </div>
                 );
               }
-              const careDate = existingMatch.careDate ? new Date(existingMatch.careDate) : null;
-              const hoursElapsed = careDate ? (Date.now() - careDate.getTime()) / 3600000 : 0;
-              const messagingExpired = existingMatch.messagingUnlocked && careDate && hoursElapsed > 48;
+              const messagingExpired = existingMatch.messagingExpired;
               if (messagingExpired) {
                 return (
                   <Button variant="coral" size="lg" disabled={unlockingMsg} onClick={async () => {

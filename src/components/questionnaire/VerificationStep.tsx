@@ -8,6 +8,7 @@ interface Props {
   onComplete: () => void;
   onBack?: () => void;
   onCancel?: () => void;
+  cancelLabel?: string;
 }
 
 type Step = 'phone' | 'otp' | 'confirmed';
@@ -19,7 +20,7 @@ function formatUSPhone(digits: string): string {
   return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
 }
 
-export default function VerificationStep({ onComplete, onBack, onCancel }: Props) {
+export default function VerificationStep({ onComplete, onBack, onCancel, cancelLabel }: Props) {
   const [phoneDigits, setPhoneDigits] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [step, setStep] = useState<Step>('phone');
@@ -72,7 +73,7 @@ export default function VerificationStep({ onComplete, onBack, onCancel }: Props
           <Link to="/"><img src={logoImg} alt="TruliCares" className="h-7 w-auto" /></Link>
         </div>
         {onCancel ? (
-          <button onClick={onCancel} className="text-sm text-gray-400 hover:text-gray-600 font-medium px-2">Cancel</button>
+          <button onClick={onCancel} className="text-sm text-gray-400 hover:text-gray-600 font-medium px-2">{cancelLabel || 'Cancel'}</button>
         ) : (
           <div className="w-10" />
         )}
