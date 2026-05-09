@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, Navigate } from 'react-router-dom';
 import { ArrowRight, ArrowLeft, Check, Mail, Lock, Eye, EyeOff, User, DollarSign, Calendar, Shield, Star, Heart, X, MapPin, Loader2, Camera } from 'lucide-react';
 import { detectLocationWithZip } from '@/utils/geolocation';
 import Button from '@/components/ui/Button';
@@ -25,15 +25,11 @@ const specialtyOptions: { id: CareCategory; label: string; icon: string }[] = [
 
 export default function ProvideCare() {
   const navigate = useNavigate();
-  const { isAuthenticated, signup } = useAuth();
+  const { isAuthenticated, isLoading, signup } = useAuth();
+
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
-
-  if (isAuthenticated) {
-    navigate('/dashboard');
-    return null;
-  }
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -48,6 +44,18 @@ export default function ProvideCare() {
   const [experience, setExperience] = useState('');
   const [hourlyRate, setHourlyRate] = useState(20);
   const [bio, setBio] = useState('');
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-9 h-9 rounded-full border-4 border-brand-600 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -297,27 +305,33 @@ export default function ProvideCare() {
     <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-coral-50">
       {/* Hero section (visible only on step 0) */}
       {step === 0 && (
-        <section className="bg-gradient-to-br from-brand-900 via-brand-800 to-brand-950 py-16 relative">
+        <section className="bg-gradient-to-br from-brand-900 via-brand-800 to-brand-950 relative"
+          style={{ paddingTop: 'max(1.25rem, env(safe-area-inset-top))' }}>
           {/* Exit button */}
           <Link
             to="/"
-            className="absolute top-5 left-5 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors z-10"
+            className="absolute left-5 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors z-10"
+            style={{ top: 'max(1.25rem, env(safe-area-inset-top))' }}
             aria-label="Go home"
           >
             <X className="w-5 h-5 text-white" />
           </Link>
           {/* Logo */}
-          <Link to="/" className="absolute top-5 left-1/2 -translate-x-1/2 z-10">
+          <Link
+            to="/"
+            className="absolute left-1/2 -translate-x-1/2 z-10"
+            style={{ top: 'max(1.25rem, env(safe-area-inset-top))' }}
+          >
             <img src={logoImg} alt="TruliCares" className="h-8 w-auto brightness-0 invert opacity-90" />
           </Link>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center pt-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center pt-14 pb-16">
             <h1 className="text-3xl sm:text-4xl font-bold text-white mb-4">
               Start earning as a <span className="text-brand-300">caregiver</span>
             </h1>
             <p className="text-brand-200 max-w-xl mx-auto mb-8">
               Join TruliCares for free, receive direct matches, and build a rewarding care career.
             </p>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-3xl mx-auto">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 max-w-3xl mx-auto">
               {benefits.map((b, i) => (
                 <div key={i} className="glass rounded-2xl p-4 text-left">
                   <div className="w-10 h-10 rounded-xl bg-brand-500/30 flex items-center justify-center text-brand-200 mb-2">
