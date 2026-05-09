@@ -13,9 +13,10 @@ const options: { id: CareCategory; icon: React.ReactNode; label: string; desc: s
 
 interface Props {
   onSelect: (type: CareCategory) => void;
+  onCancel?: () => void;
 }
 
-export default function CareTypeStep({ onSelect }: Props) {
+export default function CareTypeStep({ onSelect, onCancel }: Props) {
   const [selected, setSelected] = useState<CareCategory | null>(null);
 
   return (
@@ -26,6 +27,8 @@ export default function CareTypeStep({ onSelect }: Props) {
       totalSteps={8}
       onNext={() => selected && onSelect(selected)}
       nextDisabled={!selected}
+      onCancel={onCancel}
+      cancelLabel={onCancel ? 'Cancel' : undefined}
     >
       {options.map(opt => (
         <SelectCard

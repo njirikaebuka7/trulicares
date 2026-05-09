@@ -76,7 +76,7 @@ export default function CaregiverList() {
     results.sort((a, b) => {
       if (sortBy === 'rating') return b.rating - a.rating;
       if (sortBy === 'rate-low') return a.hourlyRate[0] - b.hourlyRate[0];
-      if (sortBy === 'rate-high') return b.hourlyRate[0] - a.hourlyRate[0];
+      if (sortBy === 'rate-high') return b.hourlyRate[1] - a.hourlyRate[1];
       if (sortBy === 'experience') return b.yearsExperience - a.yearsExperience;
       return 0;
     });

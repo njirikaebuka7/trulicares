@@ -7,9 +7,10 @@ import { detectLocationWithZip } from '@/utils/geolocation';
 interface Props {
   onComplete: (data: Record<string, unknown>) => void;
   onBack: () => void;
+  onCancel?: () => void;
 }
 
-export default function CleaningFlow({ onComplete, onBack }: Props) {
+export default function CleaningFlow({ onComplete, onBack, onCancel }: Props) {
   const [step, setStep] = useState(0);
   const totalSteps = 10;
 
@@ -208,7 +209,8 @@ export default function CleaningFlow({ onComplete, onBack }: Props) {
 
   return (
     <StepContainer title={titles[step]} subtitle={subtitles[step]} currentStep={step + 2} totalSteps={totalSteps + 1}
-      onBack={goBack} onNext={goNext} nextDisabled={isDisabled()} nextLabel={step === totalSteps - 1 ? 'Continue to Account' : 'Continue'}>
+      onBack={goBack} onNext={goNext} nextDisabled={isDisabled()} nextLabel={step === totalSteps - 1 ? 'Continue to Account' : 'Continue'}
+      onCancel={onCancel} cancelLabel="Cancel">
       {steps[step]}
     </StepContainer>
   );

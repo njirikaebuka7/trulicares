@@ -7,6 +7,7 @@ import { detectLocationWithZip } from '@/utils/geolocation';
 interface Props {
   onComplete: (data: Record<string, unknown>) => void;
   onBack: () => void;
+  onCancel?: () => void;
 }
 
 function ageLabel(years: number): string {
@@ -15,7 +16,7 @@ function ageLabel(years: number): string {
   return `${years} years`;
 }
 
-export default function ChildCareFlow({ onComplete, onBack }: Props) {
+export default function ChildCareFlow({ onComplete, onBack, onCancel }: Props) {
   const [step, setStep] = useState(0);
   const totalSteps = 7;
 
@@ -222,6 +223,8 @@ export default function ChildCareFlow({ onComplete, onBack }: Props) {
       onNext={goNext}
       nextDisabled={isNextDisabled()}
       nextLabel={step === totalSteps - 1 ? 'Continue to Account' : 'Continue'}
+      onCancel={onCancel}
+      cancelLabel="Cancel"
     >
       {steps[step]}
     </StepContainer>

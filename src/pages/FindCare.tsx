@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { requests as requestsApi } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 import type { CareCategory } from '@/types';
 
 import CareTypeStep from '@/components/questionnaire/CareTypeStep';
@@ -18,15 +19,29 @@ import MessagingStep from '@/components/questionnaire/MessagingStep';
 
 type FlowPhase = 'care-type' | 'care-details' | 'account' | 'review' | 'matching' | 'matches' | 'payment' | 'verification' | 'messaging';
 
+interface LocationState {
+  preselectedCategory?: string;
+  directRequest?: boolean;
+  caregiverId?: string;
+}
+
 export default function FindCare() {
   const location = useLocation();
   const navigate = useNavigate();
-  const preselected = (location.state as { preselectedCategory?: string })?.preselectedCategory;
+  const { isAuthenticated } = useAuth();
+
+  const state = (location.state as LocationState) || {};
+  const preselected = state.preselectedCategory;
+  const isDirectRequest = state.directRequest === true;
+  const directCaregiverId = state.caregiverId;
 
   const [phase, setPhase] = useState<FlowPhase>('care-type');
   const [careCategory, setCareCategory] = useState<CareCategory | null>(null);
   const [careData, setCareData] = useState<Record<string, unknown>>({});
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+  const [selectedCaregiverId, setSelectedCaregiverId] = useState<string | null>(directCaregiverId || null);
+
+  const cancelDestination = isAuthenticated ? '/dashboard' : '/';
 
   useEffect(() => {
     if (preselected) {
@@ -42,7 +57,8 @@ export default function FindCare() {
 
   const handleCareDetailsComplete = (data: Record<string, unknown>) => {
     setCareData(data);
-    setPhase('account');
+    // Skip account step if already authenticated
+    setPhase(isAuthenticated ? 'review' : 'account');
   };
 
   const handleAccountComplete = () => {
@@ -51,11 +67,26 @@ export default function FindCare() {
 
   const handleSubmitReview = async () => {
     try {
-      await requestsApi.create({
+      const payload: any = {
         careType: careCategory,
         location: (careData.location as string) || '',
         details: careData,
-      });
+      };
+
+      // For direct caregiver requests, pass caregiverId to create a match immediately
+      if (isDirectRequest && directCaregiverId) {
+        payload.caregiverId = directCaregiverId;
+      }
+
+      const result: any = await requestsApi.create(payload);
+
+      // Direct request: skip matching/matches, jump straight to payment
+      if (isDirectRequest && result?.matchId) {
+        setSelectedMatchId(result.matchId);
+        setSelectedCaregiverId(directCaregiverId || null);
+        setPhase('payment');
+        return;
+      }
     } catch {}
     setPhase('matching');
   };
@@ -64,8 +95,9 @@ export default function FindCare() {
     setPhase('matches');
   };
 
-  const handleSelectMatch = (matchId: string) => {
+  const handleSelectMatch = (matchId: string, caregiverId?: string) => {
     setSelectedMatchId(matchId);
+    if (caregiverId) setSelectedCaregiverId(caregiverId);
     setPhase('payment');
   };
 
@@ -83,31 +115,58 @@ export default function FindCare() {
 
   switch (phase) {
     case 'care-type':
-      return <CareTypeStep onSelect={handleCareTypeSelect} />;
+      return (
+        <CareTypeStep
+          onSelect={handleCareTypeSelect}
+          onCancel={() => navigate(cancelDestination)}
+        />
+      );
     case 'care-details':
       if (!careCategory) return null;
       switch (careCategory) {
         case 'child-care':
-          return <ChildCareFlow onComplete={handleCareDetailsComplete} onBack={() => setPhase('care-type')} />;
+          return <ChildCareFlow onComplete={handleCareDetailsComplete} onBack={() => setPhase('care-type')} onCancel={() => navigate(cancelDestination)} />;
         case 'senior-care':
-          return <SeniorCareFlow onComplete={handleCareDetailsComplete} onBack={() => setPhase('care-type')} />;
+          return <SeniorCareFlow onComplete={handleCareDetailsComplete} onBack={() => setPhase('care-type')} onCancel={() => navigate(cancelDestination)} />;
         case 'adult-care':
-          return <AdultCareFlow onComplete={handleCareDetailsComplete} onBack={() => setPhase('care-type')} />;
+          return <AdultCareFlow onComplete={handleCareDetailsComplete} onBack={() => setPhase('care-type')} onCancel={() => navigate(cancelDestination)} />;
         case 'cleaning':
-          return <CleaningFlow onComplete={handleCareDetailsComplete} onBack={() => setPhase('care-type')} />;
+          return <CleaningFlow onComplete={handleCareDetailsComplete} onBack={() => setPhase('care-type')} onCancel={() => navigate(cancelDestination)} />;
         default:
           return null;
       }
     case 'account':
       return <AccountStep onComplete={handleAccountComplete} onBack={() => setPhase('care-details')} />;
     case 'review':
-      return <ReviewStep careCategory={careCategory!} careData={careData} onSubmit={handleSubmitReview} onBack={() => setPhase('account')} />;
+      return (
+        <ReviewStep
+          careCategory={careCategory!}
+          careData={careData}
+          onSubmit={handleSubmitReview}
+          onBack={() => setPhase(isAuthenticated ? 'care-details' : 'account')}
+          onCancel={() => navigate(cancelDestination)}
+        />
+      );
     case 'matching':
       return <MatchingStep onComplete={handleMatchingComplete} />;
     case 'matches':
-      return <MatchesListStep onSelectMatch={handleSelectMatch} onBack={() => setPhase('matching')} familyLocation={(careData.location as string) || ''} />;
+      return (
+        <MatchesListStep
+          onSelectMatch={handleSelectMatch}
+          onBack={() => setPhase('matching')}
+          familyLocation={(careData.location as string) || ''}
+          onCancel={() => navigate(cancelDestination)}
+        />
+      );
     case 'payment':
-      return <PaymentStep matchId={selectedMatchId!} onComplete={handlePaymentComplete} onBack={() => setPhase('matches')} />;
+      return (
+        <PaymentStep
+          matchId={selectedMatchId!}
+          caregiverId={selectedCaregiverId || undefined}
+          onComplete={handlePaymentComplete}
+          onBack={() => setPhase(isDirectRequest ? 'review' : 'matches')}
+        />
+      );
     case 'verification':
       return <VerificationStep onComplete={handleVerificationComplete} />;
     case 'messaging':

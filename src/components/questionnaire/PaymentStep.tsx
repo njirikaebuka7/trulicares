@@ -7,6 +7,7 @@ import logoImg from '@/assets/logo.png';
 
 interface Props {
   matchId: string;
+  caregiverId?: string;
   onComplete: () => void;
   onBack: () => void;
 }
@@ -20,15 +21,16 @@ const features = [
   'Share location & care instructions',
 ];
 
-export default function PaymentStep({ matchId, onComplete, onBack }: Props) {
+export default function PaymentStep({ matchId, caregiverId, onComplete, onBack }: Props) {
   const [state, setState] = useState<PaymentState>('idle');
   const [caregiver, setCaregiver] = useState<any>(null);
 
   useEffect(() => {
-    if (matchId) {
-      caregiversApi.get(matchId).then(d => setCaregiver(d.caregiver || d)).catch(() => {});
+    const fetchId = caregiverId || matchId;
+    if (fetchId) {
+      caregiversApi.get(fetchId).then(d => setCaregiver(d.caregiver || d)).catch(() => {});
     }
-  }, [matchId]);
+  }, [matchId, caregiverId]);
 
   const handleStripeCheckout = async () => {
     setState('redirecting');

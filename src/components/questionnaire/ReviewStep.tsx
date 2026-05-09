@@ -16,6 +16,7 @@ interface Props {
   careData: Record<string, unknown>;
   onSubmit: () => void;
   onBack: () => void;
+  onCancel?: () => void;
 }
 
 function formatAge(years: number): string {
@@ -24,7 +25,7 @@ function formatAge(years: number): string {
   return `${years} years`;
 }
 
-export default function ReviewStep({ careCategory, careData, onSubmit, onBack }: Props) {
+export default function ReviewStep({ careCategory, careData, onSubmit, onBack, onCancel }: Props) {
   const formatValue = (key: string, value: unknown): string => {
     if (key === 'childAges' && Array.isArray(value)) {
       return value.map(a => formatAge(Number(a))).join(', ');
@@ -98,7 +99,16 @@ export default function ReviewStep({ careCategory, careData, onSubmit, onBack }:
           <div className="flex-1 flex justify-center">
             <Link to="/"><img src={logoImg} alt="TruliCares" className="h-6 w-auto" /></Link>
           </div>
-          <div className="w-10" />
+          {onCancel ? (
+            <button
+              onClick={onCancel}
+              className="text-xs text-gray-400 hover:text-gray-600 font-medium underline underline-offset-2"
+            >
+              Cancel
+            </button>
+          ) : (
+            <div className="w-10" />
+          )}
         </div>
       </div>
 

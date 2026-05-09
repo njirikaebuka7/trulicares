@@ -12,6 +12,8 @@ interface StepContainerProps {
   totalSteps: number;
   onBack?: () => void;
   onNext?: () => void;
+  onCancel?: () => void;
+  cancelLabel?: string;
   nextLabel?: string;
   nextDisabled?: boolean;
   children: ReactNode;
@@ -25,6 +27,8 @@ export default function StepContainer({
   totalSteps,
   onBack,
   onNext,
+  onCancel,
+  cancelLabel,
   nextLabel = 'Continue',
   nextDisabled = false,
   children,
@@ -49,8 +53,28 @@ export default function StepContainer({
             </Link>
             <ProgressBar currentStep={currentStep} totalSteps={totalSteps} />
           </div>
-          <div className="w-10 shrink-0" />
+          {onCancel ? (
+            <button
+              onClick={onCancel}
+              className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-gray-100 transition-colors shrink-0 text-xs text-gray-500 font-medium"
+              title={cancelLabel || 'Cancel'}
+            >
+              <span className="text-[11px] leading-tight text-center">{cancelLabel || 'Exit'}</span>
+            </button>
+          ) : (
+            <div className="w-10 shrink-0" />
+          )}
         </div>
+        {onCancel && (
+          <div className="max-w-lg mx-auto px-4 pb-1.5 flex justify-end">
+            <button
+              onClick={onCancel}
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors font-medium underline underline-offset-2"
+            >
+              {cancelLabel || 'Cancel'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Content */}

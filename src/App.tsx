@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
 import ScrollToTop from '@/components/ScrollToTop';
 import Layout from '@/components/layout/Layout';
+import ProtectedRoute from '@/components/layout/ProtectedRoute';
 import Home from '@/pages/Home';
 import About from '@/pages/About';
 import Services from '@/pages/Services';
@@ -33,8 +34,16 @@ export default function App() {
             <Route path="/services" element={<Services />} />
             <Route path="/resources" element={<Resources />} />
             <Route path="/resources/:id" element={<ResourceArticle />} />
-            <Route path="/caregivers" element={<CaregiverList />} />
-            <Route path="/caregivers/:id" element={<CaregiverProfile />} />
+            <Route path="/caregivers" element={
+              <ProtectedRoute requiredRole="family">
+                <CaregiverList />
+              </ProtectedRoute>
+            } />
+            <Route path="/caregivers/:id" element={
+              <ProtectedRoute requiredRole="family">
+                <CaregiverProfile />
+              </ProtectedRoute>
+            } />
             <Route path="/contact" element={<Contact />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<Terms />} />

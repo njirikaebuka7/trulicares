@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowRight, ArrowLeft, Check, Mail, Lock, Eye, EyeOff, User, DollarSign, Calendar, Shield, Star, Heart, X, MapPin, Loader2 } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Check, Mail, Lock, Eye, EyeOff, User, DollarSign, Calendar, Shield, Star, Heart, X, MapPin, Loader2, Camera } from 'lucide-react';
 import { detectLocationWithZip } from '@/utils/geolocation';
 import Button from '@/components/ui/Button';
 import SelectCard from '@/components/ui/SelectCard';
 import { useAuth } from '@/context/AuthContext';
-import { caregivers as caregiversApi } from '@/lib/api';
+import { caregivers as caregiversApi, auth as authApi } from '@/lib/api';
 import type { CareCategory } from '@/types';
 import logoImg from '@/assets/logo.png';
 
@@ -28,6 +28,7 @@ export default function ProvideCare() {
   const { isAuthenticated, signup } = useAuth();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   if (isAuthenticated) {
     navigate('/dashboard');
@@ -38,6 +39,8 @@ export default function ProvideCare() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoBase64, setPhotoBase64] = useState<string | null>(null);
   const [specialties, setSpecialties] = useState<CareCategory[]>([]);
   const [serviceZips, setServiceZips] = useState<string[]>([]);
   const [zipInput, setZipInput] = useState('');
@@ -45,6 +48,18 @@ export default function ProvideCare() {
   const [experience, setExperience] = useState('');
   const [hourlyRate, setHourlyRate] = useState(20);
   const [bio, setBio] = useState('');
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      setPhotoPreview(result);
+      setPhotoBase64(result);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const toggleSpecialty = (s: CareCategory) => {
     setSpecialties(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
@@ -63,6 +78,9 @@ export default function ProvideCare() {
     setLoading(true);
     try {
       await signup(email, password, name, 'caregiver');
+      if (photoBase64) {
+        await authApi.updateProfile({ photoUrl: photoBase64 }).catch(console.error);
+      }
       await caregiversApi.updateProfile({
         specialties,
         serviceZips,
@@ -95,6 +113,40 @@ export default function ProvideCare() {
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Join TruliCares</h2>
         <p className="text-gray-500 text-sm">Create your caregiver account for free.</p>
       </div>
+
+      {/* Photo upload */}
+      <div className="flex flex-col items-center mb-5">
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handlePhotoChange}
+        />
+        <button
+          type="button"
+          onClick={() => photoInputRef.current?.click()}
+          className="relative group"
+        >
+          {photoPreview ? (
+            <img
+              src={photoPreview}
+              alt="Profile preview"
+              className="w-20 h-20 rounded-full object-cover border-4 border-brand-200 shadow"
+            />
+          ) : (
+            <div className="w-20 h-20 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex flex-col items-center justify-center hover:bg-gray-50 transition-colors">
+              <Camera className="w-6 h-6 text-gray-400 mb-0.5" />
+              <span className="text-[10px] text-gray-400 font-medium">Photo</span>
+            </div>
+          )}
+          <span className="absolute -bottom-1 -right-1 w-6 h-6 bg-brand-600 rounded-full flex items-center justify-center shadow border-2 border-white">
+            <Camera className="w-3 h-3 text-white" />
+          </span>
+        </button>
+        <span className="text-xs text-gray-400 mt-2">Profile photo (optional)</span>
+      </div>
+
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Full name</label>

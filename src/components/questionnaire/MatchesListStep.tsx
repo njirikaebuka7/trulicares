@@ -8,14 +8,15 @@ import { extractZip } from '@/utils/geolocation';
 import logoImg from '@/assets/logo.png';
 
 interface Props {
-  onSelectMatch: (matchId: string) => void;
+  onSelectMatch: (matchId: string, caregiverId?: string) => void;
   onBack: () => void;
   familyLocation?: string;
+  onCancel?: () => void;
 }
 
 const avatarColors = ['bg-coral-400', 'bg-brand-400', 'bg-sky-400', 'bg-warm-400', 'bg-purple-400'];
 
-export default function MatchesListStep({ onSelectMatch, onBack, familyLocation }: Props) {
+export default function MatchesListStep({ onSelectMatch, onBack, familyLocation, onCancel }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [caregiverList, setCaregiverList] = useState<any[]>([]);
 
@@ -196,7 +197,7 @@ export default function MatchesListStep({ onSelectMatch, onBack, familyLocation 
             variant="primary"
             size="xl"
             fullWidth
-            onClick={() => selectedId && onSelectMatch(selectedId)}
+            onClick={() => selectedId && onSelectMatch(selectedId, selectedId)}
             disabled={!selectedId}
           >
             Continue with Selected Caregiver

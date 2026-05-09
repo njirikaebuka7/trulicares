@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   Star, Shield, Check, MapPin, Clock, DollarSign,
-  Briefcase, CheckCircle, MessageCircle, Award, Calendar, ArrowLeft
+  Briefcase, CheckCircle, MessageCircle, Award, Calendar, ArrowLeft, X
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { caregivers } from '@/lib/api';
-import type { CaregiverProfile as CGProfile } from '@/types';
+import type { CaregiverProfile as CGProfile, CareCategory } from '@/types';
 import { cn } from '@/utils/cn';
 
 const categoryColors: Record<string, string> = {
@@ -23,6 +23,13 @@ const categoryLabels: Record<string, string> = {
   'cleaning': 'Cleaning Services',
 };
 
+const categoryIcons: Record<string, string> = {
+  'child-care': '👶',
+  'senior-care': '❤️',
+  'adult-care': '🧑',
+  'cleaning': '✨',
+};
+
 export default function CaregiverProfile() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -30,6 +37,7 @@ export default function CaregiverProfile() {
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [showSpecialtyPicker, setShowSpecialtyPicker] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -41,6 +49,32 @@ export default function CaregiverProfile() {
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [id]);
+
+  const handleRequestCare = () => {
+    if (!caregiver) return;
+    if (caregiver.specialties.length === 1) {
+      navigate('/find-care', {
+        state: {
+          directRequest: true,
+          caregiverId: caregiver.id,
+          preselectedCategory: caregiver.specialties[0],
+        },
+      });
+    } else {
+      setShowSpecialtyPicker(true);
+    }
+  };
+
+  const handleSelectSpecialty = (specialty: CareCategory) => {
+    setShowSpecialtyPicker(false);
+    navigate('/find-care', {
+      state: {
+        directRequest: true,
+        caregiverId: caregiver!.id,
+        preselectedCategory: specialty,
+      },
+    });
+  };
 
   if (loading) {
     return (
@@ -68,6 +102,44 @@ export default function CaregiverProfile() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Specialty picker modal */}
+      {showSpecialtyPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-bold text-gray-900">Select Care Type</h3>
+              <button
+                onClick={() => setShowSpecialtyPicker(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+              >
+                <X className="w-4 h-4 text-gray-600" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-500 mb-5">
+              {caregiver.name} offers multiple services. Which type of care do you need?
+            </p>
+            <div className="space-y-3">
+              {caregiver.specialties.map(s => (
+                <button
+                  key={s}
+                  onClick={() => handleSelectSpecialty(s as CareCategory)}
+                  className={cn(
+                    'w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left',
+                    'border-gray-200 hover:border-brand-500 hover:bg-brand-50'
+                  )}
+                >
+                  <span className="text-2xl">{categoryIcons[s] || '🤝'}</span>
+                  <div>
+                    <p className="font-semibold text-gray-900">{categoryLabels[s] || s}</p>
+                    <p className="text-xs text-gray-500">${caregiver.hourlyRate[0]}–${caregiver.hourlyRate[1]}/hr</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hero banner */}
       <div className="bg-gradient-to-br from-brand-900 to-brand-800 pt-24 lg:pt-28 pb-20">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -141,10 +213,10 @@ export default function CaregiverProfile() {
           </div>
 
           <div className="flex gap-3 mt-6 pt-6 border-t border-gray-100 flex-wrap">
-            <Button variant="primary" size="lg" onClick={() => navigate('/find-care')} className="flex-1 sm:flex-none">
+            <Button variant="primary" size="lg" onClick={handleRequestCare} className="flex-1 sm:flex-none">
               Request Care
             </Button>
-            <Button variant="secondary" size="lg" onClick={() => navigate('/find-care')} className="flex-1 sm:flex-none">
+            <Button variant="secondary" size="lg" onClick={handleRequestCare} className="flex-1 sm:flex-none">
               <MessageCircle className="w-4 h-4" /> Message
             </Button>
           </div>
@@ -253,14 +325,14 @@ export default function CaregiverProfile() {
             {/* CTA */}
             <div className="bg-gradient-to-br from-brand-600 to-brand-700 rounded-2xl p-5 text-white text-center">
               <p className="font-bold mb-1">Ready to book?</p>
-              <p className="text-brand-200 text-xs mb-4">Post a care request and get matched in minutes.</p>
+              <p className="text-brand-200 text-xs mb-4">Connect directly with {caregiver.name} in minutes.</p>
               <Button
                 variant="secondary"
                 fullWidth
-                onClick={() => navigate('/find-care')}
+                onClick={handleRequestCare}
                 className="bg-white text-brand-700 border-white hover:bg-brand-50"
               >
-                Post a Request
+                Request Care
               </Button>
             </div>
           </div>

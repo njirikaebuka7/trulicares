@@ -38,7 +38,7 @@ function formatRequest(row: any) {
 // POST /api/care-requests
 router.post('/', requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { careType, details, location, zip } = req.body;
+    const { careType, details, location, zip, caregiverId } = req.body;
     if (!careType) return res.status(400).json({ error: 'Care type is required' });
 
     const result = await query(
@@ -49,6 +49,28 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
     );
 
     const careRequest = result.rows[0];
+
+    // Direct caregiver request: create a single match immediately and return matchId
+    if (caregiverId) {
+      try {
+        const matchResult = await query(
+          `INSERT INTO matches (family_id, caregiver_id, request_id, status)
+           VALUES ($1, $2, $3, 'pending')
+           RETURNING id`,
+          [req.user!.id, caregiverId, careRequest.id]
+        );
+        await query(`UPDATE care_requests SET status = 'matched' WHERE id = $1`, [careRequest.id]);
+
+        return res.status(201).json({
+          request: formatRequest(careRequest),
+          matchId: matchResult.rows[0].id,
+          message: 'Care request submitted directly to caregiver.',
+        });
+      } catch (matchErr) {
+        console.error('Direct match creation error:', matchErr);
+        // Fall through to normal matching if direct insert fails
+      }
+    }
 
     createMatchesForRequest(careRequest.id, req.user!.id, careType, location, zip)
       .then(async (matches) => {
