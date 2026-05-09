@@ -70,6 +70,20 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// Helper — verify an active, unexpired messaging window exists between family + caregiver
+async function checkMessagingEligible(familyId: string, caregiverId: string): Promise<boolean> {
+  const r = await query(
+    `SELECT id FROM matches
+     WHERE family_id = $1 AND caregiver_id = $2
+       AND status = 'accepted'
+       AND messaging_unlocked = true
+       AND (care_date IS NULL OR EXTRACT(EPOCH FROM (NOW() - care_date)) / 3600 < 48)
+     LIMIT 1`,
+    [familyId, caregiverId]
+  );
+  return r.rows.length > 0;
+}
+
 // POST /api/conversations — start or get existing
 router.post('/', requireAuth, async (req: AuthRequest, res) => {
   try {
@@ -81,8 +95,6 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
     const otherUserResult = await query('SELECT id, role FROM users WHERE id = $1', [otherUserId]);
     if (otherUserResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
 
-    const otherUser = otherUserResult.rows[0];
-
     let familyId: string, caregiverId: string;
     if (role === 'family') {
       familyId = myId;
@@ -90,6 +102,15 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
     } else {
       familyId = otherUserId;
       caregiverId = myId;
+    }
+
+    // Enforce: messaging must be unlocked via an accepted match within the 48 h window
+    // (admins bypass this check)
+    if (role !== 'admin') {
+      const eligible = await checkMessagingEligible(familyId, caregiverId);
+      if (!eligible) {
+        return res.status(403).json({ error: 'Messaging is not unlocked or has expired for this match.' });
+      }
     }
 
     // Upsert conversation
@@ -152,7 +173,7 @@ router.get('/:id/messages', requireAuth, async (req: AuthRequest, res) => {
 router.post('/:id/messages', requireAuth, async (req: AuthRequest, res) => {
   try {
     const { content } = req.body;
-    const { id: userId } = req.user!;
+    const { id: userId, role } = req.user!;
 
     if (!content?.trim()) return res.status(400).json({ error: 'Message content is required' });
 
@@ -163,6 +184,14 @@ router.post('/:id/messages', requireAuth, async (req: AuthRequest, res) => {
     if (convResult.rows.length === 0) return res.status(404).json({ error: 'Conversation not found' });
 
     const conv = convResult.rows[0];
+
+    // Enforce messaging eligibility (admins bypass)
+    if (role !== 'admin') {
+      const eligible = await checkMessagingEligible(conv.family_id, conv.caregiver_id);
+      if (!eligible) {
+        return res.status(403).json({ error: 'Messaging is not unlocked or has expired for this match.' });
+      }
+    }
 
     const msgResult = await query(
       `INSERT INTO messages (conversation_id, sender_id, content)

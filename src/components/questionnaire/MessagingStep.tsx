@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, ArrowRight, Phone, Video, Check, CheckCheck, Smile, Paperclip, Info } from 'lucide-react';
+import { Send, ArrowRight, Phone, Video, Check, CheckCheck, Smile, Paperclip, Info, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Button from '@/components/ui/Button';
 import { caregivers as caregiversApi } from '@/lib/api';
@@ -9,6 +9,7 @@ import logoImg from '@/assets/logo.png';
 interface Props {
   matchId: string;
   onDashboard: () => void;
+  onBack?: () => void;
 }
 
 interface Message {
@@ -25,7 +26,7 @@ const initialMessages: Message[] = [
   { id: '3', text: 'I can start as early as next week! I\'d love to schedule a quick call to discuss the details. Does that work for you?', fromMe: false, time: '2:35 PM', read: true },
 ];
 
-export default function MessagingStep({ matchId, onDashboard }: Props) {
+export default function MessagingStep({ matchId, onDashboard, onBack }: Props) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState('');
   const [showInfo, setShowInfo] = useState(false);
@@ -76,6 +77,12 @@ export default function MessagingStep({ matchId, onDashboard }: Props) {
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100 shadow-sm">
         <div className="max-w-lg mx-auto px-4 py-2.5">
           <div className="flex items-center justify-between gap-3">
+            {/* Back button */}
+            {onBack && (
+              <button onClick={onBack} className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-gray-100 transition-colors shrink-0">
+                <ArrowLeft className="w-5 h-5 text-gray-600" />
+              </button>
+            )}
             {/* Caregiver info */}
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className="relative shrink-0">

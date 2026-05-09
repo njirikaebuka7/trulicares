@@ -10,6 +10,7 @@ interface Props {
   caregiverId?: string;
   onComplete: () => void;
   onBack: () => void;
+  onCancel?: () => void;
 }
 
 type PaymentState = 'idle' | 'redirecting' | 'processing' | 'success';
@@ -21,7 +22,7 @@ const features = [
   'Share location & care instructions',
 ];
 
-export default function PaymentStep({ matchId, caregiverId, onComplete, onBack }: Props) {
+export default function PaymentStep({ matchId, caregiverId, onComplete, onBack, onCancel }: Props) {
   const [state, setState] = useState<PaymentState>('idle');
   const [caregiver, setCaregiver] = useState<any>(null);
 
@@ -99,7 +100,11 @@ export default function PaymentStep({ matchId, caregiverId, onComplete, onBack }
           <div className="flex-1 flex justify-center">
             <Link to="/"><img src={logoImg} alt="TruliCares" className="h-6 w-auto" /></Link>
           </div>
-          <div className="w-10" />
+          {onCancel ? (
+            <button onClick={onCancel} className="text-sm text-gray-400 hover:text-gray-600 font-medium px-2">Cancel</button>
+          ) : (
+            <div className="w-10" />
+          )}
         </div>
       </div>
 

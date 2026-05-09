@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Phone, Shield, Check, CheckCircle, ArrowRight } from 'lucide-react';
+import { Phone, Shield, Check, CheckCircle, ArrowRight, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Button from '@/components/ui/Button';
 import logoImg from '@/assets/logo.png';
 
 interface Props {
   onComplete: () => void;
+  onBack?: () => void;
+  onCancel?: () => void;
 }
 
 type Step = 'phone' | 'otp' | 'confirmed';
@@ -17,7 +19,7 @@ function formatUSPhone(digits: string): string {
   return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
 }
 
-export default function VerificationStep({ onComplete }: Props) {
+export default function VerificationStep({ onComplete, onBack, onCancel }: Props) {
   const [phoneDigits, setPhoneDigits] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [step, setStep] = useState<Step>('phone');
@@ -60,8 +62,20 @@ export default function VerificationStep({ onComplete }: Props) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-coral-50 flex flex-col">
       {/* Header with logo */}
-      <div className="bg-white/80 backdrop-blur-lg border-b border-gray-100 px-4 py-3 flex justify-center">
-        <Link to="/"><img src={logoImg} alt="TruliCares" className="h-7 w-auto" /></Link>
+      <div className="bg-white/80 backdrop-blur-lg border-b border-gray-100 px-4 py-3 flex items-center">
+        {onBack && (
+          <button onClick={onBack} className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-gray-100 transition-colors">
+            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          </button>
+        )}
+        <div className="flex-1 flex justify-center">
+          <Link to="/"><img src={logoImg} alt="TruliCares" className="h-7 w-auto" /></Link>
+        </div>
+        {onCancel ? (
+          <button onClick={onCancel} className="text-sm text-gray-400 hover:text-gray-600 font-medium px-2">Cancel</button>
+        ) : (
+          <div className="w-10" />
+        )}
       </div>
 
       {/* Content */}

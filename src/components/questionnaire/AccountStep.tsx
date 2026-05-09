@@ -7,9 +7,10 @@ import { useNavigate } from 'react-router-dom';
 interface Props {
   onComplete: () => void;
   onBack: () => void;
+  onCancel?: () => void;
 }
 
-export default function AccountStep({ onComplete, onBack }: Props) {
+export default function AccountStep({ onComplete, onBack, onCancel }: Props) {
   const { isAuthenticated, signup } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -60,7 +61,11 @@ export default function AccountStep({ onComplete, onBack }: Props) {
           <div className="flex-1 text-center">
             <span className="text-sm font-medium text-gray-500">Almost there!</span>
           </div>
-          <div className="w-10" />
+          {onCancel ? (
+            <button onClick={onCancel} className="text-sm text-gray-400 hover:text-gray-600 font-medium px-2">Cancel</button>
+          ) : (
+            <div className="w-10" />
+          )}
         </div>
       </div>
 

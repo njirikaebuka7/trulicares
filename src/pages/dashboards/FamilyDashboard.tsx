@@ -450,124 +450,160 @@ export default function FamilyDashboard() {
                   <Plus className="w-4 h-4" /> New Request
                 </Button>
               </div>
-              {requests.map((req: any) => (
-                <div key={req.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-brand-50 flex items-center justify-center shrink-0">
-                      <FileText className="w-6 h-6 text-brand-600" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <h3 className="font-bold text-gray-900">{req.label}</h3>
-                        <span className={cn('text-xs px-2.5 py-0.5 rounded-full font-semibold',
-                          req.status === 'matched' ? 'bg-green-100 text-green-700' :
-                          req.status === 'matching' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600')}>
-                          {req.status === 'matched' ? `${req.matchCount} Matches Found` : req.status === 'matching' ? 'Finding Matches…' : 'Pending'}
-                        </span>
+              {requests.map((req: any) => {
+                const reqMatches = matches.filter((m: any) => m.careRequestId === req.id);
+                return (
+                  <div key={req.id} className="space-y-3">
+                    {/* Request card */}
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-brand-50 flex items-center justify-center shrink-0">
+                          <FileText className="w-6 h-6 text-brand-600" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <h3 className="font-bold text-gray-900">{req.label}</h3>
+                            <span className={cn('text-xs px-2.5 py-0.5 rounded-full font-semibold',
+                              req.status === 'matched' ? 'bg-green-100 text-green-700' :
+                              req.status === 'matching' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600')}>
+                              {req.status === 'matched' ? `${reqMatches.length || req.matchCount} Matches Found` : req.status === 'matching' ? 'Finding Matches…' : 'Pending'}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600">{req.description}</p>
+                          <div className="flex items-center gap-4 mt-2 text-xs text-gray-400 flex-wrap">
+                            <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {req.location}</span>
+                            <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" /> {req.budget}</span>
+                            <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Posted {req.postedDate}</span>
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-sm text-gray-600">{req.description}</p>
-                      <div className="flex items-center gap-4 mt-2 text-xs text-gray-400 flex-wrap">
-                        <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {req.location}</span>
-                        <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" /> {req.budget}</span>
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Posted {req.postedDate}</span>
+                      <div className="mt-4 flex gap-3 flex-wrap">
+                        {req.status !== 'cancelled' && req.status !== 'completed' && (
+                          <>
+                            <Button variant="ghost" size="sm" onClick={() => { setEditingReq(req); setEditLocation(req.location || ''); setEditDesc(req.details?.description || req.description || ''); setEditSched(req.details?.schedule || ''); }}>
+                              Edit Request
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-red-500 hover:bg-red-50"
+                              onClick={() => setCancelConfirmId(req.id)}>
+                              Cancel
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
-                  </div>
-                  <div className="mt-4 flex gap-3 flex-wrap">
-                    {req.status === 'matched' && req.matchCount > 0 && (
-                      <span className="text-xs px-3 py-1.5 rounded-full bg-green-50 text-green-700 font-semibold flex items-center gap-1.5">
-                        <Check className="w-3 h-3" /> {req.matchCount} match{req.matchCount !== 1 ? 'es' : ''} found
-                      </span>
-                    )}
-                    {req.status !== 'cancelled' && req.status !== 'completed' && (
-                      <>
-                        <Button variant="ghost" size="sm" onClick={() => { setEditingReq(req); setEditLocation(req.location || ''); setEditDesc(req.details?.description || req.description || ''); setEditSched(req.details?.schedule || ''); }}>
-                          Edit Request
-                        </Button>
-                        <Button variant="ghost" size="sm" className="text-red-500 hover:bg-red-50"
-                          onClick={() => setCancelConfirmId(req.id)}>
-                          Cancel
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
-              <div onClick={() => navigate('/find-care')}
-                className="border-2 border-dashed border-gray-200 rounded-2xl p-8 flex flex-col items-center gap-2 cursor-pointer hover:border-brand-300 hover:bg-brand-50/30 transition-colors">
-                <div className="w-12 h-12 rounded-full bg-brand-50 flex items-center justify-center">
-                  <Plus className="w-6 h-6 text-brand-500" />
-                </div>
-                <p className="font-semibold text-gray-700">Post a New Care Request</p>
-                <p className="text-sm text-gray-400">Find the right caregiver for your needs</p>
-              </div>
 
-              {/* ── MATCHED CAREGIVERS (inline below requests) ── */}
-              {matches.length > 0 && (
-                <div className="pt-2">
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">Matched Caregivers</h3>
-                  <div className="space-y-4">
-                    {matches.map((match: any, i: number) => (
-                      <div key={match.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                        <div className="flex items-start gap-4">
-                          {match.caregiver?.photoUrl ? (
-                            <img src={match.caregiver.photoUrl} alt={match.caregiver.name} className="w-14 h-14 rounded-2xl object-cover shrink-0" />
-                          ) : (
-                            <div className={cn('w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0', avatarColors[i % avatarColors.length])}>
-                              {(match.caregiver?.name || '?').split(' ').map((n: string) => n[0]).join('')}
+                    {/* Matches nested under this request */}
+                    {reqMatches.length > 0 && (
+                      <div className="pl-4 border-l-2 border-brand-100 space-y-3">
+                        <p className="text-xs font-semibold text-brand-600 uppercase tracking-wide">
+                          {reqMatches.length} Caregiver{reqMatches.length !== 1 ? 's' : ''} Matched
+                        </p>
+                        {reqMatches.map((match: any, i: number) => (
+                          <div key={match.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+                            <div className="flex items-start gap-3">
+                              {match.caregiver?.photoUrl ? (
+                                <img src={match.caregiver.photoUrl} alt={match.caregiver.name} className="w-12 h-12 rounded-xl object-cover shrink-0" />
+                              ) : (
+                                <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold shrink-0', avatarColors[i % avatarColors.length])}>
+                                  {(match.caregiver?.name || '?').split(' ').map((n: string) => n[0]).join('')}
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-bold text-gray-900 text-sm">{match.caregiver?.name}</span>
+                                  {match.caregiver?.verified && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 text-xs font-bold">
+                                      <Shield className="w-3 h-3" /> Verified
+                                    </span>
+                                  )}
+                                  {match.nearYou && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-bold">
+                                      <MapPin className="w-3 h-3" /> Near You
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                                  <span className="text-xs font-semibold text-gray-700">{match.caregiver?.rating}</span>
+                                  <span className="text-xs text-gray-400">· {match.budget}</span>
+                                </div>
+                              </div>
+                              <span className={cn('px-2.5 py-1 rounded-full text-xs font-bold shrink-0',
+                                match.status === 'accepted' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700')}>
+                                {match.status}
+                              </span>
                             </div>
-                          )}
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="font-bold text-gray-900">{match.caregiver?.name}</h3>
-                              {match.caregiver?.verified && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 text-xs font-bold">
-                                  <Shield className="w-3 h-3" /> Verified
+                            <div className="mt-3 flex gap-2 flex-wrap items-center">
+                              {match.messagingUnlocked ? (
+                                <Button variant="primary" size="sm" onClick={() => setActiveTab('Messages')}>
+                                  <MessageCircle className="w-3.5 h-3.5" /> Message
+                                </Button>
+                              ) : match.status === 'accepted' ? (
+                                <Button variant="coral" size="sm" onClick={async () => {
+                                  try { await post(`/matches/${match.id}/unlock-messaging`); setMatches(prev => prev.map((m: any) => m.id === match.id ? { ...m, messagingUnlocked: true } : m)); } catch {}
+                                }}>
+                                  <DollarSign className="w-3.5 h-3.5" /> Unlock Messaging
+                                </Button>
+                              ) : (
+                                <span className="text-xs px-3 py-1.5 rounded-full bg-amber-50 text-amber-600 font-semibold flex items-center gap-1.5">
+                                  <Clock className="w-3 h-3" /> Awaiting acceptance
                                 </span>
                               )}
-                              {match.caregiver?.backgroundChecked && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-bold">
-                                  <Check className="w-3 h-3" /> Background Checked
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1 mt-1">
-                              <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-                              <span className="font-semibold text-gray-800 text-sm">{match.caregiver?.rating}</span>
-                              <span className="text-sm text-gray-400">({match.caregiver?.reviewCount} reviews)</span>
-                            </div>
-                            <div className="flex flex-wrap gap-3 mt-2 text-sm">
-                              <span className="flex items-center gap-1 text-gray-500"><MapPin className="w-4 h-4" /> {match.location}</span>
-                              <span className="flex items-center gap-1 text-brand-600 font-semibold"><DollarSign className="w-4 h-4" /> {match.budget}</span>
-                              <span className="flex items-center gap-1 text-gray-500"><Clock className="w-4 h-4" /> {match.caregiver?.yearsExperience} yrs exp</span>
+                              <Button variant="secondary" size="sm" onClick={() => navigate(`/caregivers/${match.caregiver?.id}`)}>View Profile</Button>
                             </div>
                           </div>
-                          <span className={cn('px-3 py-1 rounded-full text-xs font-bold shrink-0',
-                            match.status === 'accepted' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700')}>
-                            {match.status}
-                          </span>
-                        </div>
-                        <div className="mt-4 pt-4 border-t border-gray-50 flex gap-3 flex-wrap items-center">
-                          {match.messagingUnlocked ? (
-                            <Button variant="primary" size="sm" onClick={() => setActiveTab('Messages')}>
-                              <MessageCircle className="w-4 h-4" /> Message
-                            </Button>
-                          ) : match.status === 'accepted' ? (
-                            <Button variant="coral" size="sm" onClick={async () => {
-                              try { await post(`/matches/${match.id}/unlock-messaging`); setMatches(prev => prev.map((m: any) => m.id === match.id ? { ...m, messagingUnlocked: true } : m)); } catch {}
-                            }}>
-                              <DollarSign className="w-4 h-4" /> Unlock Messaging
-                            </Button>
-                          ) : (
-                            <span className="text-xs px-3 py-1.5 rounded-full bg-amber-50 text-amber-600 font-semibold flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5" /> Waiting for caregiver to accept
-                            </span>
-                          )}
-                          <Button variant="secondary" size="sm" onClick={() => navigate(`/caregivers/${match.caregiver?.id}`)}>View Profile</Button>
-                        </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
+                );
+              })}
+
+              {/* Unscoped matches (no request_id) */}
+              {matches.filter((m: any) => !m.careRequestId || !requests.some((r: any) => r.id === m.careRequestId)).length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold text-gray-500">Other Matches</p>
+                  {matches.filter((m: any) => !m.careRequestId || !requests.some((r: any) => r.id === m.careRequestId)).map((match: any, i: number) => (
+                    <div key={match.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+                      <div className="flex items-start gap-3">
+                        {match.caregiver?.photoUrl ? (
+                          <img src={match.caregiver.photoUrl} alt={match.caregiver.name} className="w-12 h-12 rounded-xl object-cover shrink-0" />
+                        ) : (
+                          <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold shrink-0', avatarColors[i % avatarColors.length])}>
+                            {(match.caregiver?.name || '?').split(' ').map((n: string) => n[0]).join('')}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <span className="font-bold text-gray-900 text-sm block">{match.caregiver?.name}</span>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                            <span className="text-xs font-semibold text-gray-700">{match.caregiver?.rating}</span>
+                            <span className="text-xs text-gray-400">· {match.budget}</span>
+                          </div>
+                        </div>
+                        <span className={cn('px-2.5 py-1 rounded-full text-xs font-bold shrink-0',
+                          match.status === 'accepted' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700')}>
+                          {match.status}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex gap-2 flex-wrap">
+                        {match.messagingUnlocked ? (
+                          <Button variant="primary" size="sm" onClick={() => setActiveTab('Messages')}>
+                            <MessageCircle className="w-3.5 h-3.5" /> Message
+                          </Button>
+                        ) : match.status === 'accepted' ? (
+                          <Button variant="coral" size="sm" onClick={async () => {
+                            try { await post(`/matches/${match.id}/unlock-messaging`); setMatches(prev => prev.map((m: any) => m.id === match.id ? { ...m, messagingUnlocked: true } : m)); } catch {}
+                          }}>
+                            <DollarSign className="w-3.5 h-3.5" /> Unlock Messaging
+                          </Button>
+                        ) : (
+                          <span className="text-xs px-3 py-1.5 rounded-full bg-amber-50 text-amber-600 font-semibold">Awaiting acceptance</span>
+                        )}
+                        <Button variant="secondary" size="sm" onClick={() => navigate(`/caregivers/${match.caregiver?.id}`)}>View Profile</Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
