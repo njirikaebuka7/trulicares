@@ -176,7 +176,7 @@ export default function About() {
                 icon: '💳',
               },
               {
-                title: 'Caregivers Join Free — Always',
+                title: 'Caregivers Join Free Always',
                 desc: 'We never paywall caregivers. Free registration, free matching, free access. Caregivers can optionally invest in background check badges and profile boosts to stand out.',
                 icon: '🤝',
               },
