@@ -8,6 +8,7 @@ import {
   Loader2
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
+import StripeCardModal from '@/components/ui/StripeCardModal';
 import { useAuth } from '@/context/AuthContext';
 import { get, post, put, auth as authApi, payments as paymentsApi } from '@/lib/api';
 import { cn } from '@/utils/cn';
@@ -56,7 +57,6 @@ export default function FamilyDashboard() {
   const [showAddPayment, setShowAddPayment] = useState(false);
   const [editName, setEditName] = useState(user?.name || '');
   const [editPhone, setEditPhone] = useState('');
-  const [newCard, setNewCard] = useState({ number: '', expiry: '', cvc: '' });
   const [notificationsRead, setNotificationsRead] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [profileModal, setProfileModal] = useState<null | 'personal' | 'notifications' | 'privacy' | 'account'>(null);
@@ -116,8 +116,6 @@ export default function FamilyDashboard() {
   // ── Stripe payment methods ─────────────────────────────────────────────────
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [pmLoading, setPmLoading] = useState(false);
-  const [pmSaving, setPmSaving] = useState(false);
-  const [pmError, setPmError] = useState('');
 
   const [matches, setMatches] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
@@ -289,28 +287,6 @@ export default function FamilyDashboard() {
     }
   };
 
-  // ── Add payment method (using Stripe test PM tokens) ──────────────────────
-  const handleAddPaymentMethod = async (pmId?: string) => {
-    setPmError('');
-    const tokenToUse = pmId || newCard.number.trim();
-    if (!tokenToUse) { setPmError('Select a test card or enter a payment method ID'); return; }
-    setPmSaving(true);
-    try {
-      const res: any = await paymentsApi.addPaymentMethod(tokenToUse);
-      setPaymentMethods(prev => {
-        const updated = [...prev, res.paymentMethod];
-        if (res.paymentMethod.isDefault) return updated.map(m => ({ ...m, isDefault: m.id === res.paymentMethod.id }));
-        return updated;
-      });
-      setNewCard({ number: '', expiry: '', cvc: '' });
-      setShowAddPayment(false);
-      showToast('Payment method added!');
-    } catch (err: any) {
-      setPmError(err.message || 'Failed to add card');
-    } finally {
-      setPmSaving(false);
-    }
-  };
 
   // ── Remove payment method ──────────────────────────────────────────────────
   const handleRemovePaymentMethod = async (id: string) => {
@@ -378,7 +354,10 @@ export default function FamilyDashboard() {
       const updated: any = await put(`/care-requests/${editingReq.id}`, payload);
       setRequests(prev => prev.map((r: any) => r.id === editingReq.id ? updated.request : r));
       setEditingReq(null);
-    } catch {}
+      showToast('Care request updated!');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update request', 'error');
+    }
     setEditSaving(false);
   };
 
@@ -386,7 +365,10 @@ export default function FamilyDashboard() {
     try {
       await put(`/care-requests/${id}/cancel`);
       setRequests(prev => prev.map((r: any) => r.id === id ? { ...r, status: 'cancelled' } : r));
-    } catch {}
+      showToast('Request cancelled');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to cancel request', 'error');
+    }
     setCancelConfirmId(null);
   };
 
@@ -1170,7 +1152,7 @@ export default function FamilyDashboard() {
                   </div>
                 )}
                 <button
-                  onClick={() => { setPmError(''); setShowAddPayment(true); }}
+                  onClick={() => setShowAddPayment(true)}
                   className="mt-3 text-sm font-semibold text-brand-600 hover:text-brand-700 flex items-center gap-1"
                 >
                   <Plus className="w-4 h-4" /> Add Payment Method
@@ -1670,56 +1652,20 @@ export default function FamilyDashboard() {
         </div>
       )}
 
-      {/* ── ADD PAYMENT METHOD MODAL ── */}
+      {/* ── ADD PAYMENT METHOD MODAL (Stripe Elements) ── */}
       {showAddPayment && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setShowAddPayment(false); setPmError(''); }} />
-          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h3 className="font-bold text-gray-900 text-lg">Add Payment Method</h3>
-              <button onClick={() => { setShowAddPayment(false); setPmError(''); }} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
-                <X className="w-4 h-4 text-gray-500" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <p className="text-sm text-gray-500">
-                This is a test environment. Select a test card to add to your account.
-              </p>
-              {/* Quick-add test cards */}
-              <div className="space-y-2">
-                {[
-                  { id: 'pm_card_visa', label: 'Visa', last4: '4242', color: 'from-blue-600 to-blue-800' },
-                  { id: 'pm_card_mastercard', label: 'Mastercard', last4: '4444', color: 'from-orange-500 to-red-700' },
-                  { id: 'pm_card_amex', label: 'American Express', last4: '8431', color: 'from-emerald-600 to-emerald-800' },
-                ].map(card => (
-                  <button
-                    key={card.id}
-                    onClick={() => handleAddPaymentMethod(card.id)}
-                    disabled={pmSaving}
-                    className={cn(
-                      'w-full flex items-center gap-4 p-4 rounded-2xl text-white transition-opacity',
-                      `bg-gradient-to-br ${card.color}`,
-                      pmSaving ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'
-                    )}
-                  >
-                    <CreditCard className="w-6 h-6 shrink-0" />
-                    <div className="flex-1 text-left">
-                      <p className="font-semibold text-sm">{card.label} •••• {card.last4}</p>
-                      <p className="text-xs opacity-75">Click to add this test card</p>
-                    </div>
-                    {pmSaving ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Plus className="w-4 h-4 shrink-0" />}
-                  </button>
-                ))}
-              </div>
-              {pmError && (
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 text-red-600 text-sm">
-                  <AlertCircle className="w-4 h-4 shrink-0" /> {pmError}
-                </div>
-              )}
-              <Button variant="secondary" fullWidth onClick={() => { setShowAddPayment(false); setPmError(''); }}>Cancel</Button>
-            </div>
-          </div>
-        </div>
+        <StripeCardModal
+          onSuccess={(pm) => {
+            setPaymentMethods(prev => {
+              const updated = [...prev, pm];
+              if (pm.isDefault) return updated.map(m => ({ ...m, isDefault: m.id === pm.id }));
+              return updated;
+            });
+            setShowAddPayment(false);
+            showToast('Payment method added!');
+          }}
+          onClose={() => setShowAddPayment(false)}
+        />
       )}
 
       {/* ── DELETE ACCOUNT CONFIRM MODAL ── */}

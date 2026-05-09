@@ -202,6 +202,16 @@ router.post('/payment-method', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// ── Ownership helper — verify a PM belongs to the authenticated user's customer ─
+async function verifyPmOwnership(stripe: any, pmId: string, customerId: string): Promise<boolean> {
+  try {
+    const pm = await stripe.paymentMethods.retrieve(pmId);
+    return pm.customer === customerId;
+  } catch {
+    return false;
+  }
+}
+
 // DELETE /api/payments/payment-method/:id
 router.delete('/payment-method/:id', requireAuth, async (req: AuthRequest, res) => {
   try {
@@ -209,6 +219,12 @@ router.delete('/payment-method/:id', requireAuth, async (req: AuthRequest, res) 
     try { stripe = await getUncachableStripeClient(); } catch {
       return res.status(503).json({ error: 'Payment service not configured' });
     }
+    const userResult = await query('SELECT stripe_customer_id FROM users WHERE id = $1', [req.user!.id]);
+    const customerId = userResult.rows[0]?.stripe_customer_id;
+    if (!customerId) return res.status(400).json({ error: 'No Stripe customer found' });
+    // Ownership check — prevent users from detaching other customers' payment methods
+    const owned = await verifyPmOwnership(stripe, req.params.id, customerId);
+    if (!owned) return res.status(403).json({ error: 'Payment method not found on this account' });
     await stripe.paymentMethods.detach(req.params.id);
     res.json({ message: 'Payment method removed' });
   } catch (err: any) {
@@ -227,11 +243,39 @@ router.put('/payment-method/:id/default', requireAuth, async (req: AuthRequest, 
     const userResult = await query('SELECT stripe_customer_id FROM users WHERE id = $1', [req.user!.id]);
     const customerId = userResult.rows[0]?.stripe_customer_id;
     if (!customerId) return res.status(400).json({ error: 'No Stripe customer found' });
+    // Ownership check — prevent users from setting another customer's PM as default
+    const owned = await verifyPmOwnership(stripe, req.params.id, customerId);
+    if (!owned) return res.status(403).json({ error: 'Payment method not found on this account' });
     await stripe.customers.update(customerId, { invoice_settings: { default_payment_method: req.params.id } });
     res.json({ message: 'Default payment method updated' });
   } catch (err: any) {
     console.error('Set default payment method error:', err);
     res.status(500).json({ error: 'Failed to set default' });
+  }
+});
+
+// GET /api/payments/config — expose publishable key to frontend (safe: pk_* is public)
+router.get('/config', (_req, res) => {
+  const key = process.env.STRIPE_PUBLISHABLE_KEY || '';
+  res.json({ publishableKey: key });
+});
+
+// POST /api/payments/setup-intent — create a SetupIntent for card collection via Stripe Elements
+router.post('/setup-intent', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    let stripe: any;
+    try { stripe = await getUncachableStripeClient(); } catch {
+      return res.status(503).json({ error: 'Payment service not configured' });
+    }
+    const customerId = await getOrCreateCustomer(stripe, req.user!.id);
+    const setupIntent = await stripe.setupIntents.create({
+      customer: customerId,
+      payment_method_types: ['card'],
+    });
+    res.json({ clientSecret: setupIntent.client_secret });
+  } catch (err: any) {
+    console.error('Setup intent error:', err);
+    res.status(500).json({ error: err.message || 'Failed to create setup intent' });
   }
 });
 

@@ -297,6 +297,31 @@ router.put('/profile', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// GET /api/auth/stats — alias that returns only the activity stats subset of /settings
+router.get('/stats', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const [userRow, requests, matches] = await Promise.all([
+      query('SELECT created_at FROM users WHERE id = $1', [userId]),
+      query('SELECT COUNT(*) FROM care_requests WHERE family_id = $1', [userId]),
+      query('SELECT COUNT(*) FROM matches WHERE family_id = $1', [userId]),
+    ]);
+    const createdAt = userRow.rows[0]?.created_at;
+    const memberSince = createdAt
+      ? new Date(createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+      : 'Recently';
+    res.json({
+      memberSince,
+      careRequestsCount: parseInt(requests.rows[0]?.count ?? '0'),
+      matchesCount: parseInt(matches.rows[0]?.count ?? '0'),
+      sessionsCount: parseInt(matches.rows[0]?.count ?? '0'),
+    });
+  } catch (err) {
+    console.error('Stats error:', err);
+    res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
 // POST /api/auth/forgot-password
 router.post('/forgot-password', async (req, res) => {
   try {

@@ -156,6 +156,8 @@ export const payments = {
   createIntent: (matchId: string) => post('/payments/intent', { matchId }),
   createCheckout: (priceId: string) => post('/payments/checkout', { priceId }),
   paymentMethods: () => get('/payments/payment-methods'),
+  config: () => get('/payments/config'),
+  setupIntent: () => post('/payments/setup-intent', {}),
   addPaymentMethod: (paymentMethodId: string) =>
     post('/payments/payment-method', { paymentMethodId }),
   removePaymentMethod: (id: string) => del(`/payments/payment-method/${id}`),
