@@ -29,6 +29,7 @@ export default function ProvideCare() {
 
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const [name, setName] = useState('');
@@ -107,6 +108,7 @@ export default function ProvideCare() {
 
   const handleSubmit = async () => {
     setLoading(true);
+    setError('');
     try {
       await signup(email, password, name, 'caregiver');
       if (photoBase64) {
@@ -120,14 +122,17 @@ export default function ProvideCare() {
         bio,
         yearsExperience: experienceToYears[experience] ?? 0,
       });
-    } catch {}
-    setLoading(false);
-    navigate('/dashboard');
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err?.response?.data?.error || 'Registration failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const isNextDisabled = () => {
     switch (step) {
-      case 0: return !name || !email || !password || password.length < 6;
+      case 0: return !name || !email || !password || password.length < 8;
       case 1: return specialties.length === 0;
       case 2: return serviceZips.length === 0;
       case 3: return !experience;
@@ -206,6 +211,9 @@ export default function ProvideCare() {
             </button>
           </div>
         </div>
+        {error && (
+          <div className="bg-red-50 text-red-600 text-sm p-3 rounded-xl">{error}</div>
+        )}
       </div>
     </>,
     <>

@@ -121,7 +121,7 @@ export async function createMatchesForRequest(
     await query(`
       INSERT INTO matches (request_id, caregiver_id, family_id, near_you, status)
       VALUES ($1, $2, $3, $4, 'pending')
-      ON CONFLICT (caregiver_id, family_id) DO NOTHING
+      ON CONFLICT (request_id, caregiver_id) DO NOTHING
     `, [requestId, candidate.id, familyId, candidate.near_you || false]);
   }
 

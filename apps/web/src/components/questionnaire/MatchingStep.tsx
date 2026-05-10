@@ -93,25 +93,6 @@ export default function MatchingStep({ onComplete, onCancel }: Props) {
           ))}
         </div>
 
-        {/* Mock match preview */}
-        {currentStep >= 3 && (
-          <div className="mt-8 glass rounded-2xl p-4 animate-fade-in-up">
-            <div className="flex items-center gap-3">
-              <div className="flex -space-x-2">
-                {['bg-coral-400', 'bg-brand-400', 'bg-sky-400'].map((bg, i) => (
-                  <div key={i} className={`w-10 h-10 rounded-full ${bg} border-2 border-brand-800 flex items-center justify-center text-white text-xs font-bold`}>
-                    {['SJ', 'MS', 'JW'][i]}
-                  </div>
-                ))}
-              </div>
-              <div className="text-left">
-                <p className="text-white font-semibold text-sm">3 caregivers found</p>
-                <p className="text-brand-300 text-xs">Waiting for responses...</p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {onCancel && (
           <button
             onClick={onCancel}

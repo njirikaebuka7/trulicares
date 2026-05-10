@@ -173,6 +173,10 @@ router.put('/profile', requireCaregiver, async (req: AuthRequest, res) => {
     if (certifications) { updates.push(`certifications = $${idx++}`); params.push(certifications); }
 
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
+    
+    // Ensure profile exists for older accounts
+    await query(`INSERT INTO caregiver_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, [req.user!.id]);
+
     params.push(req.user!.id);
     await query(`UPDATE caregiver_profiles SET ${updates.join(', ')} WHERE user_id = $${idx}`, params);
 

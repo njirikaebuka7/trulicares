@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { Star, Shield, MapPin, DollarSign, Check, ArrowLeft, Navigation } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Button from '@/components/ui/Button';
-import { caregivers as caregiversApi } from '@/lib/api';
+import { caregivers as caregiversApi, get } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import { extractZip } from '@/utils/geolocation';
 import logoImg from '@/assets/logo.png';
 
 interface Props {
+  requestId?: string;
   onSelectMatch: (matchId: string, caregiverId?: string) => void;
   onBack: () => void;
   familyLocation?: string;
@@ -16,25 +17,29 @@ interface Props {
 
 const avatarColors = ['bg-coral-400', 'bg-brand-400', 'bg-sky-400', 'bg-warm-400', 'bg-purple-400'];
 
-export default function MatchesListStep({ onSelectMatch, onBack, familyLocation, onCancel }: Props) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [caregiverList, setCaregiverList] = useState<any[]>([]);
+export default function MatchesListStep({ requestId, onSelectMatch, onBack, familyLocation, onCancel }: Props) {
+  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+  const [matchesList, setMatchesList] = useState<any[]>([]);
 
   useEffect(() => {
-    caregiversApi.list().then(d => setCaregiverList(d.caregivers || [])).catch(() => {});
-  }, []);
+    get('/matches').then((d: any) => {
+      const all = d.matches || [];
+      const relevant = requestId ? all.filter((m: any) => m.careRequestId === requestId) : all;
+      setMatchesList(relevant);
+    }).catch(() => {});
+  }, [requestId]);
 
   const familyZip = familyLocation ? extractZip(familyLocation) : '';
 
-  const matches = [...caregiverList].sort((a, b) => {
+  const sortedMatches = [...matchesList].sort((a, b) => {
     if (!familyZip) return 0;
-    const aServes = a.serviceZips?.includes(familyZip) ? 1 : 0;
-    const bServes = b.serviceZips?.includes(familyZip) ? 1 : 0;
+    const aServes = a.caregiver?.serviceZips?.includes(familyZip) ? 1 : 0;
+    const bServes = b.caregiver?.serviceZips?.includes(familyZip) ? 1 : 0;
     return bServes - aServes;
   });
 
   const nearYouCount = familyZip
-    ? matches.filter(cg => cg.serviceZips?.includes(familyZip)).length
+    ? sortedMatches.filter(m => m.caregiver?.serviceZips?.includes(familyZip)).length
     : 0;
 
   return (
@@ -64,7 +69,7 @@ export default function MatchesListStep({ onSelectMatch, onBack, familyLocation,
         </div>
         <div className="max-w-lg mx-auto px-4 pb-3">
           <h1 className="text-xl font-bold text-gray-900">Your Matches</h1>
-          <p className="text-sm text-gray-500">{matches.length} caregivers available in your area</p>
+          <p className="text-sm text-gray-500">{sortedMatches.length} caregivers available for your request</p>
         </div>
       </div>
 
@@ -85,14 +90,16 @@ export default function MatchesListStep({ onSelectMatch, onBack, familyLocation,
           </div>
         )}
 
-        {matches.map((cg, i) => {
-          const isSelected = selectedId === cg.id;
+        {sortedMatches.map((m, i) => {
+          const cg = m.caregiver;
+          if (!cg) return null;
+          const isSelected = selectedMatchId === m.id;
           const servesFamily = Boolean(familyZip && cg.serviceZips?.includes(familyZip));
 
           return (
             <button
-              key={cg.id}
-              onClick={() => setSelectedId(cg.id)}
+              key={m.id}
+              onClick={() => setSelectedMatchId(m.id)}
               className={cn(
                 'w-full bg-white rounded-3xl border-2 p-5 text-left transition-all duration-200',
                 isSelected
@@ -206,8 +213,11 @@ export default function MatchesListStep({ onSelectMatch, onBack, familyLocation,
             variant="primary"
             size="xl"
             fullWidth
-            onClick={() => selectedId && onSelectMatch(selectedId, selectedId)}
-            disabled={!selectedId}
+            onClick={() => {
+              const match = sortedMatches.find(m => m.id === selectedMatchId);
+              if (match) onSelectMatch(match.id, match.caregiver?.id);
+            }}
+            disabled={!selectedMatchId}
           >
             Continue with Selected Caregiver
           </Button>

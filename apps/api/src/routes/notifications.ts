@@ -8,7 +8,7 @@ const router = Router();
 router.get('/', requireAuth, async (req: AuthRequest, res) => {
   try {
     const result = await query(
-      `SELECT id, type, title, content, read, created_at
+      `SELECT id, type, title, content, is_read, created_at
        FROM notifications
        WHERE user_id = $1
        ORDER BY created_at DESC
@@ -16,7 +16,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
       [req.user!.id]
     );
 
-    const unreadCount = result.rows.filter((n: any) => !n.read).length;
+    const unreadCount = result.rows.filter((n: any) => !n.is_read).length;
 
     res.json({
       notifications: result.rows.map((n: any) => ({
@@ -24,7 +24,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
         type: n.type,
         title: n.title,
         content: n.content,
-        read: n.read,
+        read: n.is_read,
         createdAt: n.created_at,
         timeAgo: getTimeAgo(new Date(n.created_at)),
       })),
@@ -40,7 +40,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
 router.put('/:id/read', requireAuth, async (req: AuthRequest, res) => {
   try {
     await query(
-      'UPDATE notifications SET read = true WHERE id = $1 AND user_id = $2',
+      'UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2',
       [req.params.id, req.user!.id]
     );
     res.json({ success: true });
@@ -53,7 +53,7 @@ router.put('/:id/read', requireAuth, async (req: AuthRequest, res) => {
 // PUT /api/notifications/read-all
 router.put('/read-all', requireAuth, async (req: AuthRequest, res) => {
   try {
-    await query('UPDATE notifications SET read = true WHERE user_id = $1', [req.user!.id]);
+    await query('UPDATE notifications SET is_read = true WHERE user_id = $1', [req.user!.id]);
     res.json({ success: true });
   } catch (err) {
     console.error('Mark all read error:', err);

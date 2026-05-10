@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell, MessageCircle, User, Settings, LogOut, MapPin, DollarSign,
@@ -87,6 +87,13 @@ export default function CaregiverDashboard() {
   };
 
   useEffect(() => {
+    if (!cgSelectedMsg) return;
+    loadCgMessages(cgSelectedMsg);
+    const timer = setInterval(() => loadCgMessages(cgSelectedMsg), 3000);
+    return () => clearInterval(timer);
+  }, [cgSelectedMsg]);
+
+  const fetchData = useCallback(() => {
     if (!user?.id) return;
     Promise.all([
       get('/matches').then((d: any) => setJobRequests(d.matches || [])).catch(() => {}),
@@ -107,6 +114,12 @@ export default function CaregiverDashboard() {
       }).catch(() => {}),
     ]).catch(console.error);
   }, [user?.id]);
+
+  useEffect(() => {
+    fetchData();
+    const timer = setInterval(fetchData, 5000); // Poll every 5s for real-time sync
+    return () => clearInterval(timer);
+  }, [fetchData]);
 
   const handleLogout = () => { logout(); navigate('/'); };
   const handleJob = async (id: string, action: 'accepted' | 'declined') => {
@@ -471,7 +484,7 @@ export default function CaregiverDashboard() {
                 </div>
               )}
               {activeJobRequests.map((job: any, i: number) => {
-                const jobAction = jobStatuses[job.id];
+                const jobAction = jobStatuses[job.id] || (job.status === 'accepted' ? 'accepted' : job.status === 'declined' ? 'declined' : null);
                 const careLabel = { 'child-care': 'Child Care', 'senior-care': 'Senior Care', 'adult-care': 'Adult Care', 'cleaning': 'Cleaning Services' }[job.careType as string] || job.careType || 'Care';
                 const childrenInfo = job.details?.numberOfChildren ? `${job.details.numberOfChildren} child${job.details.numberOfChildren > 1 ? 'ren' : ''}` : '';
                 const scheduleInfo = job.details?.schedule || '';
@@ -487,9 +500,9 @@ export default function CaregiverDashboard() {
                           <h3 className="font-bold text-gray-900">{job.familyName}</h3>
                           <span className={cn('text-xs px-2.5 py-0.5 rounded-full font-semibold',
                             isPending ? 'bg-blue-100 text-blue-700' :
-                            job.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                            jobAction === 'accepted' ? 'bg-green-100 text-green-700' :
                             'bg-gray-100 text-gray-600')}>
-                            {isPending ? 'New' : job.status === 'accepted' ? 'Accepted' : job.status}
+                            {isPending && !jobAction ? 'New' : jobAction === 'accepted' ? 'Accepted' : job.status}
                           </span>
                           <span className="text-xs text-gray-400 ml-auto">{job.postedAt}</span>
                         </div>
@@ -507,8 +520,7 @@ export default function CaregiverDashboard() {
                           jobAction === 'accepted' ? 'text-green-600' : 'text-red-500')}>
                           {jobAction === 'accepted' ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
                           {jobAction === 'accepted' ? 'Request Accepted' : 'Request Declined'}
-                          <button onClick={() => setJobStatuses(prev => ({ ...prev, [job.id]: null }))}
-                            className="ml-2 text-xs text-gray-400 hover:text-gray-600 underline font-normal">Undo</button>
+                          {/* We remove the undo button as backend change is permanent */}
                         </div>
                       ) : (
                         <div className="flex gap-3">

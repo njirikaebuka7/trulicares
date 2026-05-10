@@ -43,6 +43,17 @@ export class WebhookHandlers {
       }
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
+        if (session.metadata?.type === 'unlock' && session.metadata?.matchId && session.metadata?.userId) {
+          await query(
+            `INSERT INTO payments (user_id, amount_cents, currency, stripe_payment_intent_id, description, status)
+             VALUES ($1, $2, $3, $4, 'Messaging Unlock', 'succeeded')`,
+            [session.metadata.userId, session.amount_total, session.currency, session.payment_intent]
+          );
+          await query(
+            `UPDATE matches SET messaging_unlocked = true WHERE id = $1`,
+            [session.metadata.matchId]
+          );
+        }
         console.log('✓ Checkout completed:', session.id);
         break;
       }

@@ -41,6 +41,7 @@ export default function FindCare() {
   const [phase, setPhase] = useState<FlowPhase>('care-type');
   const [careCategory, setCareCategory] = useState<CareCategory | null>(null);
   const [careData, setCareData] = useState<Record<string, unknown>>({});
+  const [currentRequestId, setCurrentRequestId] = useState<string | null>(null);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [selectedCaregiverId, setSelectedCaregiverId] = useState<string | null>(directCaregiverId || null);
 
@@ -79,20 +80,21 @@ export default function FindCare() {
         details: careData,
       };
 
-      // For direct caregiver requests, pass caregiverId to create a match immediately
       if (isDirectRequest && directCaregiverId) {
         payload.caregiverId = directCaregiverId;
         const result: any = await requestsApi.create(payload);
         if (!result?.matchId) {
           throw new Error('Failed to create direct request — no match returned.');
         }
+        setCurrentRequestId(result.request?.id || null);
         setSelectedMatchId(result.matchId);
         setSelectedCaregiverId(directCaregiverId);
         setPhase('pending-acceptance');
         return;
       }
 
-      await requestsApi.create(payload);
+      const res: any = await requestsApi.create(payload);
+      setCurrentRequestId(res.request?.id || null);
     } catch (err: any) {
       if (isDirectRequest) {
         setSubmitError(err?.message || 'Could not submit your care request. Please try again.');
@@ -109,7 +111,7 @@ export default function FindCare() {
   const handleSelectMatch = (matchId: string, caregiverId?: string) => {
     setSelectedMatchId(matchId);
     if (caregiverId) setSelectedCaregiverId(caregiverId);
-    setPhase('payment');
+    setPhase('pending-acceptance');
   };
 
   const handlePaymentComplete = () => {
@@ -172,6 +174,7 @@ export default function FindCare() {
     case 'matches':
       return (
         <MatchesListStep
+          requestId={currentRequestId || undefined}
           onSelectMatch={handleSelectMatch}
           onBack={() => setPhase('matching')}
           familyLocation={(careData.location as string) || ''}

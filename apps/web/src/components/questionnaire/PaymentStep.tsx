@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Lock, Check, ExternalLink, ShieldCheck, CreditCard, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { caregivers as caregiversApi } from '@/lib/api';
+import { caregivers as caregiversApi, post } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
 
@@ -36,12 +36,18 @@ export default function PaymentStep({ matchId, caregiverId, onComplete, onBack, 
 
   const handleStripeCheckout = async () => {
     setState('redirecting');
-    await new Promise(r => setTimeout(r, 1800));
-    setState('processing');
-    await new Promise(r => setTimeout(r, 1600));
-    setState('success');
-    await new Promise(r => setTimeout(r, 1000));
-    onComplete();
+    try {
+      const res: any = await post('/payments/checkout', { matchId });
+      if (res.url) {
+        window.location.href = res.url;
+      } else {
+        throw new Error('No checkout URL returned');
+      }
+    } catch (err) {
+      console.error('Checkout error:', err);
+      setState('idle');
+      alert('Failed to initialize secure checkout. Please try again.');
+    }
   };
 
   if (state === 'redirecting') {

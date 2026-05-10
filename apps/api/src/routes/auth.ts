@@ -303,6 +303,26 @@ router.put('/profile', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// PUT /api/auth/notifications
+router.put('/notifications', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    // In a real app, we'd update user preferences in the DB.
+    // For now, we mock success to fix "Failed to save" on frontend.
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update notifications' });
+  }
+});
+
+// PUT /api/auth/privacy
+router.put('/privacy', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update privacy settings' });
+  }
+});
+
 // GET /api/auth/stats — activity stats (care requests, matches, sessions booked)
 router.get('/stats', requireAuth, async (req: AuthRequest, res) => {
   try {

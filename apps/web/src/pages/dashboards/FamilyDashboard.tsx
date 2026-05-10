@@ -76,6 +76,7 @@ export default function FamilyDashboard() {
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
   const [calSelectedDay, setCalSelectedDay] = useState<number | null>(null);
   const [showPhone, setShowPhone] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<any>(null);
 
   // ── Toast ──────────────────────────────────────────────────────────────────
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: 'success' | 'error' }>>([]);
@@ -138,21 +139,37 @@ export default function FamilyDashboard() {
     } catch {}
   };
 
+  useEffect(() => {
+    if (!selectedMessage) return;
+    loadMessages(selectedMessage);
+    const timer = setInterval(() => loadMessages(selectedMessage), 3000);
+    return () => clearInterval(timer);
+  }, [selectedMessage]);
+
   const fetchData = useCallback(() => {
-    Promise.all([
-      get('/matches').then((d: any) => setMatches(d.matches || [])).catch(() => {}),
-      get('/care-requests').then((d: any) => setRequests(d.requests || [])).catch(() => {}),
-      get('/schedule').then((d: any) => setSchedule(d.schedule || [])).catch(() => {}),
-      get('/payments').then((d: any) => setPayments(d.payments || [])).catch(() => {}),
-      get('/conversations').then((d: any) => setConversations(d.conversations || [])).catch(() => {}),
-      notificationsApi.list().then((d: any) => setApiNotifications(d.notifications || [])).catch(() => {}),
-    ]);
+    Promise.allSettled([
+      get('/matches'),
+      get('/care-requests'),
+      get('/schedule'),
+      get('/payments'),
+      get('/conversations'),
+      notificationsApi.list(),
+    ]).then(([matRes, reqRes, schedRes, payRes, convRes, notifRes]) => {
+      if (matRes.status === 'fulfilled') setMatches((matRes.value as any).matches || []);
+      if (reqRes.status === 'fulfilled') setRequests((reqRes.value as any).requests || []);
+      if (schedRes.status === 'fulfilled') setSchedule((schedRes.value as any).schedule || []);
+      if (payRes.status === 'fulfilled') setPayments((payRes.value as any).payments || []);
+      if (convRes.status === 'fulfilled') setConversations((convRes.value as any).conversations || []);
+      if (notifRes.status === 'fulfilled') setApiNotifications((notifRes.value as any).notifications || []);
+    }).finally(() => {
+      setDataLoading(false);
+    });
   }, []);
 
   useEffect(() => {
     setDataLoading(true);
     fetchData();
-    const timer = setInterval(fetchData, 10000); // Poll every 10s for real-time sync
+    const timer = setInterval(fetchData, 5000); // Poll every 5s for real-time sync
     return () => clearInterval(timer);
   }, [fetchData]);
 
@@ -780,7 +797,7 @@ export default function FamilyDashboard() {
                             <span className={cn('text-xs px-2.5 py-0.5 rounded-full font-semibold',
                               req.status === 'matched' ? 'bg-green-100 text-green-700' :
                               req.status === 'matching' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600')}>
-                              {req.status === 'matched' ? `${reqMatches.length || req.matchCount} Matches Found` : req.status === 'matching' ? 'Finding Matches…' : 'Pending'}
+                              {req.status === 'matched' ? `${Math.max(reqMatches.length, req.matchCount, 1)} Matches Found` : req.status === 'matching' ? 'Finding Matches…' : 'Pending'}
                             </span>
                           </div>
                           <p className="text-sm text-gray-600">{req.description}</p>
@@ -1333,7 +1350,7 @@ export default function FamilyDashboard() {
                     const dateDisplay = pay.date ?? (pay.createdAt ? new Date(pay.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
                     const methodDisplay = pay.method ?? (pay.brand ? `${pay.brand} ····${pay.last4}` : 'Card');
                     return (
-                      <div key={pay.id} className="flex items-center gap-4 px-5 py-4">
+                      <div key={pay.id} onClick={() => setSelectedPayment(pay)} className="flex items-center gap-4 px-5 py-4 cursor-pointer hover:bg-gray-50 transition-colors">
                         <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center shrink-0">
                           <CreditCard className="w-4 h-4 text-green-600" />
                         </div>
@@ -1347,6 +1364,7 @@ export default function FamilyDashboard() {
                             {pay.status}
                           </span>
                         </div>
+                        <ChevronRight className="w-5 h-5 text-gray-300 shrink-0" />
                       </div>
                     );
                   })}
@@ -1963,6 +1981,81 @@ export default function FamilyDashboard() {
           </div>
         ))}
       </div>
+
+      {/* ── TRANSACTION DETAIL MODAL ── */}
+      {selectedPayment && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedPayment(null)} />
+          <div className="relative w-full max-w-sm bg-white rounded-[2rem] shadow-2xl z-10 overflow-hidden animate-fade-in-up">
+            <div className="relative p-8 text-center bg-gradient-to-b from-emerald-50 to-white">
+              <div className="absolute top-4 right-4">
+                <button onClick={() => setSelectedPayment(null)} className="w-8 h-8 rounded-full hover:bg-white/50 flex items-center justify-center transition-colors">
+                  <X className="w-4 h-4 text-gray-400" />
+                </button>
+              </div>
+              
+              <div className="w-20 h-20 rounded-3xl bg-white shadow-sm flex items-center justify-center mx-auto mb-6 transform rotate-3">
+                <CheckCircle className="w-10 h-10 text-emerald-500" />
+              </div>
+              
+              <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-[0.2em] mb-1">Payment Successful</p>
+              <h2 className="text-4xl font-black text-gray-900 mb-2">
+                {selectedPayment.amount ?? (selectedPayment.amountCents != null ? `$${(selectedPayment.amountCents / 100).toFixed(2)}` : '—')}
+              </h2>
+              <p className="text-sm text-gray-500 font-medium">{selectedPayment.description}</p>
+            </div>
+
+            <div className="px-8 pb-8 space-y-6">
+              {/* Decorative dotted line */}
+              <div className="border-t-2 border-dashed border-gray-100 relative">
+                <div className="absolute -left-10 -top-2 w-4 h-4 bg-gray-100 rounded-full" />
+                <div className="absolute -right-10 -top-2 w-4 h-4 bg-gray-100 rounded-full" />
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Date</span>
+                  <span className="text-sm font-bold text-gray-900">
+                    {selectedPayment.date ?? (selectedPayment.createdAt ? new Date(selectedPayment.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '—')}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Time</span>
+                  <span className="text-sm font-bold text-gray-900">
+                    {selectedPayment.createdAt ? new Date(selectedPayment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Payment Method</span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-5 bg-gray-50 rounded border border-gray-100 flex items-center justify-center">
+                      <CreditCard className="w-3 h-3 text-gray-400" />
+                    </div>
+                    <span className="text-sm font-bold text-gray-900 capitalize">{selectedPayment.method ?? (selectedPayment.brand ? `${selectedPayment.brand} •••• ${selectedPayment.last4}` : 'Card')}</span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Ref ID</span>
+                  <span className="text-xs font-mono font-medium text-gray-400">#{selectedPayment.id.slice(0, 8).toUpperCase()}</span>
+                </div>
+              </div>
+
+              <div className="pt-2 flex flex-col gap-3">
+                <Button variant="primary" fullWidth size="xl" className="shadow-lg shadow-brand-200">
+                  <FileText className="w-4 h-4 mr-2" /> Download Receipt
+                </Button>
+                <button 
+                  onClick={() => setSelectedPayment(null)}
+                  className="w-full py-3 text-sm font-bold text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  Close Receipt
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
