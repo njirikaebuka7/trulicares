@@ -124,6 +124,13 @@ router.post('/checkout', requireAuth, async (req: AuthRequest, res) => {
         cancel_url: `${host}/dashboard?tab=Matches&payment=cancelled`,
         metadata: { matchId, userId: req.user!.id, type: 'unlock' },
       });
+
+      // Pre-insert pending payment for the history widget
+      await query(
+        `INSERT INTO payments (user_id, match_id, amount_cents, currency, stripe_payment_intent_id, description, status)
+         VALUES ($1, $2, $3, 'usd', $4, 'Messaging Unlock', 'pending')`,
+        [req.user!.id, matchId, 999, session.id]
+      );
     } else {
       // Subscription
       session = await stripe.checkout.sessions.create({

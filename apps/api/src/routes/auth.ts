@@ -4,6 +4,7 @@ import { query } from '../db.js';
 import { generateToken, requireAuth, AuthRequest } from '../middleware/auth.js';
 import { sendWelcomeEmail, sendPasswordResetEmail, sendNotificationPreferenceEmail } from '../services/email.js';
 import crypto from 'crypto';
+import { uploadBase64Image } from '../services/storage.js';
 
 const router = Router();
 
@@ -177,9 +178,10 @@ router.post('/profile-photo', requireAuth, async (req: AuthRequest, res) => {
   try {
     const { photoData } = req.body;
     if (!photoData) return res.status(400).json({ error: 'photoData is required' });
-    if (photoData.length > 8_000_000) return res.status(413).json({ error: 'Image too large (max 6 MB)' });
-    await query('UPDATE users SET photo_url = $1, updated_at = NOW() WHERE id = $2', [photoData, req.user!.id]);
-    res.json({ photoUrl: photoData, message: 'Photo updated' });
+    if (photoData.length > 2_700_000) return res.status(413).json({ error: 'Image too large (max 2 MB)' });
+    const publicUrl = await uploadBase64Image(req.user!.id, photoData);
+    await query('UPDATE users SET photo_url = $1, updated_at = NOW() WHERE id = $2', [publicUrl, req.user!.id]);
+    res.json({ photoUrl: publicUrl, message: 'Photo updated' });
   } catch (err) {
     console.error('Profile photo error:', err);
     res.status(500).json({ error: 'Failed to update photo' });
@@ -283,8 +285,13 @@ router.put('/profile', requireAuth, async (req: AuthRequest, res) => {
     const params: any[] = [];
     let idx = 1;
 
+    let finalPhotoUrl = photoUrl;
+    if (photoUrl && photoUrl.startsWith('data:')) {
+      finalPhotoUrl = await uploadBase64Image(req.user!.id, photoUrl);
+    }
+
     if (name) { updates.push(`name = $${idx++}`); params.push(name.trim()); }
-    if (photoUrl !== undefined) { updates.push(`photo_url = $${idx++}`); params.push(photoUrl); }
+    if (photoUrl !== undefined) { updates.push(`photo_url = $${idx++}`); params.push(finalPhotoUrl); }
     if (phone !== undefined) { updates.push(`phone = $${idx++}`); params.push(phone.trim()); }
     if (address !== undefined) { updates.push(`address = $${idx++}`); params.push(address.trim()); }
     updates.push(`updated_at = NOW()`);

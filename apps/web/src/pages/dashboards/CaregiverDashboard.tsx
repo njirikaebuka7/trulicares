@@ -11,6 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 import { detectLocationWithZip } from '@/utils/geolocation';
 import { get, post, put } from '@/lib/api';
 import { cn } from '@/utils/cn';
+import { supabase } from '@/lib/supabase';
 import logoImg from '@/assets/logo.png';
 
 type Tab = 'Overview' | 'Job Requests' | 'Messages' | 'Schedule' | 'Reviews' | 'Profile';
@@ -28,14 +29,22 @@ const avatarColors = ['bg-coral-400', 'bg-brand-400', 'bg-sky-400', 'bg-emerald-
 
 export default function CaregiverDashboard() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('Overview');
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notificationsRead, setNotificationsRead] = useState(false);
   const [jobStatuses, setJobStatuses] = useState<Record<string, 'accepted' | 'declined' | null>>({});
   const [availabilityStatus, setAvailabilityStatus] = useState<'available' | 'busy' | 'away'>('available');
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(user?.photoUrl || null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [cgExperience, setCgExperience] = useState<number>(0);
+  const [showBookModal, setShowBookModal] = useState<null | { familyId?: string; familyName?: string; service?: string }>(null);
+  const [bookDate, setBookDate] = useState('');
+  const [bookStartTime, setBookStartTime] = useState('09:00');
+  const [bookEndTime, setBookEndTime] = useState('17:00');
+  const [bookLocation, setBookLocation] = useState('');
+  const [bookSaving, setBookSaving] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [cgModal, setCgModal] = useState<null | 'bio' | 'rates' | 'availability' | 'notifications' | 'account' | 'serviceArea'>(null);
@@ -55,10 +64,24 @@ export default function CaregiverDashboard() {
   const [cgSpecialties, setCgSpecialties] = useState<string[]>([]);
   const [cgAvailType, setCgAvailType] = useState('Flexible');
 
+  const getDisplayName = (familyName: string, unlocked: boolean) => {
+    if (unlocked) return familyName;
+    const parts = (familyName || '').trim().split(' ');
+    if (parts.length <= 1) return familyName || 'Family';
+    return parts[0] + ' ' + parts[1][0] + '.';
+  };
+
+  useEffect(() => {
+    if (user?.photoUrl) {
+      setPhotoUrl(user.photoUrl);
+    }
+  }, [user?.photoUrl]);
+
   // Schedule calendar state
   const [calMonth, setCalMonth] = useState(new Date().getMonth());
   const [calYear, setCalYear] = useState(new Date().getFullYear());
   const [calSelectedDay, setCalSelectedDay] = useState<number | null>(null);
+  const [caregiverId, setCaregiverId] = useState<string | null>(null);
 
   // Background check state: 'none' | 'pending' | 'approved'
   const [bgCheckStatus, setBgCheckStatus] = useState<'none' | 'pending' | 'approved'>('none');
@@ -104,10 +127,13 @@ export default function CaregiverDashboard() {
       get(`/caregivers/${user.id}`).then((d: any) => {
         if (d?.caregiver) {
           const cg = d.caregiver;
+          if (cg.id) setCaregiverId(cg.id);
           if (cg.bio) setCgBio(cg.bio);
           if (cg.hourlyRate) setCgRate({ min: cg.hourlyRate[0], max: cg.hourlyRate[1] });
           if (cg.serviceZips?.length) setCgServiceZips(cg.serviceZips);
           if (cg.specialties?.length) setCgSpecialties(cg.specialties);
+          if (cg.yearsExperience) setCgExperience(cg.yearsExperience);
+          if (cg.photoUrl) setPhotoUrl(cg.photoUrl);
           if (cg.backgroundCheckStatus) setBgCheckStatus(cg.backgroundCheckStatus as 'none' | 'pending' | 'approved');
           if (cg.availability) setCgAvailType(cg.availability);
         }
@@ -115,10 +141,72 @@ export default function CaregiverDashboard() {
     ]).catch(console.error);
   }, [user?.id]);
 
+  // Real-time subscription for new matches/job requests
+  useEffect(() => {
+    if (!caregiverId) return;
+
+    const channel = supabase
+      .channel('caregiver-matches')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen for inserts (new requests) and updates
+          schema: 'public',
+          table: 'matches',
+          filter: `caregiver_id=eq.${caregiverId}`,
+        },
+        () => {
+          // Refresh data immediately when a change is detected
+          fetchData();
+          showToast('New update received!');
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [caregiverId, fetchData]);
+
   useEffect(() => {
     fetchData();
-    const timer = setInterval(fetchData, 5000); // Poll every 5s for real-time sync
-    return () => clearInterval(timer);
+
+    // 1. WebSocket-based real-time database listener
+    const channel = supabase
+      .channel('caregiver-dashboard-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => {
+        console.log('⚡ Realtime Match table mutated');
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'care_requests' }, () => {
+        console.log('⚡ Realtime Care Request table mutated');
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule' }, () => {
+        console.log('⚡ Realtime Schedule table mutated');
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
+        console.log('⚡ Realtime Conversations table mutated');
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
+        console.log('⚡ Realtime Messages table mutated');
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reviews' }, () => {
+        console.log('⚡ Realtime Reviews table mutated');
+        fetchData();
+      })
+      .subscribe();
+
+    // 2. Slow fallback poll (30s) as a resilient safety net for offline users or disabled tables
+    const fallbackTimer = setInterval(fetchData, 30000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(fallbackTimer);
+    };
   }, [fetchData]);
 
   const handleLogout = () => { logout(); navigate('/'); };
@@ -132,12 +220,30 @@ export default function CaregiverDashboard() {
     }
   };
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setPhotoUrl(URL.createObjectURL(file));
+    if (!file) return;
+    if (file.size > 2_000_000) { showToast('Image must be under 2 MB'); return; }
+    setPhotoUploading(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const base64 = reader.result as string;
+        const res: any = await put('/auth/profile', { photoUrl: base64 });
+        updateUser({ photoUrl: res.photoUrl ?? base64 });
+        setPhotoUrl(res.photoUrl ?? base64);
+        showToast('Profile photo updated successfully!');
+      } catch (err: any) {
+        showToast(err.message || 'Failed to upload photo');
+      } finally {
+        setPhotoUploading(false);
+        e.target.value = '';
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
-  const pendingJobsCount = jobRequests.filter((j: any) => !jobStatuses[j.id]).length;
+  const pendingJobsCount = jobRequests.filter((j: any) => (j.status === 'pending' || j.status === 'matching') && !jobStatuses[j.id]).length;
   const unreadMsgCount = conversations.reduce((acc: number, c: any) => acc + (c.unreadCount || 0), 0);
   const initials = user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() ?? 'C';
   const unread = notificationsRead ? 0 : unreadMsgCount + pendingJobsCount;
@@ -384,7 +490,7 @@ export default function CaregiverDashboard() {
                 const avgRating = cgReviews.length > 0
                   ? (cgReviews.reduce((s: number, r: any) => s + (r.rating || 0), 0) / cgReviews.length).toFixed(1)
                   : '—';
-                const pendingCount = jobRequests.filter((j: any) => !jobStatuses[j.id] && j.status !== 'declined').length;
+                const pendingCount = jobRequests.filter((j: any) => (j.status === 'pending' || j.status === 'matching') && !jobStatuses[j.id]).length;
                 const stats = [
                   { label: 'Active Clients', value: activeClients, icon: <User className="w-4 h-4" />,
                     sub: activeClients === 0 ? 'No active clients' : `${activeClients} ongoing`, bg: 'bg-emerald-50', txt: 'text-emerald-600' },
@@ -424,7 +530,7 @@ export default function CaregiverDashboard() {
                           {(job.familyName || '?').charAt(0)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm text-gray-900">{job.familyName}</p>
+                          <p className="font-semibold text-sm text-gray-900">{getDisplayName(job.familyName, job.messagingUnlocked)}</p>
                           <p className="text-xs text-gray-500">{job.details?.schedule || job.location || ''}</p>
                           <p className="text-xs text-emerald-600 font-semibold mt-0.5">{job.budget}</p>
                         </div>
@@ -497,7 +603,7 @@ export default function CaregiverDashboard() {
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <h3 className="font-bold text-gray-900">{job.familyName}</h3>
+                          <h3 className="font-bold text-gray-900">{getDisplayName(job.familyName, job.messagingUnlocked)}</h3>
                           <span className={cn('text-xs px-2.5 py-0.5 rounded-full font-semibold',
                             isPending ? 'bg-blue-100 text-blue-700' :
                             jobAction === 'accepted' ? 'bg-green-100 text-green-700' :
@@ -584,6 +690,21 @@ export default function CaregiverDashboard() {
                         <p className="font-semibold text-gray-900 text-sm truncate">{family.name}</p>
                         <p className="text-xs text-emerald-600">● {family.care}</p>
                       </div>
+                      <button
+                        onClick={() => {
+                          const conversation = conversations.find(c => c.id === cgSelectedMsg);
+                          setShowBookModal({
+                            familyId: conversation?.familyId || '',
+                            familyName: family.name,
+                            service: family.care
+                          });
+                          setBookLocation(conversation?.location || '');
+                        }}
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold transition-colors shrink-0"
+                      >
+                        <Calendar className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                        <span className="hidden sm:inline">Book Session</span>
+                      </button>
                     </div>
 
                     <div className="flex-1 overflow-y-auto px-5 py-5 space-y-3">
@@ -842,19 +963,32 @@ export default function CaregiverDashboard() {
                 <div className="flex items-center gap-5">
                   <div className="relative shrink-0">
                     {photoUrl ? (
-                      <img src={photoUrl} alt="Profile" className="w-20 h-20 rounded-2xl object-cover" />
+                      <div className="relative w-20 h-20 rounded-2xl overflow-hidden">
+                        <img src={photoUrl} alt="Profile" className="w-full h-full object-cover" />
+                        {photoUploading && (
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white">
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                          </div>
+                        )}
+                      </div>
                     ) : (
-                      <div className="w-20 h-20 rounded-2xl bg-emerald-600 flex items-center justify-center text-white text-2xl font-bold">
+                      <div className="w-20 h-20 rounded-2xl bg-emerald-600 flex items-center justify-center text-white text-2xl font-bold relative">
                         {initials}
+                        {photoUploading && (
+                          <div className="absolute inset-0 bg-black/40 rounded-2xl flex items-center justify-center text-white">
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                          </div>
+                        )}
                       </div>
                     )}
                     <button
                       onClick={() => photoInputRef.current?.click()}
-                      className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white shadow-md hover:bg-emerald-700 transition-colors"
+                      disabled={photoUploading}
+                      className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white shadow-md hover:bg-emerald-700 transition-colors disabled:opacity-50"
                     >
                       <Camera className="w-4 h-4" />
                     </button>
-                    <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+                    <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-xl font-bold text-gray-900">{user?.name || 'Caregiver'}</h3>
@@ -917,6 +1051,9 @@ export default function CaregiverDashboard() {
                   <button onClick={() => setCgModal('bio')} className="text-sm text-emerald-600 font-semibold hover:underline flex items-center gap-1">
                     <Edit3 className="w-3.5 h-3.5" /> Edit
                   </button>
+                </div>
+                <div className="flex items-center gap-4 text-xs font-semibold text-emerald-800 bg-emerald-50 px-3.5 py-2 rounded-xl mb-3.5 w-fit border border-emerald-100">
+                  <span>Experience: {cgExperience} years</span>
                 </div>
                 {cgBio ? (
                   <p className="text-sm text-gray-600 leading-relaxed mb-3">{cgBio}</p>
@@ -1030,24 +1167,60 @@ export default function CaregiverDashboard() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Specialties</label>
                 <div className="flex flex-wrap gap-2">
-                  {['Child Care', 'Senior Care', 'Adult Care', 'Cleaning', 'Tutoring', 'Pet Care'].map(s => (
-                    <button key={s} className="px-3 py-1.5 rounded-xl text-xs font-semibold border-2 transition-all border-emerald-200 bg-emerald-50 text-emerald-700">
-                      {s}
-                    </button>
-                  ))}
+                  {['Child Care', 'Senior Care', 'Adult Care', 'Cleaning', 'Tutoring', 'Pet Care'].map(s => {
+                    const isSelected = cgSpecialties.includes(s);
+                    return (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setCgSpecialties(prev => prev.filter(x => x !== s));
+                          } else {
+                            setCgSpecialties(prev => [...prev, s]);
+                          }
+                        }}
+                        className={cn(
+                          "px-3 py-1.5 rounded-xl text-xs font-semibold border-2 transition-all",
+                          isSelected
+                            ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                            : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                        )}
+                      >
+                        {s}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Years of Experience</label>
-                <input type="number" defaultValue={8} min={0} max={50}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                <input
+                  type="number"
+                  value={cgExperience}
+                  onChange={e => setCgExperience(Number(e.target.value))}
+                  min={0}
+                  max={50}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+                />
               </div>
               <div className="flex gap-3 pt-2">
                 <Button variant="secondary" fullWidth onClick={() => setCgModal(null)}>Cancel</Button>
                 <Button variant="primary" fullWidth disabled={cgSaving} onClick={async () => {
                   setCgSaving(true);
-                  try { await put('/caregivers/profile', { bio: cgBio, specialties: cgSpecialties }); showToast('Bio saved!'); setCgModal(null); } catch { showToast('Failed to save.'); }
-                  finally { setCgSaving(false); }
+                  try {
+                    await put('/caregivers/profile', {
+                      bio: cgBio,
+                      specialties: cgSpecialties,
+                      yearsExperience: cgExperience
+                    });
+                    showToast('Profile updated!');
+                    setCgModal(null);
+                  } catch {
+                    showToast('Failed to save.');
+                  } finally {
+                    setCgSaving(false);
+                  }
                 }} className="bg-emerald-600 hover:bg-emerald-700">{cgSaving ? 'Saving…' : 'Save Changes'}</Button>
               </div>
             </div>
@@ -1346,7 +1519,7 @@ export default function CaregiverDashboard() {
             <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
               <div>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Family</p>
-                <p className="font-bold text-gray-900">{selectedJobDetail.familyName}</p>
+                <p className="font-bold text-gray-900">{getDisplayName(selectedJobDetail.familyName, selectedJobDetail.messagingUnlocked)}</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -1376,8 +1549,151 @@ export default function CaregiverDashboard() {
                   <p className="text-gray-600 text-sm leading-relaxed">{selectedJobDetail.details.description}</p>
                 </div>
               )}
+              <div className="border-t border-gray-100 pt-4">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Family Contact Info</p>
+                {selectedJobDetail.messagingUnlocked ? (
+                  <div className="space-y-2 bg-emerald-50/50 p-3.5 rounded-2xl border border-emerald-100 text-sm">
+                    <p className="text-gray-700 flex items-center gap-2">
+                      <Phone className="w-4 h-4 text-emerald-600" /> {selectedJobDetail.details?.phone || 'No phone number shared'}
+                    </p>
+                    <p className="text-gray-700 flex items-center gap-2">
+                      <Send className="w-4 h-4 text-emerald-600" /> {selectedJobDetail.details?.email || 'No email shared'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-amber-50 border border-amber-200/60 rounded-2xl p-4 text-center">
+                    <Shield className="w-6 h-6 text-amber-600 mx-auto mb-2" />
+                    <p className="text-xs font-bold text-amber-900 mb-0.5">🔒 Contact Details Locked</p>
+                    <p className="text-[11px] text-amber-700 leading-normal">
+                      Accept this job request. Direct messaging, emails, and phone channels will unlock as soon as the family secures the stripe reservation.
+                    </p>
+                  </div>
+                )}
+              </div>
               <div className="pt-2">
                 <Button variant="primary" fullWidth onClick={() => setSelectedJobDetail(null)} className="bg-emerald-600 hover:bg-emerald-700">Close</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Book Session Modal */}
+      {showBookModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowBookModal(null)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden animate-fade-in-up">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 text-lg">Book Care Session</h3>
+              <button onClick={() => setShowBookModal(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-100">
+                <p className="text-xs font-semibold text-emerald-800 uppercase tracking-wider">Client Family</p>
+                <p className="text-sm font-bold text-emerald-950 mt-0.5">{showBookModal.familyName}</p>
+                <p className="text-xs text-emerald-600 mt-0.5">Service: {showBookModal.service}</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Date</label>
+                <input
+                  type="date"
+                  value={bookDate}
+                  onChange={e => setBookDate(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm font-medium"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Start Time</label>
+                  <input
+                    type="time"
+                    value={bookStartTime}
+                    onChange={e => setBookStartTime(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm font-medium bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">End Time</label>
+                  <input
+                    type="time"
+                    value={bookEndTime}
+                    onChange={e => setBookEndTime(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm font-medium bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Location / Address</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 123 Main St, New York"
+                  value={bookLocation}
+                  onChange={e => setBookLocation(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button variant="secondary" fullWidth onClick={() => setShowBookModal(null)}>Cancel</Button>
+                <Button
+                  variant="primary"
+                  fullWidth
+                  disabled={bookSaving || !bookDate || !bookStartTime || !bookEndTime || !bookLocation}
+                  onClick={async () => {
+                    setBookSaving(true);
+                    try {
+                      const formatDateLabel = (dateStr: string) => {
+                        if (!dateStr) return '';
+                        const d = new Date(dateStr);
+                        if (isNaN(d.getTime())) return '';
+                        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
+                      };
+
+                      const formatTime12Hour = (timeStr: string) => {
+                        if (!timeStr) return '';
+                        const parts = timeStr.split(':');
+                        let hour = parseInt(parts[0], 10);
+                        const min = parts[1] || '00';
+                        const ampm = hour >= 12 ? 'PM' : 'AM';
+                        hour = hour % 12;
+                        hour = hour ? hour : 12;
+                        return `${hour}:${min} ${ampm}`;
+                      };
+
+                      const combinedTime = `${formatTime12Hour(bookStartTime)} - ${formatTime12Hour(bookEndTime)}`;
+
+                      await post('/schedule', {
+                        familyId: showBookModal.familyId,
+                        service: showBookModal.service || 'Child Care',
+                        date: formatDateLabel(bookDate),
+                        time: combinedTime,
+                        location: bookLocation
+                      });
+
+                      showToast('Care session booked successfully!');
+                      fetchData();
+                      setShowBookModal(null);
+                      setBookDate('');
+                      setBookStartTime('09:00');
+                      setBookEndTime('17:00');
+                      setBookLocation('');
+                    } catch {
+                      showToast('Failed to book session.');
+                    } finally {
+                      setBookSaving(false);
+                    }
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                >
+                  {bookSaving ? 'Scheduling…' : 'Schedule Session'}
+                </Button>
               </div>
             </div>
           </div>

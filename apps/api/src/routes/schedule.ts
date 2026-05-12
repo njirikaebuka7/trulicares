@@ -79,28 +79,50 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/schedule — create schedule entry
+// POST /api/schedule — create schedule entry (versatile for both caregiver & family initiations)
 router.post('/', requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { familyId, familyName, service, dateLabel, timeLabel, location } = req.body;
+    const { role, id: userId } = req.user!;
+    let { caregiverId, familyId, familyName, service, dateLabel, timeLabel, location, date, time } = req.body;
+
+    if (!dateLabel && date) dateLabel = date;
+    if (!timeLabel && time) timeLabel = time;
+
+    let caregiver_id = caregiverId;
+    let family_id = familyId;
+
+    if (role === 'caregiver') {
+      caregiver_id = userId;
+      family_id = familyId || null;
+    } else if (role === 'family') {
+      family_id = userId;
+      caregiver_id = caregiverId || null;
+      if (!familyName) {
+        const u = await query('SELECT name FROM users WHERE id = $1', [family_id]);
+        familyName = u.rows[0]?.name || '';
+      }
+    }
+
+    if (!caregiver_id) {
+      return res.status(400).json({ error: 'Caregiver ID is required' });
+    }
 
     const result = await query(
       `INSERT INTO schedules (caregiver_id, family_id, family_name, service, date_label, time_label, location, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, 'confirmed')
        RETURNING *`,
-      [req.user!.id, familyId || null, familyName || '', service, dateLabel, timeLabel, location || '']
+      [caregiver_id, family_id, familyName || '', service, dateLabel, timeLabel, location || '']
     );
 
     // Stamp care_date on the related accepted match using the actual scheduled
-    // session date (parsed from dateLabel, e.g. "Mon, May 6") so the 48-hour
-    // expiry window begins after care occurs, not at booking time.
-    if (familyId) {
+    // session date so the 48-hour expiry window begins after care occurs
+    if (family_id && caregiver_id) {
       const parsedCareDate = parseDateLabel(dateLabel as string);
       await query(
         `UPDATE matches SET care_date = $3
          WHERE family_id = $1 AND caregiver_id = $2
            AND status = 'accepted' AND messaging_unlocked = true`,
-        [familyId, req.user!.id, parsedCareDate ?? new Date()]
+        [family_id, caregiver_id, parsedCareDate ?? new Date()]
       );
     }
 

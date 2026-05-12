@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { requests as requestsApi } from '@/lib/api';
+import { requests as requestsApi, matches as matchesApi } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import type { CareCategory } from '@/types';
 
@@ -19,6 +19,7 @@ import MessagingStep from '@/components/questionnaire/MessagingStep';
 import { Clock, CheckCircle, ArrowRight, Loader2, MessageCircle } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { get, post } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 
 type FlowPhase = 'care-type' | 'care-details' | 'account' | 'review' | 'matching' | 'matches' | 'payment' | 'verification' | 'messaging' | 'pending-acceptance';
 
@@ -108,10 +109,15 @@ export default function FindCare() {
     setPhase('matches');
   };
 
-  const handleSelectMatch = (matchId: string, caregiverId?: string) => {
-    setSelectedMatchId(matchId);
-    if (caregiverId) setSelectedCaregiverId(caregiverId);
-    setPhase('pending-acceptance');
+  const handleSelectMatch = async (matchId: string, caregiverId?: string) => {
+    try {
+      await matchesApi.request(matchId);
+      setSelectedMatchId(matchId);
+      if (caregiverId) setSelectedCaregiverId(caregiverId);
+      setPhase('pending-acceptance');
+    } catch (err: any) {
+      setSubmitError(err.message || 'Failed to request caregiver. Please try again.');
+    }
   };
 
   const handlePaymentComplete = () => {
@@ -170,7 +176,7 @@ export default function FindCare() {
         />
       );
     case 'matching':
-      return <MatchingStep onComplete={handleMatchingComplete} onCancel={() => navigate(cancelDestination)} />;
+      return <MatchingStep requestId={currentRequestId} onComplete={handleMatchingComplete} onCancel={() => navigate(cancelDestination)} />;
     case 'matches':
       return (
         <MatchesListStep
@@ -221,6 +227,7 @@ function PendingAcceptanceStep({ matchId, onAccepted, onDashboard }: { matchId: 
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // 1. Initial fetch and backup polling to check current status
     const checkStatus = async () => {
       try {
         const d: any = await get('/matches');
@@ -228,66 +235,126 @@ function PendingAcceptanceStep({ matchId, onAccepted, onDashboard }: { matchId: 
         if (match) {
           if (match.status === 'accepted') {
             setStatus('accepted');
+            // Automatic transition if already accepted
+            setTimeout(onAccepted, 1500);
+            return true; // Stop polling
           } else if (match.status === 'declined') {
             setStatus('declined');
+            return true; // Stop polling
           }
         }
       } catch (err) {
-        console.error('Polling error:', err);
+        console.error('Status check error:', err);
       } finally {
         setLoading(false);
       }
+      return false;
     };
 
     checkStatus();
-    const timer = setInterval(checkStatus, 5000);
-    return () => clearInterval(timer);
-  }, [matchId]);
+
+    // Continuous backup polling every 1.5 seconds to guarantee instant response
+    const interval = setInterval(async () => {
+      const stop = await checkStatus();
+      if (stop) clearInterval(interval);
+    }, 1500);
+
+    // 2. Real-time subscription to status changes
+    const channel = supabase
+      .channel(`match-${matchId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'matches',
+          filter: `id=eq.${matchId}`,
+        },
+        (payload: any) => {
+          const newStatus = payload.new.status;
+          if (newStatus === 'accepted') {
+            setStatus('accepted');
+            clearInterval(interval);
+            // Give user a moment to see the "Accepted" state before auto-transitioning
+            setTimeout(onAccepted, 2000);
+          } else if (newStatus === 'declined') {
+            setStatus('declined');
+            clearInterval(interval);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [matchId, onAccepted]);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center">
-      <div className="max-w-sm w-full bg-white rounded-3xl shadow-xl p-8 space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-coral-50 flex flex-col items-center justify-center p-6 text-center">
+      <div className="max-w-sm w-full bg-white rounded-[2rem] shadow-2xl shadow-brand-500/10 p-10 space-y-8 border border-brand-100">
         {status === 'pending' ? (
           <>
-            <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto animate-pulse">
-              <Clock className="w-10 h-10 text-amber-500" />
+            <div className="relative">
+              <div className="absolute inset-0 bg-brand-200 rounded-full blur-2xl opacity-20 animate-pulse" />
+              <div className="relative w-24 h-24 bg-brand-50 rounded-3xl flex items-center justify-center mx-auto">
+                <Clock className="w-12 h-12 text-brand-600 animate-pulse" />
+              </div>
             </div>
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">Request Sent!</h2>
-              <p className="text-gray-500 mt-2">Waiting for the caregiver to review and accept your request.</p>
+            <div className="space-y-3">
+              <h2 className="text-3xl font-black text-gray-900 tracking-tight">Sent!</h2>
+              <p className="text-gray-500 leading-relaxed px-4">
+                We've sent your request to the caregiver. They'll review it and respond shortly.
+              </p>
             </div>
-            <div className="flex items-center justify-center gap-2 text-sm text-amber-600 font-medium">
-              <Loader2 className="w-4 h-4 animate-spin" /> Real-time status tracking active
+            <div className="bg-brand-50/50 rounded-2xl p-4 flex items-center justify-center gap-3 border border-brand-100/50">
+              <div className="flex gap-1">
+                <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce" />
+              </div>
+              <span className="text-sm font-bold text-brand-700 tracking-wide uppercase">Waiting for response</span>
             </div>
           </>
         ) : status === 'accepted' ? (
           <>
-            <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto">
-              <CheckCircle className="w-10 h-10 text-green-500" />
+            <div className="relative">
+              <div className="absolute inset-0 bg-emerald-200 rounded-full blur-2xl opacity-30 animate-pulse" />
+              <div className="relative w-24 h-24 bg-emerald-50 rounded-3xl flex items-center justify-center mx-auto">
+                <CheckCircle className="w-12 h-12 text-emerald-500" />
+              </div>
             </div>
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">Good News!</h2>
-              <p className="text-gray-500 mt-2">The caregiver has accepted your request. You can now unlock direct messaging.</p>
+            <div className="space-y-3">
+              <h2 className="text-3xl font-black text-gray-900 tracking-tight text-emerald-600">Accepted!</h2>
+              <p className="text-gray-500 leading-relaxed px-4">
+                Great news! The caregiver has accepted your request. Moving to payment...
+              </p>
             </div>
-            <Button variant="primary" size="xl" fullWidth onClick={onAccepted}>
-              Unlock Direct Messaging <ArrowRight className="w-5 h-5 ml-2" />
-            </Button>
+            <div className="pt-4">
+              <Loader2 className="w-6 h-6 text-emerald-500 animate-spin mx-auto" />
+            </div>
           </>
         ) : (
           <>
-            <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto">
-              <Clock className="w-10 h-10 text-red-500" />
+            <div className="w-24 h-24 bg-red-50 rounded-3xl flex items-center justify-center mx-auto">
+              <Clock className="w-12 h-12 text-red-500" />
             </div>
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">Request Declined</h2>
-              <p className="text-gray-500 mt-2">Unfortunately, the caregiver is unavailable at this time. You can find other matches in your dashboard.</p>
+            <div className="space-y-3">
+              <h2 className="text-3xl font-black text-gray-900 tracking-tight text-red-600">Unavailable</h2>
+              <p className="text-gray-500 leading-relaxed px-4">
+                Unfortunately, the caregiver is unavailable at this time.
+              </p>
             </div>
+            <Button variant="primary" fullWidth onClick={onDashboard}>
+              Find Another Caregiver
+            </Button>
           </>
         )}
 
         <div className="pt-4 border-t border-gray-100">
           <Button variant="ghost" fullWidth onClick={onDashboard}>
-            Go to Dashboard
+            Back to Dashboard
           </Button>
         </div>
       </div>

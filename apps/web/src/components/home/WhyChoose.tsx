@@ -38,6 +38,7 @@ export default function WhyChoose() {
           </span>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-4">
             Thoughtful Connections.{' '}
+            <br className="hidden md:block" />
             <span className="bg-gradient-to-r from-brand-600 to-coral-500 bg-clip-text text-transparent">
               Stronger Communities.
             </span>

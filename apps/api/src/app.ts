@@ -7,18 +7,12 @@ import { WebhookHandlers } from './webhookHandlers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-import authRouter from './routes/auth.js';
-import caregiversRouter from './routes/caregivers.js';
-import requestsRouter from './routes/requests.js';
-import matchesRouter from './routes/matches.js';
-import messagesRouter from './routes/messages.js';
+import marketplaceRouter from './routes/marketplace.js';
 import paymentsRouter from './routes/payments.js';
-import scheduleRouter from './routes/schedule.js';
-import reviewsRouter from './routes/reviews.js';
-import earningsRouter from './routes/earnings.js';
 import notificationsRouter from './routes/notifications.js';
 import adminRouter from './routes/admin.js';
 import clientsRouter from './routes/clients.js';
+import { rateLimiter } from './middleware/rateLimiter.js';
 
 const app: Express = express();
 
@@ -63,16 +57,12 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// ── Rate Limiting (Brute Force Defense) ──────────────────────────────────────
+app.use('/api/auth', rateLimiter(100, 15 * 60 * 1000)); // Limit each IP to 100 requests per 15 mins on auth
+
 // ── API Routes ────────────────────────────────────────────────────────────────
-app.use('/api/auth', authRouter);
-app.use('/api/caregivers', caregiversRouter);
-app.use('/api/care-requests', requestsRouter);
-app.use('/api/matches', matchesRouter);
-app.use('/api/conversations', messagesRouter);
+app.use('/api', marketplaceRouter);
 app.use('/api/payments', paymentsRouter);
-app.use('/api/schedule', scheduleRouter);
-app.use('/api/reviews', reviewsRouter);
-app.use('/api/earnings', earningsRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/clients', clientsRouter);

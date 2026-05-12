@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { requireAuth, requireCaregiver, AuthRequest } from '../middleware/auth.js';
+import { getCached, setCached, invalidateCache } from '../services/cache.js';
 
 const router = Router();
 
@@ -35,6 +36,12 @@ function formatCaregiver(row: any) {
 // GET /api/caregivers
 router.get('/', async (req, res) => {
   try {
+    const cacheKey = `caregivers:list:${JSON.stringify(req.query)}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+
     const { category, verified, backgroundChecked, sort, search } = req.query;
 
     const whereConditions = ["u.status = 'active'", "u.role = 'caregiver'"];
@@ -74,7 +81,10 @@ router.get('/', async (req, res) => {
       params
     );
 
-    res.json({ caregivers: result.rows.map(formatCaregiver) });
+    const payload = { caregivers: result.rows.map(formatCaregiver) };
+    setCached(cacheKey, payload, 30); // Cache lists for 30s
+
+    res.json(payload);
   } catch (err) {
     console.error('Caregivers list error:', err);
     res.status(500).json({ error: 'Failed to fetch caregivers' });
@@ -106,6 +116,12 @@ router.get('/profile/me', requireCaregiver, async (req: AuthRequest, res) => {
 // GET /api/caregivers/:id
 router.get('/:id', async (req, res) => {
   try {
+    const cacheKey = `caregivers:detail:${req.params.id}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+
     const result = await query(
       `SELECT u.id, u.name, u.email, u.photo_url, u.status, u.created_at,
               cp.bio, cp.specialties, cp.hourly_rate_min, cp.hourly_rate_max,
@@ -127,7 +143,7 @@ router.get('/:id', async (req, res) => {
     );
 
     const caregiver = formatCaregiver(result.rows[0]);
-    res.json({
+    const payload = {
       caregiver: {
         ...caregiver,
         sampleReviews: reviewsResult.rows.map((r: any) => ({
@@ -140,7 +156,10 @@ router.get('/:id', async (req, res) => {
           date: new Date(r.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
         })),
       },
-    });
+    };
+
+    setCached(cacheKey, payload, 60); // Cache details for 60s
+    res.json(payload);
   } catch (err) {
     console.error('Caregiver get error:', err);
     res.status(500).json({ error: 'Failed to fetch caregiver' });
@@ -189,7 +208,9 @@ router.put('/profile', requireCaregiver, async (req: AuthRequest, res) => {
        FROM users u JOIN caregiver_profiles cp ON cp.user_id = u.id WHERE u.id = $1`,
       [req.user!.id]
     );
-    res.json({ caregiver: formatCaregiver(result.rows[0]) });
+    const payload = { caregiver: formatCaregiver(result.rows[0]) };
+    invalidateCache('caregivers:');
+    res.json(payload);
   } catch (err) {
     console.error('Caregiver profile update error:', err);
     res.status(500).json({ error: 'Failed to update profile' });

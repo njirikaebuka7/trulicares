@@ -70,6 +70,14 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       [caregiverId]
     );
 
+    // Invalidate caregiver list cache to update rating dynamically
+    try {
+      const { invalidateCache } = await import('../services/cache.js');
+      invalidateCache('caregivers:');
+    } catch (cacheErr) {
+      console.error('Failed to invalidate caregivers cache on review post:', cacheErr);
+    }
+
     res.status(201).json({ review: result.rows[0] });
   } catch (err) {
     console.error('Create review error:', err);

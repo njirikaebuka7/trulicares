@@ -12,6 +12,7 @@ import StripeCardModal from '@/components/ui/StripeCardModal';
 import { useAuth } from '@/context/AuthContext';
 import { get, post, put, auth as authApi, payments as paymentsApi, notifications as notificationsApi } from '@/lib/api';
 import { cn } from '@/utils/cn';
+import { supabase } from '@/lib/supabase';
 import logoImg from '@/assets/logo.png';
 
 
@@ -77,6 +78,21 @@ export default function FamilyDashboard() {
   const [calSelectedDay, setCalSelectedDay] = useState<number | null>(null);
   const [showPhone, setShowPhone] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<any>(null);
+
+  // Scheduling states
+  const [showBookModal, setShowBookModal] = useState<null | { caregiverId?: string; caregiverName?: string; service?: string }>(null);
+  const [bookDate, setBookDate] = useState('');
+  const [bookStartTime, setBookStartTime] = useState('09:00');
+  const [bookEndTime, setBookEndTime] = useState('17:00');
+  const [bookLocation, setBookLocation] = useState('');
+  const [bookSaving, setBookSaving] = useState(false);
+
+  // Review states
+  const [showReviewModal, setShowReviewModal] = useState<null | { caregiverId: string; caregiverName: string; matchId: string }>(null);
+  const [reviewRating, setReviewRating] = useState<number>(5);
+  const [reviewText, setReviewText] = useState('');
+  const [reviewService, setReviewService] = useState('Child Care');
+  const [reviewSaving, setReviewSaving] = useState(false);
 
   // ── Toast ──────────────────────────────────────────────────────────────────
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: 'success' | 'error' }>>([]);
@@ -169,9 +185,59 @@ export default function FamilyDashboard() {
   useEffect(() => {
     setDataLoading(true);
     fetchData();
-    const timer = setInterval(fetchData, 5000); // Poll every 5s for real-time sync
-    return () => clearInterval(timer);
+
+    // 1. WebSocket-based real-time database listener
+    const channel = supabase
+      .channel('family-dashboard-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => {
+        console.log('⚡ Realtime Match table mutated');
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'care_requests' }, () => {
+        console.log('⚡ Realtime Care Request table mutated');
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule' }, () => {
+        console.log('⚡ Realtime Schedule table mutated');
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
+        console.log('⚡ Realtime Conversations table mutated');
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
+        console.log('⚡ Realtime Messages table mutated');
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reviews' }, () => {
+        console.log('⚡ Realtime Reviews table mutated');
+        fetchData();
+      })
+      .subscribe();
+
+    // 2. Slow fallback poll (30s) as a resilient safety net for offline users or disabled tables
+    const fallbackTimer = setInterval(fetchData, 30000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(fallbackTimer);
+    };
   }, [fetchData]);
+
+  const handleStripeCheckout = async (matchId: string) => {
+    try {
+      showToast('Redirecting to Stripe secure checkout...');
+      const res: any = await post('/payments/checkout', { matchId });
+      if (res.url) {
+        window.location.href = res.url;
+      } else {
+        throw new Error('No checkout URL returned');
+      }
+    } catch (err: any) {
+      console.error('Checkout error:', err);
+      showToast(err.message || 'Failed to initialize secure checkout', 'error');
+    }
+  };
 
   // Handle payment success redirect
   useEffect(() => {
@@ -238,7 +304,7 @@ export default function FamilyDashboard() {
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5_000_000) { showToast('Image must be under 5 MB', 'error'); return; }
+    if (file.size > 2_000_000) { showToast('Image must be under 2 MB', 'error'); return; }
     setPhotoUploading(true);
     const reader = new FileReader();
     reader.onload = async () => {
@@ -678,7 +744,7 @@ export default function FamilyDashboard() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
                 <StatCard label="Active Requests" value={requests.filter((r: any) => r.status !== 'cancelled' && r.status !== 'completed').length}
                   icon={<FileText className="w-4 h-4" />}
                   sub={requests.filter((r: any) => r.status === 'matching').length > 0 ? `${requests.filter((r: any) => r.status === 'matching').length} finding matches` : requests.length > 0 ? 'All matched' : 'No requests yet'}
@@ -693,6 +759,10 @@ export default function FamilyDashboard() {
                 <StatCard label="Messages" value={conversations.filter((c: any) => c.messagingUnlocked).length} icon={<MessageCircle className="w-4 h-4" />}
                   sub={totalUnread > 0 ? `${totalUnread} unread` : 'All caught up'}
                   colorBg="bg-violet-50" colorText="text-violet-600" />
+                <StatCard label="Total Spent" value={`$${(payments.filter((p: any) => p.status === 'succeeded').reduce((s: number, p: any) => s + (p.amountCents || 0), 0) / 100).toFixed(2)}`}
+                  icon={<DollarSign className="w-4 h-4" />}
+                  sub={payments.filter((p: any) => p.status === 'succeeded').length > 0 ? `${payments.filter((p: any) => p.status === 'succeeded').length} transactions` : 'No payments yet'}
+                  colorBg="bg-amber-50" colorText="text-amber-600" />
               </div>
 
               <div className="grid lg:grid-cols-2 gap-6">
@@ -870,14 +940,7 @@ export default function FamilyDashboard() {
                                   <MessageCircle className="w-3.5 h-3.5" /> Message
                                 </Button>
                               ) : match.status === 'accepted' ? (
-                                <Button variant="coral" size="sm" onClick={async () => {
-                                  try {
-                                    await post(`/matches/${match.id}/unlock-messaging`);
-                                    setMatches(prev => prev.map((m: any) => m.id === match.id ? { ...m, messagingUnlocked: true } : m));
-                                    const d: any = await get('/conversations').catch(() => null);
-                                    if (d?.conversations) setConversations(d.conversations);
-                                  } catch {}
-                                }}>
+                                <Button variant="coral" size="sm" onClick={() => handleStripeCheckout(match.id)}>
                                   <DollarSign className="w-3.5 h-3.5" /> Unlock Messaging
                                 </Button>
                               ) : (
@@ -928,14 +991,7 @@ export default function FamilyDashboard() {
                             <MessageCircle className="w-3.5 h-3.5" /> Message
                           </Button>
                         ) : match.status === 'accepted' ? (
-                          <Button variant="coral" size="sm" onClick={async () => {
-                            try {
-                              await post(`/matches/${match.id}/unlock-messaging`);
-                              setMatches(prev => prev.map((m: any) => m.id === match.id ? { ...m, messagingUnlocked: true } : m));
-                              const d: any = await get('/conversations').catch(() => null);
-                              if (d?.conversations) setConversations(d.conversations);
-                            } catch {}
-                          }}>
+                          <Button variant="coral" size="sm" onClick={() => handleStripeCheckout(match.id)}>
                             <DollarSign className="w-3.5 h-3.5" /> Unlock Messaging
                           </Button>
                         ) : (
@@ -1016,9 +1072,24 @@ export default function FamilyDashboard() {
                       </div>
                       <div className="mt-4 flex gap-2 flex-wrap items-center border-t border-gray-50 pt-4">
                         {match.messagingUnlocked ? (
-                          <Button variant="primary" size="sm" onClick={() => setActiveTab('Messages')}>
-                            <MessageCircle className="w-3.5 h-3.5" /> Message
-                          </Button>
+                          <div className="flex gap-2 shrink-0">
+                            <Button variant="primary" size="sm" onClick={() => setActiveTab('Messages')}>
+                              <MessageCircle className="w-3.5 h-3.5" /> Message
+                            </Button>
+                            <button
+                              onClick={() => {
+                                setShowReviewModal({
+                                  caregiverId: match.caregiver?.id || '',
+                                  caregiverName: match.caregiver?.name || 'Caregiver',
+                                  matchId: match.id
+                                });
+                                setReviewService(match.careType || 'Child Care');
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-amber-50 text-amber-700 text-xs font-semibold transition-all shadow-sm"
+                            >
+                              <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500 shrink-0" /> Rate Caregiver
+                            </button>
+                          </div>
                         ) : match.status === 'accepted' ? (
                           <Button variant="coral" size="sm" onClick={async () => {
                             try {
@@ -1206,6 +1277,20 @@ export default function FamilyDashboard() {
                         <span className="font-semibold text-gray-900 block truncate">{activeConv?.otherName}</span>
                         <span className="text-xs text-green-600">● Online</span>
                       </div>
+                      {/* Book Care Session */}
+                      <button
+                        onClick={() => {
+                          setShowBookModal({
+                            caregiverId: activeConv?.caregiverId || activeConv?.otherId,
+                            caregiverName: activeConv?.otherName,
+                            service: activeConv?.careType || 'Child Care'
+                          });
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-semibold transition-colors shrink-0"
+                      >
+                        <Calendar className="w-3.5 h-3.5 shrink-0 text-brand-600" />
+                        <span className="hidden sm:inline">Book Session</span>
+                      </button>
                       {/* Call button */}
                       <div className="relative shrink-0">
                         <button
@@ -1314,13 +1399,16 @@ export default function FamilyDashboard() {
               {(() => {
                 const now = new Date();
                 const thisMonthCents = payments.filter((p: any) => {
-                  const d = new Date(p.createdAt); return p.status === 'succeeded' && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-                }).reduce((s: number, p: any) => s + p.amountCents, 0);
+                  const d = p.createdAt ? new Date(p.createdAt) : null;
+                  return p.status === 'succeeded' && d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                }).reduce((s: number, p: any) => s + (p.amountCents || 0), 0);
                 const lastMonthCents = payments.filter((p: any) => {
-                  const d = new Date(p.createdAt); const lm = new Date(now.getFullYear(), now.getMonth() - 1); return p.status === 'succeeded' && d.getMonth() === lm.getMonth() && d.getFullYear() === lm.getFullYear();
-                }).reduce((s: number, p: any) => s + p.amountCents, 0);
-                const allTimeCents = payments.filter((p: any) => p.status === 'succeeded').reduce((s: number, p: any) => s + p.amountCents, 0);
-                const fmt = (cents: number) => cents ? `$${(cents / 100).toFixed(2)}` : '$0.00';
+                  const d = p.createdAt ? new Date(p.createdAt) : null;
+                  const lm = new Date(now.getFullYear(), now.getMonth() - 1);
+                  return p.status === 'succeeded' && d && d.getMonth() === lm.getMonth() && d.getFullYear() === lm.getFullYear();
+                }).reduce((s: number, p: any) => s + (p.amountCents || 0), 0);
+                const allTimeCents = payments.filter((p: any) => p.status === 'succeeded').reduce((s: number, p: any) => s + (p.amountCents || 0), 0);
+                const fmt = (cents: number) => `$${((cents || 0) / 100).toFixed(2)}`;
                 return (
                   <div className="grid sm:grid-cols-3 gap-4">
                     <div className="bg-brand-600 text-white rounded-2xl p-5">
@@ -2050,6 +2138,217 @@ export default function FamilyDashboard() {
                 >
                   Close Receipt
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Book Session Modal */}
+      {showBookModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowBookModal(null)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden animate-fade-in-up">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 text-lg">Book Care Session</h3>
+              <button onClick={() => setShowBookModal(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-brand-50 p-3.5 rounded-2xl border border-brand-100">
+                <p className="text-xs font-semibold text-brand-800 uppercase tracking-wider">Matched Caregiver</p>
+                <p className="text-sm font-bold text-brand-950 mt-0.5">{showBookModal.caregiverName}</p>
+                <p className="text-xs text-brand-600 mt-0.5">Service Type: {showBookModal.service}</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Date</label>
+                <input
+                  type="date"
+                  value={bookDate}
+                  onChange={e => setBookDate(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm font-medium animate-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Start Time</label>
+                  <input
+                    type="time"
+                    value={bookStartTime}
+                    onChange={e => setBookStartTime(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm font-medium bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">End Time</label>
+                  <input
+                    type="time"
+                    value={bookEndTime}
+                    onChange={e => setBookEndTime(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm font-medium bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Location / Address</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 123 Main St, New York"
+                  value={bookLocation}
+                  onChange={e => setBookLocation(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button variant="secondary" fullWidth onClick={() => setShowBookModal(null)}>Cancel</Button>
+                <Button
+                  variant="primary"
+                  fullWidth
+                  disabled={bookSaving || !bookDate || !bookStartTime || !bookEndTime || !bookLocation}
+                  onClick={async () => {
+                    setBookSaving(true);
+                    try {
+                      const formatDateLabel = (dateStr: string) => {
+                        if (!dateStr) return '';
+                        const d = new Date(dateStr);
+                        if (isNaN(d.getTime())) return '';
+                        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
+                      };
+
+                      const formatTime12Hour = (timeStr: string) => {
+                        if (!timeStr) return '';
+                        const parts = timeStr.split(':');
+                        let hour = parseInt(parts[0], 10);
+                        const min = parts[1] || '00';
+                        const ampm = hour >= 12 ? 'PM' : 'AM';
+                        hour = hour % 12;
+                        hour = hour ? hour : 12;
+                        return `${hour}:${min} ${ampm}`;
+                      };
+
+                      const combinedTime = `${formatTime12Hour(bookStartTime)} - ${formatTime12Hour(bookEndTime)}`;
+
+                      await post('/schedule', {
+                        caregiverId: showBookModal.caregiverId,
+                        service: showBookModal.service || 'Child Care',
+                        date: formatDateLabel(bookDate),
+                        time: combinedTime,
+                        location: bookLocation
+                      });
+
+                      showToast('Care session booked successfully!');
+                      fetchData();
+                      setShowBookModal(null);
+                      setBookDate('');
+                      setBookStartTime('09:00');
+                      setBookEndTime('17:00');
+                      setBookLocation('');
+                    } catch {
+                      showToast('Failed to book session.', 'error');
+                    } finally {
+                      setBookSaving(false);
+                    }
+                  }}
+                  className="bg-brand-600 hover:bg-brand-700"
+                >
+                  {bookSaving ? 'Scheduling…' : 'Schedule Session'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rate Caregiver (Review) Modal */}
+      {showReviewModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowReviewModal(null)} />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden animate-fade-in-up">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 text-lg">Rate Your Experience</h3>
+              <button onClick={() => setShowReviewModal(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-amber-50/70 border border-amber-200/60 rounded-2xl p-4 text-center">
+                <p className="text-xs font-semibold text-amber-800 uppercase tracking-wider mb-0.5">Caregiver</p>
+                <p className="text-base font-bold text-amber-950">{showReviewModal.caregiverName}</p>
+                <p className="text-xs text-amber-700 mt-0.5">Service: {reviewService}</p>
+              </div>
+
+              {/* Star Rating Picker */}
+              <div className="flex flex-col items-center py-2">
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Rating</label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map(star => {
+                    const active = star <= reviewRating;
+                    return (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setReviewRating(star)}
+                        className="p-1 transform hover:scale-110 transition-transform"
+                      >
+                        <Star className={cn(
+                          "w-8 h-8 transition-colors",
+                          active ? "text-amber-400 fill-amber-400" : "text-gray-200"
+                        )} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Text Description Box */}
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Feedback & Review</label>
+                <textarea
+                  value={reviewText}
+                  onChange={e => setReviewText(e.target.value)}
+                  placeholder="Share details of your experience to help build trust inside the community!"
+                  rows={4}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm resize-none"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button variant="secondary" fullWidth onClick={() => setShowReviewModal(null)}>Cancel</Button>
+                <Button
+                  variant="primary"
+                  fullWidth
+                  disabled={reviewSaving || !reviewText.trim()}
+                  onClick={async () => {
+                    setReviewSaving(true);
+                    try {
+                      await post('/reviews', {
+                        caregiverId: showReviewModal.caregiverId,
+                        rating: reviewRating,
+                        text: reviewText.trim(),
+                        service: reviewService
+                      });
+                      showToast('Thank you! Your rating was submitted successfully.');
+                      fetchData();
+                      setShowReviewModal(null);
+                      setReviewText('');
+                      setReviewRating(5);
+                    } catch {
+                      showToast('Failed to submit review.', 'error');
+                    } finally {
+                      setReviewSaving(false);
+                    }
+                  }}
+                  className="bg-brand-600 hover:bg-brand-700"
+                >
+                  {reviewSaving ? 'Submitting…' : 'Submit Review'}
+                </Button>
               </div>
             </div>
           </div>

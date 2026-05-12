@@ -105,7 +105,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
          JOIN users uf ON uf.id = m.family_id
          LEFT JOIN care_requests cr ON cr.id = m.request_id
          LEFT JOIN caregiver_profiles cp ON cp.user_id = m.caregiver_id
-         WHERE m.caregiver_id = $1
+         WHERE m.caregiver_id = $1 AND m.status != 'matching'
          ORDER BY m.created_at DESC`,
         [id]
       );
@@ -125,6 +125,30 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
   } catch (err) {
     console.error('Get matches error:', err);
     res.status(500).json({ error: 'Failed to fetch matches' });
+  }
+});
+
+// POST /api/matches/:id/request
+router.post('/:id/request', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { id: userId, role } = req.user!;
+    if (role !== 'family') return res.status(403).json({ error: 'Only families can request caregivers' });
+
+    const result = await query(
+      `UPDATE matches SET status = 'pending' 
+       WHERE id = $1 AND family_id = $2 AND status = 'matching' 
+       RETURNING *`,
+      [req.params.id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Match not found or already requested' });
+    }
+
+    res.json({ match: result.rows[0], message: 'Request sent to caregiver' });
+  } catch (err) {
+    console.error('Request caregiver error:', err);
+    res.status(500).json({ error: 'Failed to request caregiver' });
   }
 });
 
@@ -178,6 +202,12 @@ router.post('/:id/unlock-messaging', requireAuth, async (req: AuthRequest, res) 
          SET updated_at = NOW(),
              match_id = COALESCE(conversations.match_id, EXCLUDED.match_id)`,
       [userId, match.caregiver_id, match.id]
+    );
+
+    // 3. Update payment status (fallback for missing webhook)
+    await query(
+      `UPDATE payments SET status = 'succeeded' WHERE match_id = $1 AND user_id = $2 AND status = 'pending'`,
+      [req.params.id, userId]
     );
 
     res.json({ match, message: 'Messaging unlocked' });

@@ -90,6 +90,23 @@ export default function CaregiverProfile() {
     });
   };
 
+  const handleStripeCheckout = async (matchId: string) => {
+    setUnlockingMsg(true);
+    try {
+      const res: any = await post('/payments/checkout', { matchId });
+      if (res.url) {
+        window.location.href = res.url;
+      } else {
+        throw new Error('No checkout URL returned');
+      }
+    } catch (err: any) {
+      console.error('Checkout error:', err);
+      alert(err.message || 'Failed to initialize secure checkout. Please try again.');
+    } finally {
+      setUnlockingMsg(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -261,23 +278,15 @@ export default function CaregiverProfile() {
               const messagingExpired = existingMatch.messagingExpired;
               if (messagingExpired) {
                 return (
-                  <Button variant="coral" size="lg" disabled={unlockingMsg} onClick={async () => {
-                    setUnlockingMsg(true);
-                    try { await post(`/matches/${existingMatch.id}/unlock-messaging`); setExistingMatch((m: any) => ({ ...m, messagingUnlocked: true, careDate: null })); } catch {}
-                    setUnlockingMsg(false);
-                  }} className="flex-1 sm:flex-none">
+                  <Button variant="coral" size="lg" disabled={unlockingMsg} onClick={() => handleStripeCheckout(existingMatch.id)} className="flex-1 sm:flex-none">
                     <LockKeyhole className="w-4 h-4" /> Re-unlock Messaging
                   </Button>
                 );
               }
               if (existingMatch.status === 'accepted' && !existingMatch.messagingUnlocked) {
                 return (
-                  <Button variant="coral" size="lg" disabled={unlockingMsg} onClick={async () => {
-                    setUnlockingMsg(true);
-                    try { await post(`/matches/${existingMatch.id}/unlock-messaging`); setExistingMatch((m: any) => ({ ...m, messagingUnlocked: true })); } catch {}
-                    setUnlockingMsg(false);
-                  }} className="flex-1 sm:flex-none">
-                    <LockKeyhole className="w-4 h-4" /> {unlockingMsg ? 'Unlocking…' : 'Unlock Messaging'}
+                  <Button variant="coral" size="lg" disabled={unlockingMsg} onClick={() => handleStripeCheckout(existingMatch.id)} className="flex-1 sm:flex-none">
+                    <LockKeyhole className="w-4 h-4" /> {unlockingMsg ? 'Redirecting to checkout…' : 'Unlock Messaging'}
                   </Button>
                 );
               }

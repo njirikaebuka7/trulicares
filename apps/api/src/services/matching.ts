@@ -34,6 +34,67 @@ function parseBudget(budgetStr: string): { min: number; max: number } | null {
   return { min: Math.min(...nums), max: Math.max(...nums) };
 }
 
+function locationsTally(
+  reqLocation: string | undefined,
+  reqZip: string | undefined,
+  cgLocation: string | null,
+  cgServiceZips: string[]
+): boolean {
+  // Helper to normalize location names (remove zip codes, trim whitespace, lowercase)
+  const normalize = (loc: string | null | undefined): string => {
+    if (!loc) return '';
+    // Remove zip codes if present (e.g. "Brooklyn, NY 11201" -> "Brooklyn, NY")
+    let cleaned = loc.replace(/\b\d{5}\b/g, '');
+    // Clean up multiple spaces, trailing commas, and lowercase
+    cleaned = cleaned.replace(/,\s*$/, '').replace(/\s+/g, ' ').trim().toLowerCase();
+    return cleaned;
+  };
+
+  const normReq = normalize(reqLocation);
+  const normCg = normalize(cgLocation);
+
+  // 1. Check exact ZIP code match if request zip is present
+  if (reqZip && cgServiceZips && cgServiceZips.includes(reqZip)) {
+    return true;
+  }
+
+  // 2. Check exact location name match (case-insensitive)
+  if (normReq && normCg && (normReq === normCg || normReq.includes(normCg) || normCg.includes(normReq))) {
+    return true;
+  }
+
+  if (!normReq || !normCg) return false;
+
+  // 3. Check proximity of locations (cities close to each other)
+  const proximityMap: Record<string, string[]> = {
+    'brooklyn, ny': ['brooklyn, ny', 'manhattan, ny', 'queens, ny', 'flushing, ny'],
+    'manhattan, ny': ['manhattan, ny', 'brooklyn, ny', 'queens, ny', 'hoboken, nj', 'jersey city, nj'],
+    'queens, ny': ['queens, ny', 'brooklyn, ny', 'flushing, ny', 'manhattan, ny'],
+    'flushing, ny': ['flushing, ny', 'queens, ny', 'brooklyn, ny'],
+    'jersey city, nj': ['jersey city, nj', 'hoboken, nj', 'newark, nj', 'manhattan, ny'],
+    'hoboken, nj': ['hoboken, nj', 'jersey city, nj', 'newark, nj', 'manhattan, ny'],
+    'newark, nj': ['newark, nj', 'jersey city, nj', 'hoboken, nj'],
+  };
+
+  const getProximityKeys = (normLoc: string): string[] => {
+    return Object.keys(proximityMap).filter(key => normLoc.includes(key) || key.includes(normLoc));
+  };
+
+  const reqKeys = getProximityKeys(normReq);
+  const cgKeys = getProximityKeys(normCg);
+
+  for (const rKey of reqKeys) {
+    const closeToReq = proximityMap[rKey] || [];
+    for (const cKey of cgKeys) {
+      if (closeToReq.includes(cKey)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 export async function findMatches(
   careType: string,
   familyLocation: string | undefined,
@@ -61,10 +122,15 @@ export async function findMatches(
     ORDER BY cp.rating DESC, cp.review_count DESC
   `, [careType || '']);
 
-  const candidates: MatchCandidate[] = result.rows.map((row: any) => ({
-    ...row,
-    near_you: zip ? (row.service_zips || []).includes(zip) : false,
-  }));
+  // Strictly filter candidates whose location tallies (exact ZIP, exact name, or geographic proximity)
+  const candidates: MatchCandidate[] = result.rows
+    .map((row: any) => ({
+      ...row,
+      near_you: zip ? (row.service_zips || []).includes(zip) : false,
+    }))
+    .filter((row: any) => {
+      return locationsTally(familyLocation, zip || undefined, row.location, row.service_zips || []);
+    });
 
   // Scoring/Tiering logic
   const scored = candidates.map(c => {
@@ -120,7 +186,7 @@ export async function createMatchesForRequest(
   for (const candidate of candidates.slice(0, 5)) {
     await query(`
       INSERT INTO matches (request_id, caregiver_id, family_id, near_you, status)
-      VALUES ($1, $2, $3, $4, 'pending')
+      VALUES ($1, $2, $3, $4, 'matching')
       ON CONFLICT (request_id, caregiver_id) DO NOTHING
     `, [requestId, candidate.id, familyId, candidate.near_you || false]);
   }

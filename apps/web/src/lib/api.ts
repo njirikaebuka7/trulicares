@@ -120,6 +120,7 @@ export const requests = {
 // ── Matches ───────────────────────────────────────────────────────────────────
 export const matches = {
   list: () => get('/matches'),
+  request: (id: string) => post(`/matches/${id}/request`),
   accept: (id: string) => put(`/matches/${id}/accept`),
   decline: (id: string) => put(`/matches/${id}/decline`),
   unlockMessaging: (id: string) => post(`/matches/${id}/unlock-messaging`),
