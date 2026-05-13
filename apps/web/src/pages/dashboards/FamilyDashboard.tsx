@@ -213,6 +213,10 @@ export default function FamilyDashboard() {
         console.log('⚡ Realtime Reviews table mutated');
         fetchData();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
+        console.log('⚡ Realtime Notifications table mutated');
+        fetchData();
+      })
       .subscribe();
 
     // 2. Slow fallback poll (30s) as a resilient safety net for offline users or disabled tables
@@ -1136,12 +1140,12 @@ export default function FamilyDashboard() {
                 d.setDate(d.getDate() + 1);
                 return d;
               }
-              // Try ISO first
-              let d = new Date(dateVal);
-              if (isNaN(d.getTime())) {
-                // Strip weekday prefix "Mon, " or "Monday, "
+              let d: Date;
+              const hasYear = /\b\d{4}\b/.test(dateVal);
+              if (hasYear) {
+                d = new Date(dateVal);
+              } else {
                 const stripped = dateVal.replace(/^[A-Za-z]+,\s*/, '');
-                // Try parsing with current year
                 d = new Date(`${stripped}, ${calYear}`);
               }
               return isNaN(d.getTime()) ? null : d;

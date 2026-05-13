@@ -270,7 +270,7 @@ router.put('/verification/:id', requireAdmin, async (req: AuthRequest, res) => {
     const entry = result.rows[0];
 
     if (status === 'approved') {
-      await query(`UPDATE caregiver_profiles SET verified = true WHERE user_id = $1`, [entry.caregiver_id]);
+      await query(`UPDATE caregiver_profiles SET verified = true, background_checked = true WHERE user_id = $1`, [entry.caregiver_id]);
     }
 
     const caregiverResult = await query('SELECT name, email FROM users WHERE id = $1', [entry.caregiver_id]);

@@ -577,11 +577,29 @@ export default function AdminDashboard() {
                         <p className="text-sm text-gray-500">{item.email} · {item.specialty}</p>
                         <p className="text-sm text-gray-500">{item.experience} experience · Submitted {item.submittedAt}</p>
                         <div className="flex flex-wrap gap-2 mt-3">
-                          {item.documents.map((doc: string) => (
-                            <span key={doc} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-green-100 text-green-700 font-medium">
-                              <CheckCircle className="w-3 h-3" /> {doc}
-                            </span>
-                          ))}
+                          {item.documents.map((doc: any, idx: number) => {
+                            const isObj = doc && typeof doc === 'object';
+                            const name = isObj ? doc.name : doc;
+                            const url = isObj ? doc.url : null;
+                            if (url) {
+                              return (
+                                <a
+                                  key={idx}
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold transition-colors cursor-pointer"
+                                >
+                                  <CheckCircle className="w-3 h-3" /> View: {name}
+                                </a>
+                              );
+                            }
+                            return (
+                              <span key={idx} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-green-100 text-green-700 font-medium">
+                                <CheckCircle className="w-3 h-3" /> {name}
+                              </span>
+                            );
+                          })}
                           <span className={cn('inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium',
                             item.backgroundCheck === 'in_progress' ? 'bg-blue-100 text-blue-700' :
                             item.backgroundCheck === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500')}>

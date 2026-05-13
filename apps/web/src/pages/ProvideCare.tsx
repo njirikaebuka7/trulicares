@@ -110,7 +110,16 @@ export default function ProvideCare() {
     setLoading(true);
     setError('');
     try {
-      await signup(email, password, name, 'caregiver');
+      const formattedCaregiverData = {
+        bio,
+        specialties,
+        hourlyRateMin: Math.max(10, hourlyRate - 5),
+        hourlyRateMax: hourlyRate,
+        yearsExperience: experienceToYears[experience] ?? 0,
+        serviceZips,
+        location: serviceZips[0] || 'United States',
+      };
+      await signup(email, password, name, 'caregiver', formattedCaregiverData);
       if (photoBase64) {
         await authApi.updateProfile({ photoUrl: photoBase64 }).catch(console.error);
       }

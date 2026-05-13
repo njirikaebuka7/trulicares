@@ -20,9 +20,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
               m.id as resolved_match_id,
               (SELECT content FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message,
               (SELECT created_at FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message_at,
-              (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id AND sender_id != $1 AND created_at > COALESCE(
-                (SELECT MAX(created_at) FROM messages WHERE conversation_id = c.id AND sender_id = $1), '1970-01-01'
-              )) as unread_count
+              (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id AND sender_id != $1 AND is_read = false) as unread_count
        FROM conversations c
        JOIN users uf ON uf.id = c.family_id
        JOIN users uc ON uc.id = c.caregiver_id
@@ -158,6 +156,12 @@ router.get('/:id/messages', requireAuth, async (req: AuthRequest, res) => {
       [req.params.id, userId]
     );
     if (convResult.rows.length === 0) return res.status(404).json({ error: 'Conversation not found' });
+
+    // Mark messages in this conversation as read
+    await query(
+      `UPDATE messages SET is_read = true WHERE conversation_id = $1 AND sender_id != $2 AND is_read = false`,
+      [req.params.id, userId]
+    ).catch(err => console.error('Error marking messages as read:', err));
 
     const messagesResult = await query(
       `SELECT m.id, m.conversation_id, m.sender_id, m.content, m.created_at,

@@ -91,6 +91,22 @@ export class WebhookHandlers {
               [session.metadata.userId, caregiverId, session.metadata.matchId]
             );
           }
+        } else if (session.metadata?.type === 'background_check' && session.metadata?.userId) {
+          const userId = session.metadata.userId;
+          // Update payment record
+          await query(
+            `UPDATE payments SET status = 'succeeded', stripe_payment_intent_id = $1
+             WHERE user_id = $2 AND stripe_payment_intent_id = $3`,
+            [session.payment_intent || session.id, userId, session.id]
+          );
+
+          // Create verification queue entry
+          await query(
+            `INSERT INTO verification_queue (caregiver_id, specialty, experience, documents, background_check, status, submitted_at)
+             VALUES ($1, $2, $3, $4, true, 'pending', NOW())
+             ON CONFLICT DO NOTHING`,
+            [userId, 'General Care', 'N/A', JSON.stringify([{ name: 'Paid Premium Background Verification', url: '#' }])]
+          );
         }
         console.log('✓ Checkout completed:', session.id);
         break;

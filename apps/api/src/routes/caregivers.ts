@@ -6,6 +6,13 @@ import { getCached, setCached, invalidateCache } from '../services/cache.js';
 const router = Router();
 
 function formatCaregiver(row: any) {
+  let bgStatus: 'none' | 'pending' | 'approved' = 'none';
+  if (row.background_checked) {
+    bgStatus = 'approved';
+  } else if (row.pending_status === 'pending') {
+    bgStatus = 'pending';
+  }
+
   return {
     id: row.id,
     name: row.name,
@@ -19,6 +26,7 @@ function formatCaregiver(row: any) {
     location: row.location || 'United States',
     verified: row.verified || false,
     backgroundChecked: row.background_checked || false,
+    backgroundCheckStatus: bgStatus,
     yearsExperience: row.years_experience || 0,
     availability: row.availability || 'Flexible',
     photoUrl: row.photo_url || undefined,
@@ -72,7 +80,8 @@ router.get('/', async (req, res) => {
               cp.bio, cp.specialties, cp.hourly_rate_min, cp.hourly_rate_max,
               cp.rating, cp.review_count, cp.location, cp.service_zips,
               cp.verified, cp.background_checked, cp.years_experience, cp.availability,
-              cp.job_title, cp.languages, cp.education, cp.certifications
+              cp.job_title, cp.languages, cp.education, cp.certifications,
+              (SELECT status FROM verification_queue WHERE caregiver_id = u.id AND background_check = true AND status = 'pending' LIMIT 1) as pending_status
        FROM users u
        JOIN caregiver_profiles cp ON cp.user_id = u.id
        WHERE ${whereConditions.join(' AND ')}
@@ -99,7 +108,8 @@ router.get('/profile/me', requireCaregiver, async (req: AuthRequest, res) => {
               cp.bio, cp.specialties, cp.hourly_rate_min, cp.hourly_rate_max,
               cp.rating, cp.review_count, cp.location, cp.service_zips,
               cp.verified, cp.background_checked, cp.years_experience, cp.availability,
-              cp.job_title, cp.languages, cp.education, cp.certifications
+              cp.job_title, cp.languages, cp.education, cp.certifications,
+              (SELECT status FROM verification_queue WHERE caregiver_id = u.id AND background_check = true AND status = 'pending' LIMIT 1) as pending_status
        FROM users u
        JOIN caregiver_profiles cp ON cp.user_id = u.id
        WHERE u.id = $1`,
@@ -127,7 +137,8 @@ router.get('/:id', async (req, res) => {
               cp.bio, cp.specialties, cp.hourly_rate_min, cp.hourly_rate_max,
               cp.rating, cp.review_count, cp.location, cp.service_zips,
               cp.verified, cp.background_checked, cp.years_experience, cp.availability,
-              cp.job_title, cp.languages, cp.education, cp.certifications
+              cp.job_title, cp.languages, cp.education, cp.certifications,
+              (SELECT status FROM verification_queue WHERE caregiver_id = u.id AND background_check = true AND status = 'pending' LIMIT 1) as pending_status
        FROM users u
        JOIN caregiver_profiles cp ON cp.user_id = u.id
        WHERE u.id = $1 AND u.role = 'caregiver'`,
@@ -204,7 +215,8 @@ router.put('/profile', requireCaregiver, async (req: AuthRequest, res) => {
               cp.bio, cp.specialties, cp.hourly_rate_min, cp.hourly_rate_max,
               cp.rating, cp.review_count, cp.location, cp.service_zips,
               cp.verified, cp.background_checked, cp.years_experience, cp.availability,
-              cp.job_title, cp.languages, cp.education, cp.certifications
+              cp.job_title, cp.languages, cp.education, cp.certifications,
+              (SELECT status FROM verification_queue WHERE caregiver_id = u.id AND background_check = true AND status = 'pending' LIMIT 1) as pending_status
        FROM users u JOIN caregiver_profiles cp ON cp.user_id = u.id WHERE u.id = $1`,
       [req.user!.id]
     );
@@ -214,6 +226,83 @@ router.put('/profile', requireCaregiver, async (req: AuthRequest, res) => {
   } catch (err) {
     console.error('Caregiver profile update error:', err);
     res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// POST /api/caregivers/background-check
+router.post('/background-check', requireCaregiver, async (req: AuthRequest, res) => {
+  try {
+    const { documentBase64, documentName } = req.body;
+    if (!documentBase64) {
+      return res.status(400).json({ error: 'Please upload a valid document.' });
+    }
+
+    const documentObj = { name: documentName || 'verification_document.pdf', url: documentBase64 };
+
+    // Insert into verification_queue
+    const qResult = await query(
+      `INSERT INTO verification_queue (caregiver_id, specialty, experience, documents, background_check, status, submitted_at)
+       VALUES ($1, $2, $3, $4, $5, 'pending', NOW())
+       RETURNING *`,
+      [req.user!.id, 'General Care', 'N/A', JSON.stringify([documentObj]), true]
+    );
+
+    res.json({ success: true, entry: qResult.rows[0] });
+  } catch (err) {
+    console.error('Submit background check error:', err);
+    res.status(500).json({ error: 'Failed to submit background check document' });
+  }
+});
+
+// POST /api/caregivers/background-check/pay-success
+router.post('/background-check/pay-success', requireCaregiver, async (req: AuthRequest, res) => {
+  try {
+    const { sessionId } = req.body;
+    if (!sessionId) {
+      return res.status(400).json({ error: 'sessionId is required' });
+    }
+
+    const { getUncachableStripeClient } = await import('../stripeClient.js');
+
+    let stripe: any;
+    try {
+      stripe = await getUncachableStripeClient();
+    } catch {
+      // Simulation/local fallback
+      await query(
+        `INSERT INTO verification_queue (caregiver_id, specialty, experience, documents, background_check, status, submitted_at)
+         VALUES ($1, $2, $3, $4, true, 'pending', NOW())
+         ON CONFLICT DO NOTHING`,
+        [req.user!.id, 'General Care', 'N/A', JSON.stringify([{ name: 'Paid Premium Background Verification (Simulated)', url: '#' }])]
+      );
+      invalidateCache('caregivers:');
+      return res.json({ success: true, simulated: true });
+    }
+
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    if (session.metadata?.type === 'background_check' && session.metadata?.userId === req.user!.id) {
+      // Update payment record
+      await query(
+        `UPDATE payments SET status = 'succeeded', stripe_payment_intent_id = $1
+         WHERE user_id = $2 AND stripe_payment_intent_id = $3`,
+        [session.payment_intent || session.id, req.user!.id, sessionId]
+      );
+
+      // Create queue entry
+      await query(
+        `INSERT INTO verification_queue (caregiver_id, specialty, experience, documents, background_check, status, submitted_at)
+         VALUES ($1, $2, $3, $4, true, 'pending', NOW())
+         ON CONFLICT DO NOTHING`,
+        [req.user!.id, 'General Care', 'N/A', JSON.stringify([{ name: 'Paid Premium Background Verification', url: '#' }])]
+      );
+      invalidateCache('caregivers:');
+      return res.json({ success: true });
+    }
+
+    res.status(400).json({ error: 'Invalid background check payment session' });
+  } catch (err: any) {
+    console.error('BG check payment success sync error:', err);
+    res.status(500).json({ error: 'Failed to synchronize payment checkout status' });
   }
 });
 

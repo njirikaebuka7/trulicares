@@ -80,8 +80,8 @@ router.post('/intent', requireAuth, async (req: AuthRequest, res) => {
 // POST /api/payments/checkout
 router.post('/checkout', requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { priceId, matchId } = req.body;
-    if (!priceId && !matchId) return res.status(400).json({ error: 'priceId or matchId is required' });
+    const { priceId, matchId, isBackgroundCheck } = req.body;
+    if (!priceId && !matchId && !isBackgroundCheck) return res.status(400).json({ error: 'priceId, matchId or isBackgroundCheck is required' });
 
     let stripe: any;
     try {
@@ -100,10 +100,37 @@ router.post('/checkout', requireAuth, async (req: AuthRequest, res) => {
       await query('UPDATE users SET stripe_customer_id = $1 WHERE id = $2', [customerId, req.user!.id]);
     }
 
-    const host = process.env.APP_URL || req.get('origin') || 'http://localhost:5000';
+    const host = req.get('origin') || process.env.APP_URL || 'http://localhost:5000';
     
     let session;
-    if (matchId) {
+    if (isBackgroundCheck) {
+      session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        payment_method_types: ['card'],
+        line_items: [{
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: 'TruliCares Premium Background Check',
+              description: 'Identity verification, national criminal database search, sex offender registry search, and professional certification checks',
+            },
+            unit_amount: 3900, // $39.00
+          },
+          quantity: 1,
+        }],
+        mode: 'payment',
+        success_url: `${host}/dashboard?bg_payment=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${host}/dashboard?bg_payment=cancelled`,
+        metadata: { userId: req.user!.id, type: 'background_check' },
+      });
+
+      // Pre-insert pending payment for background check history
+      await query(
+        `INSERT INTO payments (user_id, amount_cents, currency, stripe_payment_intent_id, description, status)
+         VALUES ($1, $2, 'usd', $3, 'TruliCares Premium Background Check', 'pending')`,
+         [req.user!.id, 3900, session.id]
+      );
+    } else if (matchId) {
       // One-time payment for messaging unlock
       session = await stripe.checkout.sessions.create({
         customer: customerId,

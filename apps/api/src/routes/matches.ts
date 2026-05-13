@@ -141,11 +141,15 @@ router.post('/:id/request', requireAuth, async (req: AuthRequest, res) => {
       [req.params.id, userId]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Match not found or already requested' });
-    }
+    const match = result.rows[0];
+    const familyName = req.user!.name || 'A family';
+    await query(
+      `INSERT INTO notifications (user_id, title, content, type)
+       VALUES ($1, $2, $3, 'match_request')`,
+      [match.caregiver_id, 'New Caregiver Request', `${familyName} is requesting your services. Check your Job Requests.`]
+    ).catch(err => console.error('Error inserting notification:', err));
 
-    res.json({ match: result.rows[0], message: 'Request sent to caregiver' });
+    res.json({ match, message: 'Request sent to caregiver' });
   } catch (err) {
     console.error('Request caregiver error:', err);
     res.status(500).json({ error: 'Failed to request caregiver' });
@@ -160,7 +164,17 @@ router.put('/:id/accept', requireAuth, async (req: AuthRequest, res) => {
       [req.params.id, req.user!.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Match not found' });
-    res.json({ match: result.rows[0] });
+    
+    const match = result.rows[0];
+    const caregiverResult = await query('SELECT name FROM users WHERE id = $1', [req.user!.id]);
+    const caregiverName = caregiverResult.rows[0]?.name || 'Your selected caregiver';
+    await query(
+      `INSERT INTO notifications (user_id, title, content, type)
+       VALUES ($1, $2, $3, 'match_accepted')`,
+      [match.family_id, 'Match Accepted!', `${caregiverName} has accepted your care request. Go to your Matches to unlock messaging.`]
+    ).catch(err => console.error('Error inserting notification:', err));
+
+    res.json({ match });
   } catch (err) {
     console.error('Accept match error:', err);
     res.status(500).json({ error: 'Failed to accept match' });
@@ -175,7 +189,17 @@ router.put('/:id/decline', requireAuth, async (req: AuthRequest, res) => {
       [req.params.id, req.user!.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Match not found' });
-    res.json({ match: result.rows[0] });
+    
+    const match = result.rows[0];
+    const caregiverResult = await query('SELECT name FROM users WHERE id = $1', [req.user!.id]);
+    const caregiverName = caregiverResult.rows[0]?.name || 'Your selected caregiver';
+    await query(
+      `INSERT INTO notifications (user_id, title, content, type)
+       VALUES ($1, $2, $3, 'match_declined')`,
+      [match.family_id, 'Match Declined', `${caregiverName} was unable to accept your care request. You can browse other available caregivers.`]
+    ).catch(err => console.error('Error inserting notification:', err));
+
+    res.json({ match });
   } catch (err) {
     console.error('Decline match error:', err);
     res.status(500).json({ error: 'Failed to decline match' });
@@ -209,6 +233,14 @@ router.post('/:id/unlock-messaging', requireAuth, async (req: AuthRequest, res) 
       `UPDATE payments SET status = 'succeeded' WHERE match_id = $1 AND user_id = $2 AND status = 'pending'`,
       [req.params.id, userId]
     );
+
+    // 4. Notify caregiver
+    const familyName = req.user!.name || 'A family';
+    await query(
+      `INSERT INTO notifications (user_id, title, content, type)
+       VALUES ($1, $2, $3, 'messaging_unlocked')`,
+      [match.caregiver_id, 'Messaging Unlocked!', `${familyName} has unlocked direct messaging with you. Start the conversation now.`]
+    ).catch(err => console.error('Error inserting notification:', err));
 
     res.json({ match, message: 'Messaging unlocked' });
   } catch (err) {

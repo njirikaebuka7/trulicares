@@ -75,6 +75,14 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
         );
         await query(`UPDATE care_requests SET status = 'matched' WHERE id = $1`, [careRequest.id]);
 
+        // Notify caregiver of direct request
+        const familyName = req.user!.name || 'A family';
+        await query(
+          `INSERT INTO notifications (user_id, title, content, type)
+           VALUES ($1, $2, $3, 'match_request')`,
+          [caregiverId, 'New Care Request Direct Match', `${familyName} has sent you a direct care request. Check your Job Requests.`]
+        ).catch(err => console.error('Error inserting notification:', err));
+
         return res.status(201).json({
           request: formatRequest(careRequest),
           matchId: matchResult.rows[0].id,

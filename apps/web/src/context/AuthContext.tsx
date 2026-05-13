@@ -59,9 +59,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string,
     name: string,
     role: 'family' | 'caregiver',
-    _caregiverData?: any
+    caregiverData?: any
   ) => {
-    const data: any = await authApi.register(name, email, password, role);
+    const data: any = await authApi.register(name, email, password, role, caregiverData);
     setToken(data.token);
     setUser({
       id: data.user.id,

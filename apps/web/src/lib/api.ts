@@ -73,8 +73,8 @@ export async function del(path: string) {
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const auth = {
   login: (email: string, password: string) => post('/auth/login', { email, password }),
-  register: (name: string, email: string, password: string, role: string) =>
-    post('/auth/register', { name, email, password, role }),
+  register: (name: string, email: string, password: string, role: string, caregiverData?: any) =>
+    post('/auth/register', { name, email, password, role, caregiverData }),
   me: () => get('/auth/me'),
   settings: () => get('/auth/settings'),
   stats: () => get('/auth/stats'),

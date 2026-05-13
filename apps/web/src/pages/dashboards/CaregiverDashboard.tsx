@@ -4,7 +4,7 @@ import {
   Bell, MessageCircle, User, Settings, LogOut, MapPin, DollarSign,
   Star, Shield, Check, ChevronRight, Calendar, Clock, TrendingUp,
   Briefcase, X, CheckCircle, XCircle, Edit3, LayoutDashboard,
-  ChevronLeft, ChevronRight as ChevronRightIcon, Camera, Send, MoreHorizontal, Loader2, Plus, AlertCircle, Phone, Trash2
+  ChevronLeft, ChevronRight as ChevronRightIcon, Camera, Send, MoreHorizontal, Loader2, Plus, AlertCircle, Phone, Trash2, Upload, Zap, CreditCard
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
@@ -26,6 +26,30 @@ const navItems: { id: Tab; label: string; icon: React.ReactNode }[] = [
 ];
 
 const avatarColors = ['bg-coral-400', 'bg-brand-400', 'bg-sky-400', 'bg-emerald-400', 'bg-violet-400'];
+
+const SPECIALTY_MAP: Record<string, string> = {
+  'child-care': 'Child Care',
+  'Child Care': 'Child Care',
+  'senior-care': 'Senior Care',
+  'Senior Care': 'Senior Care',
+  'adult-care': 'Adult Care',
+  'Adult Care': 'Adult Care',
+  'cleaning': 'Cleaning',
+  'Cleaning': 'Cleaning',
+  'tutoring': 'Tutoring',
+  'Tutoring': 'Tutoring',
+  'pet-care': 'Pet Care',
+  'Pet Care': 'Pet Care',
+};
+
+const DB_SPECIALTY_MAP: Record<string, string> = {
+  'Child Care': 'child-care',
+  'Senior Care': 'senior-care',
+  'Adult Care': 'adult-care',
+  'Cleaning': 'cleaning',
+  'Tutoring': 'tutoring',
+  'Pet Care': 'pet-care',
+};
 
 export default function CaregiverDashboard() {
   const navigate = useNavigate();
@@ -63,6 +87,7 @@ export default function CaregiverDashboard() {
   const [cgToast, setCgToast] = useState<string | null>(null);
   const [cgSpecialties, setCgSpecialties] = useState<string[]>([]);
   const [cgAvailType, setCgAvailType] = useState('Flexible');
+  const [bgCheckModalOpen, setBgCheckModalOpen] = useState(false);
 
   const getDisplayName = (familyName: string, unlocked: boolean) => {
     if (unlocked) return familyName;
@@ -91,6 +116,7 @@ export default function CaregiverDashboard() {
   const [cgSchedule, setCgSchedule] = useState<any[]>([]);
   const [cgReviews, setCgReviews] = useState<any[]>([]);
   const [conversations, setConversations] = useState<any[]>([]);
+  const [dbNotifications, setDbNotifications] = useState<any[]>([]);
 
   const showToast = (msg: string) => {
     setCgToast(msg);
@@ -124,6 +150,7 @@ export default function CaregiverDashboard() {
       get('/reviews').then((d: any) => setCgReviews(d.reviews || [])).catch(() => {}),
       get('/conversations').then((d: any) => setConversations(d.conversations || [])).catch(() => {}),
       get('/clients').then((d: any) => setClients(d.clients || [])).catch(() => {}),
+      get('/notifications').then((d: any) => setDbNotifications(d.notifications || [])).catch(() => {}),
       get(`/caregivers/${user.id}`).then((d: any) => {
         if (d?.caregiver) {
           const cg = d.caregiver;
@@ -131,7 +158,7 @@ export default function CaregiverDashboard() {
           if (cg.bio) setCgBio(cg.bio);
           if (cg.hourlyRate) setCgRate({ min: cg.hourlyRate[0], max: cg.hourlyRate[1] });
           if (cg.serviceZips?.length) setCgServiceZips(cg.serviceZips);
-          if (cg.specialties?.length) setCgSpecialties(cg.specialties);
+          if (cg.specialties?.length) setCgSpecialties(cg.specialties.map((s: string) => SPECIALTY_MAP[s] || s));
           if (cg.yearsExperience) setCgExperience(cg.yearsExperience);
           if (cg.photoUrl) setPhotoUrl(cg.photoUrl);
           if (cg.backgroundCheckStatus) setBgCheckStatus(cg.backgroundCheckStatus as 'none' | 'pending' | 'approved');
@@ -167,6 +194,31 @@ export default function CaregiverDashboard() {
       supabase.removeChannel(channel);
     };
   }, [caregiverId, fetchData]);
+
+  // Real-time subscription for notifications
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel('caregiver-notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, fetchData]);
 
   useEffect(() => {
     fetchData();
@@ -209,6 +261,27 @@ export default function CaregiverDashboard() {
     };
   }, [fetchData]);
 
+  // Handle background check payment success sync
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const bgPaymentStatus = params.get('bg_payment');
+    const sessionId = params.get('session_id');
+    if (bgPaymentStatus === 'success' && sessionId) {
+      post('/caregivers/background-check/pay-success', { sessionId })
+        .then(() => {
+          showToast('Payment successful! Your professional background check has been ordered.');
+          fetchData();
+        })
+        .catch(() => {
+          showToast('Failed to synchronize background check order.');
+        });
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (bgPaymentStatus === 'cancelled') {
+      showToast('Payment was cancelled.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [fetchData]);
+
   const handleLogout = () => { logout(); navigate('/'); };
   const handleJob = async (id: string, action: 'accepted' | 'declined') => {
     setJobStatuses(prev => ({ ...prev, [id]: action }));
@@ -242,15 +315,65 @@ export default function CaregiverDashboard() {
     };
     reader.readAsDataURL(file);
   };
+  
+  const [bgCheckUploading, setBgCheckUploading] = useState(false);
+  const handleBgCheckUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5_000_000) { showToast('Document must be under 5 MB'); return; }
+    setBgCheckUploading(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const base64 = reader.result as string;
+        await post('/caregivers/background-check', {
+          documentBase64: base64,
+          documentName: file.name,
+        });
+        setBgCheckStatus('pending');
+        showToast('Background check document uploaded successfully!');
+      } catch (err: any) {
+        showToast(err.message || 'Failed to submit background check');
+      } finally {
+        setBgCheckUploading(false);
+        e.target.value = '';
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const [bgCheckPaying, setBgCheckPaying] = useState(false);
+  const handleBgStripeCheckout = async () => {
+    setBgCheckPaying(true);
+    try {
+      const res: any = await post('/payments/checkout', { isBackgroundCheck: true });
+      if (res.url) {
+        window.location.href = res.url;
+      } else {
+        showToast('Failed to initiate payment. Stripe connection is not ready.');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to start background check checkout session.');
+    } finally {
+      setBgCheckPaying(false);
+    }
+  };
 
   const pendingJobsCount = jobRequests.filter((j: any) => (j.status === 'pending' || j.status === 'matching') && !jobStatuses[j.id]).length;
   const unreadMsgCount = conversations.reduce((acc: number, c: any) => acc + (c.unreadCount || 0), 0);
   const initials = user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() ?? 'C';
-  const unread = notificationsRead ? 0 : unreadMsgCount + pendingJobsCount;
+  const dbUnreadNotifCount = dbNotifications.filter((n: any) => !(n.read ?? n.isRead ?? false)).length;
+  const unread = notificationsRead ? 0 : dbUnreadNotifCount;
 
-  const openNotifications = () => {
+  const openNotifications = async () => {
     setNotifOpen(true);
     setNotificationsRead(true);
+    if (dbUnreadNotifCount > 0) {
+      try {
+        await put('/notifications/read-all');
+        setDbNotifications(prev => prev.map((n: any) => ({ ...n, read: true, isRead: true })));
+      } catch {}
+    }
   };
 
   return (
@@ -412,16 +535,17 @@ export default function CaregiverDashboard() {
                     <span className="font-bold text-gray-900 text-sm">Notifications</span>
                     <button onClick={() => setNotifOpen(false)}><X className="w-4 h-4 text-gray-400" /></button>
                   </div>
-                  {[
-                    { text: '2 new job requests match your profile', time: '30 min ago' },
-                    { text: 'Johnson Family left you a 5-star review', time: '3 hrs ago' },
-                    { text: 'Weekly payout of $540 processed', time: '2 days ago' },
-                  ].map((n, i) => (
-                    <div key={i} className="px-4 py-3 border-b border-gray-50 last:border-0">
-                      <p className="text-sm text-gray-800 font-medium">{n.text}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{n.time}</p>
-                    </div>
-                  ))}
+                  {dbNotifications.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-sm text-gray-400">No notifications yet.</div>
+                  ) : dbNotifications.slice(0, 8).map((n: any) => {
+                    const isRead = n.read ?? n.isRead ?? false;
+                    return (
+                      <div key={n.id} className="px-4 py-3 border-b border-gray-50 last:border-0">
+                        <p className={cn('text-sm font-medium', isRead ? 'text-gray-600' : 'text-gray-900')}>{n.content || n.title}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{n.createdAt ? new Date(n.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : n.timeAgo}</p>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -445,18 +569,20 @@ export default function CaregiverDashboard() {
                   <X className="w-4 h-4 text-gray-400" />
                 </button>
               </div>
-              {[
-                { text: '2 new job requests match your profile', time: '30 min ago' },
-                { text: 'Johnson Family left you a 5-star review', time: '3 hrs ago' },
-              ].map((n, i) => (
-                <div key={i} className="px-5 py-4 border-b border-gray-50 last:border-0 flex items-start gap-3">
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full mt-1.5 shrink-0" />
-                  <div>
-                    <p className="text-sm text-gray-800 font-medium">{n.text}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{n.time}</p>
+              {dbNotifications.length === 0 ? (
+                <div className="px-5 py-6 text-center text-sm text-gray-400">No notifications yet.</div>
+              ) : dbNotifications.slice(0, 5).map((n: any) => {
+                const isRead = n.read ?? n.isRead ?? false;
+                return (
+                  <div key={n.id} className="px-5 py-4 border-b border-gray-50 last:border-0 flex items-start gap-3">
+                    <div className={cn("w-2 h-2 rounded-full mt-1.5 shrink-0", isRead ? "bg-gray-300" : "bg-emerald-500")} />
+                    <div>
+                      <p className={cn("text-sm font-medium", isRead ? "text-gray-600" : "text-gray-900")}>{n.content || n.title}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{n.createdAt ? new Date(n.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : n.timeAgo}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -800,8 +926,14 @@ export default function CaregiverDashboard() {
             const nextMonth = () => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); } else setCalMonth(m => m + 1); setCalSelectedDay(null); };
             const parseDate = (s: any): Date | null => {
               if (!s.date) return null;
-              let d = new Date(s.date);
-              if (isNaN(d.getTime())) { const stripped = s.date.replace(/^[A-Za-z]+,\s*/, ''); d = new Date(`${stripped}, ${calYear}`); }
+              let d: Date;
+              const hasYear = /\b\d{4}\b/.test(s.date);
+              if (hasYear) {
+                d = new Date(s.date);
+              } else {
+                const stripped = s.date.replace(/^[A-Za-z]+,\s*/, '');
+                d = new Date(`${stripped}, ${calYear}`);
+              }
               return isNaN(d.getTime()) ? null : d;
             };
             const sessionsByDay = new Map<number, any[]>();
@@ -1004,6 +1136,14 @@ export default function CaregiverDashboard() {
                           <Clock className="w-3 h-3" /> Check Pending
                         </span>
                       )}
+                      {bgCheckStatus === 'none' && (
+                        <button
+                          onClick={() => setBgCheckModalOpen(true)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 text-xs font-bold transition-all cursor-pointer shadow-sm animate-pulse border border-blue-200"
+                        >
+                          <Shield className="w-3 h-3" /> Apply for Background
+                        </button>
+                      )}
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">
                         <Shield className="w-3 h-3" /> Verified
                       </span>
@@ -1024,14 +1164,14 @@ export default function CaregiverDashboard() {
                     <h4 className="font-bold text-gray-900 mb-0.5">Background Check</h4>
                     {bgCheckStatus === 'none' && (
                       <>
-                        <p className="text-sm text-gray-500 mb-3">Build trust with families by completing a background check. Verified caregivers get 3x more matches.</p>
-                        <Button size="sm" onClick={async () => {
-                          setBgCheckStatus('pending');
-                          try { await put('/caregivers/profile', { backgroundCheckStatus: 'pending' }); } catch {}
-                          showToast('Background check request submitted!');
-                        }} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full">
-                          <Shield className="w-4 h-4" /> Request Background Check
-                        </Button>
+                        <p className="text-sm text-gray-500 mb-3">Order a professional background check or upload your verification documents to get verified. Verified caregivers get 3x more matches.</p>
+                        <button
+                          onClick={() => setBgCheckModalOpen(true)}
+                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer transition-colors shadow-md"
+                        >
+                          <Shield className="w-4 h-4" />
+                          Apply for Background Check
+                        </button>
                       </>
                     )}
                     {bgCheckStatus === 'pending' && (
@@ -1209,9 +1349,10 @@ export default function CaregiverDashboard() {
                 <Button variant="primary" fullWidth disabled={cgSaving} onClick={async () => {
                   setCgSaving(true);
                   try {
+                    const dbSpecialties = cgSpecialties.map(s => DB_SPECIALTY_MAP[s] || s.toLowerCase().replace(' ', '-'));
                     await put('/caregivers/profile', {
                       bio: cgBio,
-                      specialties: cgSpecialties,
+                      specialties: dbSpecialties,
                       yearsExperience: cgExperience
                     });
                     showToast('Profile updated!');
@@ -1549,6 +1690,64 @@ export default function CaregiverDashboard() {
                   <p className="text-gray-600 text-sm leading-relaxed">{selectedJobDetail.details.description}</p>
                 </div>
               )}
+
+              {/* Dynamic Child Care / Senior Care detailed breakdown */}
+              {selectedJobDetail.details && (
+                <div className="bg-emerald-50/40 rounded-2xl border border-emerald-100 p-4 space-y-4 text-sm text-gray-800">
+                  <h4 className="font-bold text-emerald-900 text-xs uppercase tracking-widest border-b border-emerald-100 pb-1.5">Care Requirements</h4>
+                  
+                  {/* Children / Ages details */}
+                  {(selectedJobDetail.details.numChildren !== undefined || selectedJobDetail.details.numberOfChildren !== undefined) && (
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="text-xs text-gray-500 font-medium">Children:</span>
+                      <span className="font-bold text-right">
+                        {selectedJobDetail.details.numChildren ?? selectedJobDetail.details.numberOfChildren} 
+                        {selectedJobDetail.details.childAges && ` (Ages: ${selectedJobDetail.details.childAges.map((a: number) => a === 0 ? 'Under 1 yr' : `${a} yrs`).join(', ')})`}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Arranged Type */}
+                  {selectedJobDetail.details.careType && (
+                    <div className="flex items-start justify-between gap-4 border-t border-emerald-100/50 pt-2">
+                      <span className="text-xs text-gray-500 font-medium">Care Arrangement:</span>
+                      <span className="font-semibold">{selectedJobDetail.details.careType}</span>
+                    </div>
+                  )}
+
+                  {/* Frequency */}
+                  {selectedJobDetail.details.frequency && (
+                    <div className="flex items-start justify-between gap-4 border-t border-emerald-100/50 pt-2">
+                      <span className="text-xs text-gray-500 font-medium">Frequency:</span>
+                      <span className="font-semibold">{selectedJobDetail.details.frequency}</span>
+                    </div>
+                  )}
+
+                  {/* Help Needed */}
+                  {selectedJobDetail.details.helpNeeded && Array.isArray(selectedJobDetail.details.helpNeeded) && selectedJobDetail.details.helpNeeded.length > 0 && (
+                    <div className="border-t border-emerald-100/50 pt-2 space-y-1">
+                      <span className="text-xs text-gray-500 font-medium block">Services Required:</span>
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {selectedJobDetail.details.helpNeeded.map((h: string) => (
+                          <span key={h} className="text-xs px-2 py-0.5 rounded-full bg-emerald-100/80 text-emerald-800 font-medium">
+                            {h}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Special Needs */}
+                  {selectedJobDetail.details.specialNeeds && (
+                    <div className="border-t border-emerald-100/50 pt-2 space-y-1">
+                      <span className="text-xs text-gray-500 font-medium block">Special Needs / Care Instructions:</span>
+                      <p className="text-xs text-gray-600 bg-white/80 p-2.5 rounded-xl border border-emerald-100/40 italic leading-relaxed">
+                        "{selectedJobDetail.details.specialNeeds}"
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="border-t border-gray-100 pt-4">
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Family Contact Info</p>
                 {selectedJobDetail.messagingUnlocked ? (
@@ -1785,6 +1984,113 @@ export default function CaregiverDashboard() {
                 </button>
               </div>
             </nav>
+
+            {/* Background Check Choice Modal */}
+            {bgCheckModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setBgCheckModalOpen(false)} />
+                <div className="relative bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-scale-up border border-gray-100 flex flex-col max-h-[90vh]">
+                  {/* Header */}
+                  <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-emerald-500/5 to-teal-500/5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600">
+                        <Shield className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900">Apply for Background Check</h3>
+                        <p className="text-xs text-gray-500 font-sans">Get background checked to unlock 3x more job requests</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setBgCheckModalOpen(false)}
+                      className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {/* Body */}
+                  <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Option 1: Upload Document */}
+                      <div className="border border-gray-200 rounded-2xl p-5 hover:border-emerald-500 hover:shadow-md transition-all flex flex-col justify-between">
+                        <div>
+                          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 mb-4">
+                            <Upload className="w-5 h-5" />
+                          </div>
+                          <h4 className="font-bold text-gray-900 mb-1">Upload ID Document</h4>
+                          <span className="inline-block px-2 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] font-bold mb-3">FREE</span>
+                          <p className="text-xs text-gray-500 leading-relaxed mb-4">
+                            Upload a high-quality copy of your Driver's License, State ID, or professional certification for our team to manually verify.
+                          </p>
+                          <ul className="text-xs text-gray-500 space-y-1.5 mb-6 list-disc list-inside">
+                            <li>Driver's License / State ID</li>
+                            <li>Professional care credentials</li>
+                            <li>Manual validation (2-3 days)</li>
+                          </ul>
+                        </div>
+
+                        <div>
+                          <label className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-bold cursor-pointer transition-colors shadow-sm">
+                            <Upload className="w-4 h-4" />
+                            {bgCheckUploading ? 'Uploading...' : 'Upload & Submit ID'}
+                            <input
+                              type="file"
+                              accept="image/*,.pdf,.doc,.docx"
+                              className="hidden"
+                              onChange={(e) => {
+                                handleBgCheckUpload(e);
+                                setBgCheckModalOpen(false);
+                              }}
+                              disabled={bgCheckUploading}
+                            />
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Option 2: Stripe Background Check */}
+                      <div className="border border-gray-200 rounded-2xl p-5 hover:border-emerald-500 hover:shadow-md transition-all flex flex-col justify-between bg-emerald-50/20 border-emerald-100">
+                        <div>
+                          <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 mb-4">
+                            <Zap className="w-5 h-5" />
+                          </div>
+                          <h4 className="font-bold text-gray-900 mb-1">Instant Premium Check</h4>
+                          <span className="inline-block px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold mb-3">PREMIUM</span>
+                          <p className="text-xs text-gray-500 leading-relaxed mb-4">
+                            Pay for TruliCares to run a fast, comprehensive, professional digital background screening with instant confirmation.
+                          </p>
+                          <ul className="text-xs text-gray-500 space-y-1.5 mb-6">
+                            <li className="flex items-center gap-1.5">
+                              <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Identity validation check
+                            </li>
+                            <li className="flex items-center gap-1.5">
+                              <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> National criminal database
+                            </li>
+                            <li className="flex items-center gap-1.5">
+                              <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Sex offender registry check
+                            </li>
+                          </ul>
+                        </div>
+
+                        <div>
+                          <button
+                            onClick={() => {
+                              handleBgStripeCheckout();
+                              setBgCheckModalOpen(false);
+                            }}
+                            disabled={bgCheckPaying}
+                            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors shadow-md disabled:opacity-50"
+                          >
+                            <CreditCard className="w-4 h-4" />
+                            {bgCheckPaying ? 'Connecting...' : 'Pay $39.00 via Stripe'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         );
       })()}
