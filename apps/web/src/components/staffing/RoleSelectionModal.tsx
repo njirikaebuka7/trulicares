@@ -98,7 +98,7 @@ export default function RoleSelectionModal({ isOpen, onClose }: RoleSelectionMod
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
       {/* Modal */}
-      <div className={`relative bg-white rounded-3xl shadow-2xl w-full max-w-4xl transition-all duration-300 ${isExiting ? 'scale-95 opacity-0' : 'scale-100 opacity-100'}`}>
+      <div className={`relative bg-white rounded-3xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh] transition-all duration-300 ${isExiting ? 'scale-95 opacity-0' : 'scale-100 opacity-100'}`}>
         {/* Header */}
         <div className="relative p-8 pb-6 text-center border-b border-gray-100">
           <button
@@ -118,7 +118,7 @@ export default function RoleSelectionModal({ isOpen, onClose }: RoleSelectionMod
         </div>
 
         {/* Role Cards */}
-        <div className="p-6 grid sm:grid-cols-3 gap-4">
+        <div className="p-6 grid sm:grid-cols-3 gap-4 overflow-y-auto flex-1 min-h-0">
           {roles.map((role) => {
             const Icon = role.icon;
             const isActive = selected === role.id;

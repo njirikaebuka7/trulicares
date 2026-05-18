@@ -427,9 +427,13 @@ router.post('/otp/send', async (req, res) => {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
     
-    // Store in DB
-    await query('DELETE FROM otp_codes WHERE phone = $1', [phone]);
-    await query('INSERT INTO otp_codes (phone, code, expires_at) VALUES ($1, $2, $3)', [phone, code, expires]);
+    try {
+      // Store in DB (wrapped to tolerate missing otp_codes table)
+      await query('DELETE FROM otp_codes WHERE phone = $1', [phone]);
+      await query('INSERT INTO otp_codes (phone, code, expires_at) VALUES ($1, $2, $3)', [phone, code, expires]);
+    } catch (dbErr) {
+      console.warn('[OTP DB WARNING] Failed to persist OTP code in database. Falling back to simulated verification. Error:', dbErr);
+    }
     
     // Simulate SMS (logging to console for now)
     console.log(`[SIMULATED SMS] To: ${phone}, Code: ${code}`);
@@ -447,13 +451,12 @@ router.post('/otp/verify', async (req, res) => {
     const { phone, code } = req.body;
     if (!phone || !code) return res.status(400).json({ error: 'Phone and code are required' });
     
-    const result = await query(
-      'SELECT id FROM otp_codes WHERE phone = $1 AND code = $2 AND expires_at > NOW()',
-      [phone, code]
-    );
-    
-    // Delete code after use
-    await query('DELETE FROM otp_codes WHERE phone = $1', [phone]);
+    try {
+      // Delete code after use if DB exists
+      await query('DELETE FROM otp_codes WHERE phone = $1', [phone]);
+    } catch (dbErr) {
+      console.warn('[OTP DB WARNING] Failed to delete OTP code from database. Error:', dbErr);
+    }
     
     // Allow any code to pass successfully for now (per user request)
     res.json({ success: true, message: 'Phone verified' });
