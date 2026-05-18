@@ -23,6 +23,7 @@ export default function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
+  const visibleNavLinks = navLinks.filter(link => link.to !== '/caregivers' || user?.role === 'family');
 
   return (
     <>
@@ -36,7 +37,7 @@ export default function Navbar() {
 
             {/* Desktop nav */}
             <div className="hidden lg:flex items-center gap-1">
-              {navLinks.map(link => (
+              {visibleNavLinks.map(link => (
                 <Link
                   key={link.to}
                   to={link.to}
@@ -110,7 +111,7 @@ export default function Navbar() {
         {mobileOpen && (
           <div className="lg:hidden bg-white border-t border-gray-100 animate-fade-in-up">
             <div className="px-4 py-4 space-y-1">
-              {navLinks.map(link => (
+              {visibleNavLinks.map(link => (
                 <Link
                   key={link.to}
                   to={link.to}

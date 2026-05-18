@@ -4,12 +4,13 @@ import {
   Bell, MessageCircle, User, Settings, LogOut, MapPin, DollarSign,
   Star, Shield, Check, ChevronRight, Calendar, Clock, TrendingUp,
   Briefcase, X, CheckCircle, XCircle, Edit3, LayoutDashboard,
-  ChevronLeft, ChevronRight as ChevronRightIcon, Camera, Send, MoreHorizontal, Loader2, Plus, AlertCircle, Phone, Trash2, Upload, Zap, CreditCard
+  ChevronLeft, ChevronRight as ChevronRightIcon, Camera, Send, MoreHorizontal, Loader2, Plus, AlertCircle, Phone, Trash2, Upload, Zap, CreditCard, Flag, AlertTriangle, Ban
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
+import ReportModal from '@/components/ReportModal';
 import { useAuth } from '@/context/AuthContext';
 import { detectLocationWithZip } from '@/utils/geolocation';
-import { get, post, put } from '@/lib/api';
+import { auth as authApi, get, post, put } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import { supabase } from '@/lib/supabase';
 import logoImg from '@/assets/logo.png';
@@ -75,6 +76,7 @@ export default function CaregiverDashboard() {
   const [selectedJobDetail, setSelectedJobDetail] = useState<any | null>(null);
   const [cgBio, setCgBio] = useState('');
   const [cgRate, setCgRate] = useState({ min: 15, max: 30 });
+  const [cgLocation, setCgLocation] = useState('');
   const [cgServiceZips, setCgServiceZips] = useState<string[]>([]);
   const [cgZipInput, setCgZipInput] = useState('');
   const [cgLocating, setCgLocating] = useState(false);
@@ -87,7 +89,12 @@ export default function CaregiverDashboard() {
   const [cgToast, setCgToast] = useState<string | null>(null);
   const [cgSpecialties, setCgSpecialties] = useState<string[]>([]);
   const [cgAvailType, setCgAvailType] = useState('Flexible');
+  const [cgPasswordForm, setCgPasswordForm] = useState({ current: '', next: '', confirm: '' });
+  const [cgPasswordError, setCgPasswordError] = useState('');
   const [bgCheckModalOpen, setBgCheckModalOpen] = useState(false);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+
+  const [showReportModal, setShowReportModal] = useState<null | { reportedUserId: string; reportedUserName: string; requestId?: string; refId?: string }>(null);
 
   const getDisplayName = (familyName: string, unlocked: boolean) => {
     if (unlocked) return familyName;
@@ -108,8 +115,9 @@ export default function CaregiverDashboard() {
   const [calSelectedDay, setCalSelectedDay] = useState<number | null>(null);
   const [caregiverId, setCaregiverId] = useState<string | null>(null);
 
-  // Background check state: 'none' | 'pending' | 'approved'
-  const [bgCheckStatus, setBgCheckStatus] = useState<'none' | 'pending' | 'approved'>('none');
+  // Background check state: 'none' | 'pending' | 'approved' | 'awaiting_payment'
+  const [bgCheckStatus, setBgCheckStatus] = useState<'none' | 'pending' | 'approved' | 'awaiting_payment'>('none');
+  const [bgStep, setBgStep] = useState(1);
 
   const [jobRequests, setJobRequests] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
@@ -122,6 +130,8 @@ export default function CaregiverDashboard() {
     setCgToast(msg);
     setTimeout(() => setCgToast(null), 3000);
   };
+
+  const canRevealFamilyIdentity = (job: any) => Boolean(job?.messagingUnlocked || job?.status === 'accepted');
 
   const loadCgMessages = async (convId: string) => {
     try {
@@ -151,21 +161,23 @@ export default function CaregiverDashboard() {
       get('/conversations').then((d: any) => setConversations(d.conversations || [])).catch(() => {}),
       get('/clients').then((d: any) => setClients(d.clients || [])).catch(() => {}),
       get('/notifications').then((d: any) => setDbNotifications(d.notifications || [])).catch(() => {}),
-      get(`/caregivers/${user.id}`).then((d: any) => {
+      get('/caregivers/profile/me').then((d: any) => {
         if (d?.caregiver) {
           const cg = d.caregiver;
           if (cg.id) setCaregiverId(cg.id);
-          if (cg.bio) setCgBio(cg.bio);
+          setCgBio(cg.bio || '');
           if (cg.hourlyRate) setCgRate({ min: cg.hourlyRate[0], max: cg.hourlyRate[1] });
-          if (cg.serviceZips?.length) setCgServiceZips(cg.serviceZips);
-          if (cg.specialties?.length) setCgSpecialties(cg.specialties.map((s: string) => SPECIALTY_MAP[s] || s));
-          if (cg.yearsExperience) setCgExperience(cg.yearsExperience);
-          if (cg.photoUrl) setPhotoUrl(cg.photoUrl);
-          if (cg.backgroundCheckStatus) setBgCheckStatus(cg.backgroundCheckStatus as 'none' | 'pending' | 'approved');
-          if (cg.availability) setCgAvailType(cg.availability);
+          setCgLocation(cg.location || '');
+          setCgServiceZips(cg.serviceZips || []);
+          setCgSpecialties((cg.specialties || []).map((s: string) => SPECIALTY_MAP[s] || s));
+          setCgExperience(cg.yearsExperience || 0);
+          setPhotoUrl(cg.photoUrl || null);
+          setBgCheckStatus((cg.backgroundCheckStatus || 'none') as any);
+          setCgAvailType(cg.availability || 'Flexible');
         }
       }).catch(() => {}),
-    ]).catch(console.error);
+    ]).catch(console.error)
+      .finally(() => setDashboardLoading(false));
   }, [user?.id]);
 
   // Real-time subscription for new matches/job requests
@@ -234,7 +246,7 @@ export default function CaregiverDashboard() {
         console.log('⚡ Realtime Care Request table mutated');
         fetchData();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, () => {
         console.log('⚡ Realtime Schedule table mutated');
         fetchData();
       })
@@ -248,6 +260,14 @@ export default function CaregiverDashboard() {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reviews' }, () => {
         console.log('⚡ Realtime Reviews table mutated');
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => {
+        console.log('⚡ Realtime Payments table mutated');
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
+        console.log('⚡ Realtime Notifications table mutated');
         fetchData();
       })
       .subscribe();
@@ -330,10 +350,11 @@ export default function CaregiverDashboard() {
           documentBase64: base64,
           documentName: file.name,
         });
-        setBgCheckStatus('pending');
-        showToast('Background check document uploaded successfully!');
+        setBgCheckStatus('awaiting_payment');
+        setBgStep(2);
+        showToast('Document uploaded successfully! Please proceed to payment to finish.');
       } catch (err: any) {
-        showToast(err.message || 'Failed to submit background check');
+        showToast(err.message || 'Failed to submit document');
       } finally {
         setBgCheckUploading(false);
         e.target.value = '';
@@ -365,19 +386,54 @@ export default function CaregiverDashboard() {
   const dbUnreadNotifCount = dbNotifications.filter((n: any) => !(n.read ?? n.isRead ?? false)).length;
   const unread = notificationsRead ? 0 : dbUnreadNotifCount;
 
-  const openNotifications = async () => {
-    setNotifOpen(true);
-    setNotificationsRead(true);
-    if (dbUnreadNotifCount > 0) {
-      try {
-        await put('/notifications/read-all');
-        setDbNotifications(prev => prev.map((n: any) => ({ ...n, read: true, isRead: true })));
-      } catch {}
+  const openBgCheckModal = () => {
+    if (bgCheckStatus === 'awaiting_payment') {
+      setBgStep(2);
+    } else {
+      setBgStep(1);
     }
+    setBgCheckModalOpen(true);
   };
 
+  const openNotifications = () => {
+    setNotifOpen(true);
+    setNotificationsRead(true);
+    // Mark all as read in DB if needed
+    post('/notifications/read-all', {}).catch(() => {});
+    setDbNotifications(prev => prev.map((n: any) => ({ ...n, read: true, isRead: true })));
+  };
+
+  if (dashboardLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <div className="w-16 h-16 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin mb-4" />
+        <p className="text-gray-500 font-medium">Setting up your dashboard...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex bg-gray-50 min-h-screen">
+    <div className="flex bg-gray-50 min-h-screen relative">
+      {user?.status === 'suspended' && (
+        <div className="fixed inset-0 z-[300] bg-white/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-20 h-20 bg-red-100 rounded-3xl flex items-center justify-center mb-6">
+            <Ban className="w-10 h-10 text-red-600" />
+          </div>
+          <h2 className="text-3xl font-bold text-gray-900 mb-3">Account Suspended</h2>
+          <p className="text-gray-600 max-w-md mb-8">
+            Your account has been suspended for violating our terms of service or due to a pending investigation. 
+            You cannot accept new requests or message families at this time.
+          </p>
+          <div className="flex flex-col gap-3 w-full max-w-xs">
+            <Button variant="primary" fullWidth onClick={() => window.location.href = 'mailto:support@trulicares.com'}>
+              Contact Support
+            </Button>
+            <Button variant="ghost" fullWidth onClick={logout}>
+              Log Out
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* ── TOAST ── */}
       {cgToast && (
@@ -611,7 +667,11 @@ export default function CaregiverDashboard() {
 
               {/* Live stats */}
               {(() => {
-                const activeClients = clients.filter((c: any) => c.status === 'active').length;
+                const activeClients = new Set(
+                  clients
+                    .filter((c: any) => c.active || c.messagingUnlocked)
+                    .map((c: any) => c.id)
+                ).size;
                 const upcomingCount = cgSchedule.length;
                 const avgRating = cgReviews.length > 0
                   ? (cgReviews.reduce((s: number, r: any) => s + (r.rating || 0), 0) / cgReviews.length).toFixed(1)
@@ -656,7 +716,7 @@ export default function CaregiverDashboard() {
                           {(job.familyName || '?').charAt(0)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm text-gray-900">{getDisplayName(job.familyName, job.messagingUnlocked)}</p>
+                          <p className="font-semibold text-sm text-gray-900">{getDisplayName(job.familyName, canRevealFamilyIdentity(job))}</p>
                           <p className="text-xs text-gray-500">{job.details?.schedule || job.location || ''}</p>
                           <p className="text-xs text-emerald-600 font-semibold mt-0.5">{job.budget}</p>
                         </div>
@@ -729,13 +789,18 @@ export default function CaregiverDashboard() {
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <h3 className="font-bold text-gray-900">{getDisplayName(job.familyName, job.messagingUnlocked)}</h3>
+                          <h3 className="font-bold text-gray-900">{getDisplayName(job.familyName, canRevealFamilyIdentity(job))}</h3>
                           <span className={cn('text-xs px-2.5 py-0.5 rounded-full font-semibold',
                             isPending ? 'bg-blue-100 text-blue-700' :
                             jobAction === 'accepted' ? 'bg-green-100 text-green-700' :
                             'bg-gray-100 text-gray-600')}>
                             {isPending && !jobAction ? 'New' : jobAction === 'accepted' ? 'Accepted' : job.status}
                           </span>
+                          {job.refId && (
+                            <span className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded ml-1 uppercase tracking-wider">
+                              ID: {job.refId}
+                            </span>
+                          )}
                           <span className="text-xs text-gray-400 ml-auto">{job.postedAt}</span>
                         </div>
                         <p className="text-sm font-semibold text-gray-700">{careLabel}{childrenInfo ? ` · ${childrenInfo}` : ''}</p>
@@ -748,11 +813,13 @@ export default function CaregiverDashboard() {
                     </div>
                     <div className="mt-4 pt-4 border-t border-gray-50">
                       {jobAction ? (
-                        <div className={cn('flex items-center gap-2 text-sm font-semibold',
-                          jobAction === 'accepted' ? 'text-green-600' : 'text-red-500')}>
-                          {jobAction === 'accepted' ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-                          {jobAction === 'accepted' ? 'Request Accepted' : 'Request Declined'}
-                          {/* We remove the undo button as backend change is permanent */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className={cn('flex items-center gap-2 text-sm font-semibold',
+                            jobAction === 'accepted' ? 'text-green-600' : 'text-red-500')}>
+                            {jobAction === 'accepted' ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                            {jobAction === 'accepted' ? 'Request Accepted' : 'Request Declined'}
+                          </div>
+                          <Button variant="secondary" size="sm" onClick={() => setSelectedJobDetail(job)}>View Full Care Details</Button>
                         </div>
                       ) : (
                         <div className="flex gap-3">
@@ -764,7 +831,18 @@ export default function CaregiverDashboard() {
                             className="text-red-500 hover:bg-red-50">
                             <XCircle className="w-4 h-4" /> Decline
                           </Button>
-                          <Button variant="secondary" size="sm" onClick={() => setSelectedJobDetail(job)}>View Details</Button>
+                          <Button variant="secondary" size="sm" onClick={() => setSelectedJobDetail(job)}>View Full Care Details</Button>
+                          <button
+                            onClick={() => setShowReportModal({
+                              reportedUserId: job.familyId,
+                              reportedUserName: job.familyName,
+                              refId: job.refId
+                            })}
+                            className="p-2 text-gray-300 hover:text-red-500 transition-colors ml-auto"
+                            title="Report Issue"
+                          >
+                            <Flag className="w-4 h-4" />
+                          </button>
                         </div>
                       )}
                     </div>
@@ -1006,17 +1084,30 @@ export default function CaregiverDashboard() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-gray-900">{session.familyName || session.caregiverName || 'Session'}</p>
-                          <p className="text-sm text-gray-500">{session.service}</p>
+                          <p className="text-sm text-gray-500">{session.service} {session.refId && <span className="ml-2 font-mono text-[10px] bg-gray-50 px-1 py-0.5 rounded text-gray-400 uppercase tracking-tighter">ID: {session.refId}</span>}</p>
                           <div className="flex items-center gap-3 mt-1 text-xs text-gray-400 flex-wrap">
                             <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {session.date}</span>
                             <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {session.time}</span>
                             {session.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {session.location}</span>}
                           </div>
                         </div>
-                        <span className={cn('text-xs px-3 py-1 rounded-full font-semibold shrink-0',
-                          session.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700')}>
-                          {session.status}
-                        </span>
+                        <div className="flex flex-col items-end gap-2 shrink-0">
+                          <span className={cn('text-xs px-3 py-1 rounded-full font-semibold',
+                            session.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700')}>
+                            {session.status}
+                          </span>
+                          <button
+                            onClick={() => setShowReportModal({
+                              reportedUserId: session.familyId,
+                              reportedUserName: session.familyName || 'Family',
+                              refId: session.refId
+                            })}
+                            className="p-1.5 text-gray-300 hover:text-red-500 transition-colors"
+                            title="Report Issue"
+                          >
+                            <Flag className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1136,9 +1227,17 @@ export default function CaregiverDashboard() {
                           <Clock className="w-3 h-3" /> Check Pending
                         </span>
                       )}
+                      {bgCheckStatus === 'awaiting_payment' && (
+                        <button
+                          onClick={openBgCheckModal}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 hover:bg-orange-200 text-xs font-bold transition-all cursor-pointer shadow-sm border border-orange-200"
+                        >
+                          <CreditCard className="w-3 h-3" /> Complete Application
+                        </button>
+                      )}
                       {bgCheckStatus === 'none' && (
                         <button
-                          onClick={() => setBgCheckModalOpen(true)}
+                          onClick={openBgCheckModal}
                           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 text-xs font-bold transition-all cursor-pointer shadow-sm animate-pulse border border-blue-200"
                         >
                           <Shield className="w-3 h-3" /> Apply for Background
@@ -1164,13 +1263,25 @@ export default function CaregiverDashboard() {
                     <h4 className="font-bold text-gray-900 mb-0.5">Background Check</h4>
                     {bgCheckStatus === 'none' && (
                       <>
-                        <p className="text-sm text-gray-500 mb-3">Order a professional background check or upload your verification documents to get verified. Verified caregivers get 3x more matches.</p>
+                        <p className="text-sm text-gray-500 mb-3">Upload your verification documents and order a background check to get verified. Verified caregivers get 3x more matches.</p>
                         <button
-                          onClick={() => setBgCheckModalOpen(true)}
+                          onClick={openBgCheckModal}
                           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer transition-colors shadow-md"
                         >
                           <Shield className="w-4 h-4" />
                           Apply for Background Check
+                        </button>
+                      </>
+                    )}
+                    {bgCheckStatus === 'awaiting_payment' && (
+                      <>
+                        <p className="text-sm text-orange-700 font-medium mb-3">Documents uploaded! Please complete the payment to submit your application to our team.</p>
+                        <button
+                          onClick={openBgCheckModal}
+                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold cursor-pointer transition-colors shadow-md"
+                        >
+                          <CreditCard className="w-4 h-4" />
+                          Complete Payment
                         </button>
                       </>
                     )}
@@ -1241,6 +1352,11 @@ export default function CaregiverDashboard() {
                     <Plus className="w-3.5 h-3.5" /> Edit
                   </button>
                 </div>
+                {cgLocation && (
+                  <p className="text-sm text-gray-600 mb-3 flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-emerald-500" /> {cgLocation}
+                  </p>
+                )}
                 {cgServiceZips.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
                     {cgServiceZips.map(zip => (
@@ -1357,6 +1473,7 @@ export default function CaregiverDashboard() {
                     });
                     showToast('Profile updated!');
                     setCgModal(null);
+                    fetchData(); // Refresh local state to ensure sync
                   } catch {
                     showToast('Failed to save.');
                   } finally {
@@ -1400,7 +1517,12 @@ export default function CaregiverDashboard() {
                 <Button variant="secondary" fullWidth onClick={() => setCgModal(null)}>Cancel</Button>
                 <Button variant="primary" fullWidth disabled={cgSaving} onClick={async () => {
                   setCgSaving(true);
-                  try { await put('/caregivers/profile', { hourlyRateMin: cgRate.min, hourlyRateMax: cgRate.max }); showToast('Rates saved!'); setCgModal(null); } catch { showToast('Failed to save.'); }
+                  try { 
+                    await put('/caregivers/profile', { hourlyRateMin: cgRate.min, hourlyRateMax: cgRate.max }); 
+                    showToast('Rates saved!'); 
+                    setCgModal(null); 
+                    fetchData();
+                  } catch { showToast('Failed to save.'); }
                   finally { setCgSaving(false); }
                 }} className="bg-emerald-600 hover:bg-emerald-700">{cgSaving ? 'Saving…' : 'Save Rates'}</Button>
               </div>
@@ -1518,34 +1640,73 @@ export default function CaregiverDashboard() {
             </div>
             <div className="p-6 space-y-4">
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Current Password</label>
+                <input
+                  type="password"
+                  value={cgPasswordForm.current}
+                  onChange={e => setCgPasswordForm(prev => ({ ...prev, current: e.target.value }))}
+                  placeholder="Enter current password"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+                />
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">New Password</label>
-                <input type="password" placeholder="Enter new password"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                <input
+                  type="password"
+                  value={cgPasswordForm.next}
+                  onChange={e => setCgPasswordForm(prev => ({ ...prev, next: e.target.value }))}
+                  placeholder="Enter new password"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirm Password</label>
-                <input type="password" placeholder="Confirm new password"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm" />
+                <input
+                  type="password"
+                  value={cgPasswordForm.confirm}
+                  onChange={e => setCgPasswordForm(prev => ({ ...prev, confirm: e.target.value }))}
+                  placeholder="Confirm new password"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+                />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Language</label>
-                <select className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none text-sm bg-white">
-                  <option>English (US)</option>
-                  <option>Spanish</option>
-                  <option>French</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Timezone</label>
-                <select className="w-full px-4 py-3 rounded-xl border border-gray-200 outline-none text-sm bg-white">
-                  <option>Eastern Time (ET)</option>
-                  <option>Central Time (CT)</option>
-                  <option>Pacific Time (PT)</option>
-                </select>
-              </div>
+              {cgPasswordError && <p className="text-sm text-red-500">{cgPasswordError}</p>}
               <div className="flex gap-3 pt-2">
                 <Button variant="secondary" fullWidth onClick={() => setCgModal(null)}>Cancel</Button>
-                <Button variant="primary" fullWidth onClick={() => setCgModal(null)} className="bg-emerald-600 hover:bg-emerald-700">Save Changes</Button>
+                <Button
+                  variant="primary"
+                  fullWidth
+                  disabled={cgSaving}
+                  onClick={async () => {
+                    setCgPasswordError('');
+                    if (!cgPasswordForm.current || !cgPasswordForm.next || !cgPasswordForm.confirm) {
+                      setCgPasswordError('All password fields are required.');
+                      return;
+                    }
+                    if (cgPasswordForm.next.length < 8) {
+                      setCgPasswordError('New password must be at least 8 characters.');
+                      return;
+                    }
+                    if (cgPasswordForm.next !== cgPasswordForm.confirm) {
+                      setCgPasswordError('New password and confirmation do not match.');
+                      return;
+                    }
+
+                    setCgSaving(true);
+                    try {
+                      await authApi.changePassword(cgPasswordForm.current, cgPasswordForm.next);
+                      setCgPasswordForm({ current: '', next: '', confirm: '' });
+                      setCgModal(null);
+                      showToast('Password updated successfully!');
+                    } catch (err: any) {
+                      setCgPasswordError(err.message || 'Failed to update password.');
+                    } finally {
+                      setCgSaving(false);
+                    }
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                >
+                  {cgSaving ? 'Saving...' : 'Update Password'}
+                </Button>
               </div>
             </div>
           </div>
@@ -1563,6 +1724,17 @@ export default function CaregiverDashboard() {
             </div>
             <div className="p-6 space-y-4">
               <p className="text-sm text-gray-500">Add ZIP codes and neighborhoods you can serve. Families in these areas will be matched with you first.</p>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Primary Service Location</label>
+                <input
+                  type="text"
+                  value={cgLocation}
+                  onChange={e => setCgLocation(e.target.value)}
+                  placeholder="e.g. Brooklyn, NY"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+                />
+              </div>
 
               {/* Current zip chips */}
               {cgServiceZips.length > 0 && (
@@ -1619,6 +1791,7 @@ export default function CaregiverDashboard() {
                   try {
                     const { address, zip } = await detectLocationWithZip();
                     const label = zip || address;
+                    if (address) setCgLocation(address);
                     if (label && !cgServiceZips.includes(label)) setCgServiceZips(prev => [...prev, label]);
                   } catch {
                     // User denied or unavailable
@@ -1637,7 +1810,7 @@ export default function CaregiverDashboard() {
                 <Button variant="secondary" fullWidth onClick={() => setCgModal(null)}>Cancel</Button>
                 <Button variant="primary" fullWidth disabled={cgSaving} onClick={async () => {
                   setCgSaving(true);
-                  try { await put('/caregivers/profile', { serviceZips: cgServiceZips }); showToast('Service area saved!'); setCgModal(null); } catch { showToast('Failed to save.'); }
+                  try { await put('/caregivers/profile', { location: cgLocation, serviceZips: cgServiceZips }); showToast('Service area saved!'); setCgModal(null); fetchData(); } catch { showToast('Failed to save.'); }
                   finally { setCgSaving(false); }
                 }} className="bg-emerald-600 hover:bg-emerald-700">{cgSaving ? 'Saving…' : 'Save Area'}</Button>
               </div>
@@ -1660,7 +1833,7 @@ export default function CaregiverDashboard() {
             <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
               <div>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Family</p>
-                <p className="font-bold text-gray-900">{getDisplayName(selectedJobDetail.familyName, selectedJobDetail.messagingUnlocked)}</p>
+                <p className="font-bold text-gray-900">{getDisplayName(selectedJobDetail.familyName, canRevealFamilyIdentity(selectedJobDetail))}</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -1750,13 +1923,13 @@ export default function CaregiverDashboard() {
               )}
               <div className="border-t border-gray-100 pt-4">
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Family Contact Info</p>
-                {selectedJobDetail.messagingUnlocked ? (
+                {selectedJobDetail.messagingUnlocked || selectedJobDetail.status === 'accepted' ? (
                   <div className="space-y-2 bg-emerald-50/50 p-3.5 rounded-2xl border border-emerald-100 text-sm">
                     <p className="text-gray-700 flex items-center gap-2">
-                      <Phone className="w-4 h-4 text-emerald-600" /> {selectedJobDetail.details?.phone || 'No phone number shared'}
+                      <Phone className="w-4 h-4 text-emerald-600" /> {selectedJobDetail.familyPhone || selectedJobDetail.details?.phone || 'No phone number shared'}
                     </p>
                     <p className="text-gray-700 flex items-center gap-2">
-                      <Send className="w-4 h-4 text-emerald-600" /> {selectedJobDetail.details?.email || 'No email shared'}
+                      <Send className="w-4 h-4 text-emerald-600" /> {selectedJobDetail.familyEmail || selectedJobDetail.details?.email || 'No email shared'}
                     </p>
                   </div>
                 ) : (
@@ -2010,83 +2183,124 @@ export default function CaregiverDashboard() {
                   </div>
 
                   {/* Body */}
-                  <div className="p-6 overflow-y-auto space-y-6 flex-1">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Option 1: Upload Document */}
-                      <div className="border border-gray-200 rounded-2xl p-5 hover:border-emerald-500 hover:shadow-md transition-all flex flex-col justify-between">
-                        <div>
-                          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 mb-4">
-                            <Upload className="w-5 h-5" />
+                  <div className="p-8 overflow-y-auto space-y-8 flex-1">
+                    {/* Stepper */}
+                    <div className="flex items-center justify-center max-w-sm mx-auto mb-4">
+                      <div className="flex items-center flex-1">
+                        <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all", 
+                          bgStep >= 1 ? "bg-emerald-600 text-white" : "bg-gray-100 text-gray-400")}>
+                          {bgStep > 1 ? <Check className="w-5 h-5" /> : "1"}
+                        </div>
+                        <div className={cn("flex-1 h-1 mx-2 rounded-full", bgStep > 1 ? "bg-emerald-600" : "bg-gray-100")} />
+                      </div>
+                      <div className="flex items-center">
+                        <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all", 
+                          bgStep === 2 ? "bg-emerald-600 text-white shadow-lg shadow-emerald-200" : "bg-gray-100 text-gray-400")}>
+                          2
+                        </div>
+                      </div>
+                    </div>
+
+                    {bgStep === 1 && (
+                      <div className="animate-fade-in">
+                        <div className="text-center mb-8">
+                          <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 mx-auto mb-4">
+                            <Upload className="w-8 h-8" />
                           </div>
-                          <h4 className="font-bold text-gray-900 mb-1">Upload ID Document</h4>
-                          <span className="inline-block px-2 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] font-bold mb-3">FREE</span>
-                          <p className="text-xs text-gray-500 leading-relaxed mb-4">
-                            Upload a high-quality copy of your Driver's License, State ID, or professional certification for our team to manually verify.
+                          <h4 className="text-xl font-bold text-gray-900 mb-2">Step 1: Upload Documents</h4>
+                          <p className="text-sm text-gray-500 max-w-sm mx-auto">
+                            Please upload a high-quality copy of your Driver's License, State ID, or professional care certifications for manual verification.
                           </p>
-                          <ul className="text-xs text-gray-500 space-y-1.5 mb-6 list-disc list-inside">
-                            <li>Driver's License / State ID</li>
-                            <li>Professional care credentials</li>
-                            <li>Manual validation (2-3 days)</li>
-                          </ul>
                         </div>
 
-                        <div>
-                          <label className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-bold cursor-pointer transition-colors shadow-sm">
-                            <Upload className="w-4 h-4" />
-                            {bgCheckUploading ? 'Uploading...' : 'Upload & Submit ID'}
+                        <div className="bg-gray-50 rounded-2xl p-6 border border-dashed border-gray-200">
+                          <ul className="text-sm text-gray-600 space-y-3 mb-8">
+                            <li className="flex items-center gap-3">
+                              <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />
+                              Valid Government Issued ID
+                            </li>
+                            <li className="flex items-center gap-3">
+                              <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />
+                              Professional care credentials (optional)
+                            </li>
+                            <li className="flex items-center gap-3">
+                              <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />
+                              Clear, legible scans or photos
+                            </li>
+                          </ul>
+
+                          <label className="w-full inline-flex items-center justify-center gap-3 px-6 py-4 rounded-2xl bg-gray-900 hover:bg-gray-800 text-white font-bold cursor-pointer transition-all shadow-xl active:scale-95 group">
+                            {bgCheckUploading ? (
+                              <Loader2 className="w-6 h-6 animate-spin" />
+                            ) : (
+                              <Upload className="w-6 h-6 group-hover:-translate-y-1 transition-transform" />
+                            )}
+                            {bgCheckUploading ? 'Uploading Document...' : 'Select & Upload Document'}
                             <input
                               type="file"
                               accept="image/*,.pdf,.doc,.docx"
                               className="hidden"
-                              onChange={(e) => {
-                                handleBgCheckUpload(e);
-                                setBgCheckModalOpen(false);
-                              }}
+                              onChange={handleBgCheckUpload}
                               disabled={bgCheckUploading}
                             />
                           </label>
                         </div>
+                        
+                        <div className="mt-6 flex items-center justify-center gap-2 text-xs text-gray-400">
+                          <Shield className="w-4 h-4" />
+                          <span>Encrypted and secure document storage</span>
+                        </div>
                       </div>
+                    )}
 
-                      {/* Option 2: Stripe Background Check */}
-                      <div className="border border-gray-200 rounded-2xl p-5 hover:border-emerald-500 hover:shadow-md transition-all flex flex-col justify-between bg-emerald-50/20 border-emerald-100">
-                        <div>
-                          <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 mb-4">
-                            <Zap className="w-5 h-5" />
+                    {bgStep === 2 && (
+                      <div className="animate-fade-in">
+                        <div className="text-center mb-8">
+                          <div className="w-16 h-16 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 mx-auto mb-4">
+                            <Zap className="w-8 h-8" />
                           </div>
-                          <h4 className="font-bold text-gray-900 mb-1">Instant Premium Check</h4>
-                          <span className="inline-block px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold mb-3">PREMIUM</span>
-                          <p className="text-xs text-gray-500 leading-relaxed mb-4">
-                            Pay for TruliCares to run a fast, comprehensive, professional digital background screening with instant confirmation.
+                          <h4 className="text-xl font-bold text-gray-900 mb-2">Step 2: Instant Background Check</h4>
+                          <p className="text-sm text-gray-500 max-w-sm mx-auto">
+                            Pay for TruliCares to run a professional digital screening. This unlocks premium status and higher priority in searches.
                           </p>
-                          <ul className="text-xs text-gray-500 space-y-1.5 mb-6">
-                            <li className="flex items-center gap-1.5">
-                              <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Identity validation check
+                        </div>
+
+                        <div className="bg-emerald-50/30 rounded-2xl p-6 border border-emerald-100 mb-8">
+                          <div className="flex items-center justify-between mb-6">
+                            <span className="text-sm font-bold text-emerald-900">Background Screening Fee</span>
+                            <span className="text-2xl font-bold text-emerald-600">$39.00</span>
+                          </div>
+                          <ul className="text-sm text-gray-600 space-y-3">
+                            <li className="flex items-center gap-3">
+                              <Check className="w-5 h-5 text-emerald-600 shrink-0" /> National criminal database check
                             </li>
-                            <li className="flex items-center gap-1.5">
-                              <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> National criminal database
+                            <li className="flex items-center gap-3">
+                              <Check className="w-5 h-5 text-emerald-600 shrink-0" /> Sex offender registry check
                             </li>
-                            <li className="flex items-center gap-1.5">
-                              <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Sex offender registry check
+                            <li className="flex items-center gap-3">
+                              <Check className="w-5 h-5 text-emerald-600 shrink-0" /> Identity validation & SSN trace
                             </li>
                           </ul>
                         </div>
 
-                        <div>
+                        <div className="space-y-3">
                           <button
-                            onClick={() => {
-                              handleBgStripeCheckout();
-                              setBgCheckModalOpen(false);
-                            }}
+                            onClick={handleBgStripeCheckout}
                             disabled={bgCheckPaying}
-                            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors shadow-md disabled:opacity-50"
+                            className="w-full inline-flex items-center justify-center gap-3 px-6 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all shadow-xl active:scale-95 disabled:opacity-50"
                           >
-                            <CreditCard className="w-4 h-4" />
-                            {bgCheckPaying ? 'Connecting...' : 'Pay $39.00 via Stripe'}
+                            {bgCheckPaying ? <Loader2 className="w-6 h-6 animate-spin" /> : <CreditCard className="w-6 h-6" />}
+                            {bgCheckPaying ? 'Connecting to Stripe...' : 'Pay & Order Background Check'}
+                          </button>
+                          <button 
+                            onClick={() => setBgStep(1)}
+                            className="w-full py-3 text-sm font-semibold text-gray-500 hover:text-gray-700 transition-colors"
+                          >
+                            ← Back to Document Upload
                           </button>
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2094,6 +2308,15 @@ export default function CaregiverDashboard() {
           </>
         );
       })()}
+      {/* Replaced by ReportModal component below */}
+      <ReportModal 
+        isOpen={!!showReportModal}
+        onClose={() => setShowReportModal(null)}
+        reportedUserId={showReportModal?.reportedUserId || ''}
+        reportedUserName={showReportModal?.reportedUserName || ''}
+        requestId={showReportModal?.requestId}
+        refId={showReportModal?.refId}
+      />
     </div>
   );
 }

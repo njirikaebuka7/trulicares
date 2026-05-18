@@ -10,10 +10,11 @@ import {
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
 import { get, put, del } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
 
-type Tab = 'Overview' | 'Users' | 'Verification Queue' | 'Reports' | 'Analytics';
+type Tab = 'Overview' | 'Users' | 'Verification Queue' | 'Reports' | 'Staffing' | 'Analytics';
 
 type AdminUser = {
   id: string; name: string; email: string; role: string;
@@ -22,25 +23,29 @@ type AdminUser = {
 type AdminReport = {
   id: string; type: string; reportedUser: string; reportedBy: string;
   date: string; status: string; priority: string; description: string;
-  evidence: string[];
+  evidence: string[]; refId?: string;
 };
 type AdminStats = {
   totalUsers: number; totalFamilies: number; totalCaregivers: number;
   activeMatches: number; monthlyRevenue: number; newSignupsThisMonth: number;
   pendingVerifications: number; openReports: number;
+  totalProfessionals: number; totalFacilities: number; activeShifts: number; openDisputes: number;
   monthlyGrowth: Array<{ month: string; families: number; caregivers: number }>;
 };
 
 const defaultStats: AdminStats = {
   totalUsers: 0, totalFamilies: 0, totalCaregivers: 0,
   activeMatches: 0, monthlyRevenue: 0, newSignupsThisMonth: 0,
-  pendingVerifications: 0, openReports: 0, monthlyGrowth: [],
+  pendingVerifications: 0, openReports: 0,
+  totalProfessionals: 0, totalFacilities: 0, activeShifts: 0, openDisputes: 0,
+  monthlyGrowth: [],
 };
 
 const navItems: { id: Tab; label: string; mobileLabel: string; icon: React.ReactNode; badge?: number }[] = [
   { id: 'Overview', label: 'Overview', mobileLabel: 'Overview', icon: <LayoutDashboard className="w-5 h-5" /> },
   { id: 'Users', label: 'Users', mobileLabel: 'Users', icon: <Users className="w-5 h-5" /> },
   { id: 'Verification Queue', label: 'Verifications', mobileLabel: 'Verify', icon: <UserCheck className="w-5 h-5" /> },
+  { id: 'Staffing', label: 'Staffing', mobileLabel: 'Staff', icon: <Briefcase className="w-5 h-5" /> },
   { id: 'Reports', label: 'Reports', mobileLabel: 'Reports', icon: <Flag className="w-5 h-5" /> },
   { id: 'Analytics', label: 'Analytics', mobileLabel: 'Analytics', icon: <BarChart2 className="w-5 h-5" /> },
 ];
@@ -55,7 +60,7 @@ export default function AdminDashboard() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [notificationsRead, setNotificationsRead] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [userFilter, setUserFilter] = useState<'all' | 'family' | 'caregiver'>('all');
+  const [userFilter, setUserFilter] = useState<'all' | 'family' | 'caregiver' | 'professional' | 'facility'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [verificationActions, setVerificationActions] = useState<Record<string, 'approved' | 'rejected' | null>>({});
   const [reportActions, setReportActions] = useState<Record<string, 'resolved' | 'dismissed' | null>>({});
@@ -64,8 +69,10 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', email: '', role: '' });
   const [deletingUser, setDeletingUser] = useState<AdminUser | null>(null);
+  const [suspendingUser, setSuspendingUser] = useState<AdminUser | null>(null);
+  const [suspensionReason, setSuspensionReason] = useState('');
+  const [editForm, setEditForm] = useState({ name: '', email: '', role: '' });
 
   // Report detail modal
   const [selectedReport, setSelectedReport] = useState<AdminReport | null>(null);
@@ -73,14 +80,77 @@ export default function AdminDashboard() {
   const [adminStats, setAdminStats] = useState<AdminStats>(defaultStats);
   const [verificationQueue, setVerificationQueue] = useState<any[]>([]);
   const [adminReports, setAdminReports] = useState<AdminReport[]>([]);
+  const [adminPayments, setAdminPayments] = useState<any[]>([]);
+  const [dbNotifications, setDbNotifications] = useState<any[]>([]);
+  const [staffingDisputes, setStaffingDisputes] = useState<any[]>([]);
+  const [professionalVerifications, setProfessionalVerifications] = useState<any[]>([]);
 
-  useEffect(() => {
+  const refreshAllData = () => {
     Promise.all([
       get('/admin/stats').then((d: any) => setAdminStats(d.stats || defaultStats)).catch(() => {}),
       get('/admin/users').then((d: any) => setUsers(d.users || [])).catch(() => {}),
       get('/admin/verification-queue').then((d: any) => setVerificationQueue(d.queue || [])).catch(() => {}),
       get('/admin/reports').then((d: any) => setAdminReports(d.reports || [])).catch(() => {}),
+      get('/admin/payments').then((d: any) => setAdminPayments(d.payments || [])).catch(() => {}),
+      get('/notifications').then((d: any) => setDbNotifications(d.notifications || [])).catch(() => {}),
+      get('/api/staffing/disputes').then((d: any) => setStaffingDisputes(d.disputes || [])).catch(() => {}),
+      get('/api/staffing/professionals/pending').then((d: any) => setProfessionalVerifications(d.professionals || [])).catch(() => {}),
     ]).catch(console.error);
+  };
+
+  useEffect(() => {
+    refreshAllData();
+
+    // Subscribe to all relevant tables for real-time updates
+    const channel = supabase
+      .channel('admin-dashboard-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, (payload) => {
+        console.log('Realtime change in users:', payload);
+        refreshAllData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'caregiver_profiles' }, () => {
+        console.log('Realtime change in caregiver_profiles');
+        refreshAllData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'verification_queue' }, () => {
+        console.log('Realtime change in verification_queue');
+        refreshAllData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, () => {
+        console.log('Realtime change in reports');
+        refreshAllData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
+        console.log('Realtime change in notifications');
+        refreshAllData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'care_requests' }, () => {
+        console.log('Realtime change in care_requests');
+        refreshAllData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => {
+        console.log('Realtime change in matches');
+        refreshAllData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => {
+        console.log('Realtime change in payments');
+        refreshAllData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, () => {
+        console.log('Realtime change in schedules');
+        refreshAllData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reviews' }, () => {
+        console.log('Realtime change in reviews');
+        refreshAllData();
+      })
+      .subscribe((status) => {
+        console.log('Admin Dashboard Realtime subscription status:', status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleLogout = () => { logout(); navigate('/'); };
@@ -98,10 +168,17 @@ export default function AdminDashboard() {
   const handleFilterChange = (f: typeof userFilter) => { setUserFilter(f); setCurrentPage(1); };
   const handleSearchChange = (q: string) => { setSearchQuery(q); setCurrentPage(1); };
 
-  const handleSuspend = async (id: string) => {
+  const handleSuspend = (u: AdminUser) => {
+    setSuspendingUser(u);
+    setSuspensionReason('');
+    setSelectedUser(null);
+  };
+  const confirmSuspend = async () => {
+    if (!suspendingUser) return;
+    const id = suspendingUser.id;
     setUsers(prev => prev.map(u => u.id === id ? { ...u, status: 'suspended' } : u));
-    if (selectedUser?.id === id) setSelectedUser(prev => prev ? { ...prev, status: 'suspended' } : prev);
-    try { await put(`/admin/users/${id}/suspend`, {}); } catch { }
+    setSuspendingUser(null);
+    try { await put(`/admin/users/${id}/suspend`, { reason: suspensionReason }); } catch { }
   };
   const handleRestore = async (id: string) => {
     setUsers(prev => prev.map(u => u.id === id ? { ...u, status: 'active' } : u));
@@ -127,8 +204,13 @@ export default function AdminDashboard() {
     try { await put(`/admin/users/${editingUser.id}`, editForm); } catch { }
   };
 
-  const unread = notificationsRead ? 0 : (adminStats.pendingVerifications || 0) + (adminStats.openReports || 0);
-  const openNotifications = () => { setNotifOpen(true); setNotificationsRead(true); };
+  const unread = dbNotifications.filter(n => !n.is_read).length;
+  const openNotifications = () => {
+    setNotifOpen(true);
+    put('/notifications/read-all', {}).then(() => {
+      setDbNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    }).catch(() => {});
+  };
 
   const maxBarValue = adminStats.monthlyGrowth.length > 0
     ? Math.max(...adminStats.monthlyGrowth.map(m => m.families + m.caregivers), 1)
@@ -284,19 +366,24 @@ export default function AdminDashboard() {
                     <span className="font-bold text-gray-900 text-sm">Admin Alerts</span>
                     <button onClick={() => setNotifOpen(false)}><X className="w-4 h-4 text-gray-400" /></button>
                   </div>
-                  {[
-                    { text: `${adminStats.pendingVerifications} caregivers awaiting verification`, time: 'Ongoing', urgent: true },
-                    { text: `${adminStats.openReports} open reports need review`, time: 'Ongoing', urgent: true },
-                    { text: '94 new sign-ups this month', time: 'This month', urgent: false },
-                  ].map((n, i) => (
-                    <div key={i} className="px-4 py-3 border-b border-gray-50 last:border-0">
-                      <div className="flex items-start gap-2">
-                        {n.urgent && <AlertTriangle className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" />}
-                        <p className="text-sm text-gray-800 font-medium">{n.text}</p>
+                  {dbNotifications.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-gray-400 text-sm">No new alerts</div>
+                  ) : (
+                    dbNotifications.slice(0, 5).map((n, i) => (
+                      <div key={i} className="px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className={cn("w-3.5 h-3.5 mt-0.5 shrink-0", n.is_read ? "text-gray-300" : "text-amber-500")} />
+                          <p className={cn("text-sm", n.is_read ? "text-gray-500" : "text-gray-800 font-medium")}>{n.title}</p>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-0.5 ml-5">{n.content}</p>
                       </div>
-                      <p className="text-xs text-gray-400 mt-0.5 ml-5">{n.time}</p>
+                    ))
+                  )}
+                  {dbNotifications.length > 5 && (
+                    <div className="px-4 py-2 bg-gray-50 text-center">
+                      <button className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">See all notifications</button>
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
             </div>
@@ -401,28 +488,53 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-gray-900">Platform Growth</h3>
-                  <div className="flex items-center gap-4 text-xs text-gray-500">
-                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-brand-500 inline-block" /> Families</span>
-                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" /> Caregivers</span>
-                  </div>
-                </div>
-                <div className="flex items-end gap-4" style={{ height: '110px' }}>
-                  {adminStats.monthlyGrowth.map((m: any) => (
-                    <div key={m.month} className="flex-1 flex flex-col items-center gap-1">
-                      <div className="w-full flex items-end gap-1" style={{ height: '80px' }}>
-                        <div className="flex-1 rounded-t-md bg-brand-500" style={{ height: `${(m.families / maxBarValue) * 100}%` }} />
-                        <div className="flex-1 rounded-t-md bg-emerald-400" style={{ height: `${(m.caregivers / maxBarValue) * 100}%` }} />
-                      </div>
-                      <span className="text-xs text-gray-400">{m.month}</span>
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-bold text-gray-900">Recent Transactions</h3>
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                      <DollarSign className="w-3 h-3" /> Revenue
                     </div>
-                  ))}
+                  </div>
+                  <div className="divide-y divide-gray-50 overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-gray-400 font-semibold uppercase tracking-wider">
+                          <th className="pb-3 pr-4">User / Ref</th>
+                          <th className="pb-3 pr-4">Description</th>
+                          <th className="pb-3 text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {adminPayments.slice(0, 5).map((pay: any) => (
+                          <tr key={pay.id} className="group hover:bg-gray-50/50 transition-colors">
+                            <td className="py-3 pr-4">
+                              <p className="font-semibold text-gray-900 truncate max-w-[120px]">{pay.userName}</p>
+                              {pay.refId && <p className="text-[10px] font-mono text-gray-400 uppercase tracking-tighter">#{pay.refId}</p>}
+                            </td>
+                            <td className="py-3 pr-4">
+                              <p className="text-gray-500 text-xs line-clamp-1">{pay.description}</p>
+                              <p className="text-[10px] text-gray-400">{pay.date}</p>
+                            </td>
+                            <td className="py-3 text-right">
+                              <p className="font-bold text-gray-900">{pay.amount}</p>
+                              <span className={cn('text-[10px] font-bold uppercase tracking-widest',
+                                pay.status === 'succeeded' ? 'text-emerald-500' : 'text-amber-500')}>
+                                {pay.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {adminPayments.length === 0 && (
+                    <div className="py-8 text-center text-gray-400 text-xs italic border-t border-dashed border-gray-100 mt-2">
+                      No recent transactions found.
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
           {/* ── USERS ── */}
           {activeTab === 'Users' && (
@@ -437,7 +549,7 @@ export default function AdminDashboard() {
                       className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-slate-400 w-48" />
                   </div>
                   <div className="flex rounded-xl border border-gray-200 overflow-hidden text-sm font-medium">
-                    {(['all', 'family', 'caregiver'] as const).map(f => (
+                    {(['all', 'family', 'caregiver', 'professional', 'facility'] as const).map(f => (
                       <button key={f} onClick={() => handleFilterChange(f)}
                         className={cn('px-3 py-2 capitalize transition-colors',
                           userFilter === f ? 'bg-slate-800 text-white' : 'text-gray-600 hover:bg-gray-50')}>
@@ -502,14 +614,14 @@ export default function AdminDashboard() {
                                 className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors">
                                 <Pencil className="w-3.5 h-3.5" /> Edit
                               </button>
-                              {u.status === 'suspended'
-                                ? <button onClick={() => handleRestore(u.id)} className="inline-flex items-center gap-1 text-xs text-green-600 font-medium px-2 py-1 rounded-lg hover:bg-green-50 transition-colors">
-                                    <RotateCcw className="w-3.5 h-3.5" /> Restore
-                                  </button>
-                                : <button onClick={() => handleSuspend(u.id)} className="inline-flex items-center gap-1 text-xs text-amber-600 font-medium px-2 py-1 rounded-lg hover:bg-amber-50 transition-colors">
-                                    <Ban className="w-3.5 h-3.5" /> Suspend
-                                  </button>
-                              }
+                                {u.status === 'suspended'
+                                  ? <button onClick={() => handleRestore(u.id)} className="inline-flex items-center gap-1 text-xs text-green-600 font-medium px-2 py-1 rounded-lg hover:bg-green-50 transition-colors">
+                                      <RotateCcw className="w-3.5 h-3.5" /> Restore
+                                    </button>
+                                  : <button onClick={() => handleSuspend(u)} className="inline-flex items-center gap-1 text-xs text-amber-600 font-medium px-2 py-1 rounded-lg hover:bg-amber-50 transition-colors">
+                                      <Ban className="w-3.5 h-3.5" /> Suspend
+                                    </button>
+                                }
                               <button
                                 onClick={() => handleDelete(u)}
                                 className="inline-flex items-center gap-1 text-xs text-red-500 font-medium px-2 py-1 rounded-lg hover:bg-red-50 transition-colors">
@@ -676,6 +788,11 @@ export default function AdminDashboard() {
                         </div>
                         <p className="text-sm text-gray-600"><span className="font-medium">Reported:</span> {report.reportedUser}</p>
                         <p className="text-sm text-gray-500"><span className="font-medium">By:</span> {report.reportedBy} · {report.date}</p>
+                        {report.refId && (
+                          <p className="text-xs font-bold text-slate-500 mt-1.5 flex items-center gap-1.5 bg-slate-100 w-fit px-2 py-0.5 rounded-lg">
+                            <FileText className="w-3 h-3" /> Ref: {report.refId}
+                          </p>
+                        )}
                         <p className="text-sm text-gray-400 mt-2 line-clamp-2">{report.description}</p>
                       </div>
                     </div>
@@ -713,6 +830,111 @@ export default function AdminDashboard() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* ── STAFFING ── */}
+          {activeTab === 'Staffing' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-900">Staffing Module Management</h2>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs px-2.5 py-1 rounded-full bg-violet-100 text-violet-700 font-bold">
+                    {staffingDisputes.length} Disputes
+                  </span>
+                  <span className="text-xs px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 font-bold">
+                    {professionalVerifications.length} New Professionals
+                  </span>
+                </div>
+              </div>
+
+              {/* Staffing Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[
+                  { label: 'Active Shifts', value: adminStats.activeShifts, color: 'text-blue-600', bg: 'bg-blue-50' },
+                  { label: 'Total Professionals', value: adminStats.totalProfessionals, color: 'text-violet-600', bg: 'bg-violet-50' },
+                  { label: 'Open Disputes', value: adminStats.openDisputes, color: 'text-red-600', bg: 'bg-red-50' },
+                ].map((stat, i) => (
+                  <div key={i} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">{stat.label}</p>
+                    <p className={`text-3xl font-black ${stat.color}`}>{stat.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid lg:grid-cols-2 gap-6">
+                {/* Professional Verification Queue */}
+                <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="p-6 border-b border-gray-50 flex items-center justify-between">
+                    <h3 className="font-bold text-gray-900">Professional Verifications</h3>
+                    <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center font-bold text-xs">
+                      {professionalVerifications.length}
+                    </div>
+                  </div>
+                  <div className="divide-y divide-gray-50 max-h-[400px] overflow-y-auto">
+                    {professionalVerifications.length === 0 ? (
+                      <div className="p-12 text-center text-gray-400 text-sm">No pending professional verifications.</div>
+                    ) : (
+                      professionalVerifications.map((pro) => (
+                        <div key={pro.id} className="p-4 hover:bg-gray-50 transition-colors">
+                          <div className="flex items-center gap-4 mb-3">
+                            <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
+                              {pro.name.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="font-bold text-sm text-gray-900">{pro.name}</p>
+                              <p className="text-xs text-gray-500">{pro.license_type} · {pro.location}</p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button className="flex-1 px-3 py-1.5 bg-blue-600 text-white text-[10px] font-black uppercase rounded-lg hover:bg-blue-700 transition-all">
+                              Approve
+                            </button>
+                            <button className="flex-1 px-3 py-1.5 bg-gray-100 text-gray-600 text-[10px] font-black uppercase rounded-lg hover:bg-gray-200 transition-all">
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Staffing Disputes */}
+                <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="p-6 border-b border-gray-50 flex items-center justify-between">
+                    <h3 className="font-bold text-gray-900">Staffing Disputes</h3>
+                    <div className="w-8 h-8 bg-red-50 text-red-600 rounded-lg flex items-center justify-center font-bold text-xs">
+                      {staffingDisputes.length}
+                    </div>
+                  </div>
+                  <div className="divide-y divide-gray-50 max-h-[400px] overflow-y-auto">
+                    {staffingDisputes.length === 0 ? (
+                      <div className="p-12 text-center text-gray-400 text-sm">No active staffing disputes.</div>
+                    ) : (
+                      staffingDisputes.map((dispute) => (
+                        <div key={dispute.id} className="p-4 hover:bg-gray-50 transition-colors">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="px-2 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-black uppercase">
+                              {dispute.status}
+                            </span>
+                            <span className="text-[10px] text-gray-400 font-bold">Ref: {dispute.booking_id.split('-')[0]}</span>
+                          </div>
+                          <p className="text-xs text-gray-700 font-medium mb-3 line-clamp-2">"{dispute.reason}"</p>
+                          <div className="flex gap-2">
+                            <button className="flex-1 px-3 py-1.5 bg-slate-800 text-white text-[10px] font-black uppercase rounded-lg hover:bg-slate-900 transition-all">
+                              Resolve
+                            </button>
+                            <button className="flex-1 px-3 py-1.5 border border-gray-200 text-gray-500 text-[10px] font-black uppercase rounded-lg hover:bg-gray-50 transition-all">
+                              Details
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -926,6 +1148,42 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* ── SUSPEND CONFIRM MODAL ── */}
+      {suspendingUser && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setSuspendingUser(null)} />
+          <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
+            <div className="p-6 space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto">
+                <Ban className="w-7 h-7 text-amber-500" />
+              </div>
+              <div className="text-center">
+                <h3 className="text-lg font-bold text-gray-900 mb-1">Suspend Account?</h3>
+                <p className="text-sm text-gray-500">
+                  Provide a reason for suspending <span className="font-semibold text-gray-800">{suspendingUser.name}</span>.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Suspension Reason</label>
+                <textarea
+                  value={suspensionReason}
+                  onChange={e => setSuspensionReason(e.target.value)}
+                  placeholder="e.g. Policy violation, suspicious activity..."
+                  className="w-full px-4 py-3 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white focus:border-amber-400 outline-none text-sm min-h-[100px] resize-none"
+                />
+              </div>
+              <div className="flex gap-3">
+                <Button variant="secondary" onClick={() => setSuspendingUser(null)} className="h-11 flex-1">Cancel</Button>
+                <Button variant="primary" onClick={confirmSuspend}
+                  className="bg-amber-500 hover:bg-amber-600 text-white h-11 flex-1">
+                  Suspend
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── DELETE CONFIRM MODAL ── */}
       {deletingUser && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -942,11 +1200,11 @@ export default function AdminDashboard() {
                 </p>
               </div>
               <div className="flex gap-3">
-                <Button variant="secondary" fullWidth onClick={() => setDeletingUser(null)}>Cancel</Button>
-                <button onClick={confirmDelete}
-                  className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-colors">
-                  Delete Account
-                </button>
+                <Button variant="secondary" onClick={() => setDeletingUser(null)} className="h-11 flex-1">Cancel</Button>
+                <Button variant="primary" onClick={confirmDelete}
+                  className="bg-red-600 hover:bg-red-700 text-white h-11 flex-1">
+                  Delete
+                </Button>
               </div>
             </div>
           </div>
@@ -1001,10 +1259,18 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Date */}
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Calendar className="w-4 h-4 shrink-0" />
-                Report filed: {selectedReport.date}
+              {/* Date & Ref */}
+              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 shrink-0" />
+                  Report filed: {selectedReport.date}
+                </div>
+                {selectedReport.refId && (
+                  <div className="flex items-center gap-2 font-bold text-slate-600">
+                    <FileText className="w-4 h-4 shrink-0" />
+                    Reference: {selectedReport.refId}
+                  </div>
+                )}
               </div>
 
               {/* Description */}

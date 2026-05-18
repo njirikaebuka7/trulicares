@@ -1,5 +1,144 @@
 import Stripe from 'stripe';
-import { query } from './db.js';
+import { getClient, query, supabase } from './db.js';
+
+async function broadcastStaffingUpdate(bookingId: string, event: string, payload: Record<string, unknown> = {}) {
+  const bookingRes = await query(
+    `SELECT sb.id, sb.shift_id, pp.user_id AS pro_user_id, fp.user_id AS facility_user_id
+     FROM shift_bookings sb
+     JOIN professional_profiles pp ON pp.id = sb.professional_id
+     JOIN facility_profiles fp ON fp.id = sb.facility_id
+     WHERE sb.id = $1`,
+    [bookingId]
+  );
+  const booking = bookingRes.rows[0];
+  if (!booking) return;
+
+  await supabase.channel(`booking:${bookingId}`).send({
+    type: 'broadcast',
+    event,
+    payload: { bookingId, shiftId: booking.shift_id, ...payload },
+  }).catch(() => {});
+  await supabase.channel(`facility:${booking.facility_user_id}`).send({
+    type: 'broadcast',
+    event: 'shift_status_change',
+    payload: { bookingId, shiftId: booking.shift_id, event, ...payload },
+  }).catch(() => {});
+  await supabase.channel(`professional:${booking.pro_user_id}`).send({
+    type: 'broadcast',
+    event: 'booking_status_change',
+    payload: { bookingId, shiftId: booking.shift_id, event, ...payload },
+  }).catch(() => {});
+}
+
+async function markStaffingBookingPaid(session: Stripe.Checkout.Session) {
+  const bookingId = session.metadata?.booking_id;
+  if (!bookingId) return;
+
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+    const bookingRes = await client.query(
+      `SELECT id, wage_amount, platform_fee_amount, status
+       FROM shift_bookings
+       WHERE id = $1
+       FOR UPDATE`,
+      [bookingId]
+    );
+    const booking = bookingRes.rows[0];
+    if (!booking) {
+      await client.query('ROLLBACK');
+      return;
+    }
+
+    if (booking.status === 'awaiting_payment') {
+      await client.query(
+        `UPDATE shift_bookings
+         SET status = 'paid',
+             stripe_session_id = $1,
+             stripe_payment_intent_id = $2,
+             paid_at = NOW(),
+             updated_at = NOW()
+         WHERE id = $3`,
+        [session.id, session.payment_intent || session.id, bookingId]
+      );
+      await client.query(
+        `INSERT INTO shift_escrow (booking_id, amount_held, fee_held, status)
+         VALUES ($1, $2, $3, 'holding')
+         ON CONFLICT (booking_id) DO NOTHING`,
+        [bookingId, booking.wage_amount, booking.platform_fee_amount]
+      );
+    }
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  await broadcastStaffingUpdate(bookingId, 'payment_confirmed', {
+    status: 'paid',
+    stripeSessionId: session.id,
+  });
+}
+
+async function expireStaffingBooking(session: Stripe.Checkout.Session) {
+  const bookingId = session.metadata?.booking_id;
+  if (!bookingId) return;
+
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+    const bookingRes = await client.query(
+      `SELECT id, shift_id, application_id, status
+       FROM shift_bookings
+       WHERE id = $1
+       FOR UPDATE`,
+      [bookingId]
+    );
+    const booking = bookingRes.rows[0];
+    if (!booking) {
+      await client.query('ROLLBACK');
+      return;
+    }
+
+    if (booking.status === 'awaiting_payment') {
+      await client.query(
+        `UPDATE shift_bookings
+         SET status = 'cancelled', updated_at = NOW()
+         WHERE id = $1`,
+        [bookingId]
+      );
+      await client.query(
+        `UPDATE shift_applications
+         SET status = 'pending', reviewed_at = NULL
+         WHERE id = $1 AND status = 'accepted'`,
+        [booking.application_id]
+      );
+      await client.query(
+        `UPDATE shifts
+         SET status = 'open',
+             slots_filled = GREATEST(slots_filled - 1, 0),
+             updated_at = NOW()
+         WHERE id = $1 AND status = 'filled'`,
+        [booking.shift_id]
+      );
+    }
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  await broadcastStaffingUpdate(bookingId, 'payment_expired', {
+    status: 'cancelled',
+    stripeSessionId: session.id,
+  });
+}
 
 export class WebhookHandlers {
   static async processWebhook(payload: Buffer, signature: string): Promise<void> {
@@ -69,8 +208,8 @@ export class WebhookHandlers {
             );
           } else {
             await query(
-              `INSERT INTO payments (user_id, match_id, amount_cents, currency, stripe_payment_intent_id, description, status)
-               VALUES ($1, $2, $3, $4, 'Messaging Unlock', 'succeeded')`,
+              `INSERT INTO payments (user_id, match_id, amount_cents, currency, stripe_payment_intent_id, description, status, ref_id)
+               VALUES ($1, $2, $3, $4, $5, 'Messaging Unlock', 'succeeded', generate_payment_ref())`,
               [session.metadata.userId, session.metadata.matchId, session.amount_total, session.currency, session.payment_intent || session.id]
             );
           }
@@ -107,8 +246,18 @@ export class WebhookHandlers {
              ON CONFLICT DO NOTHING`,
             [userId, 'General Care', 'N/A', JSON.stringify([{ name: 'Paid Premium Background Verification', url: '#' }])]
           );
+        } else if (session.metadata?.type === 'staffing_shift' && session.metadata?.booking_id) {
+          await markStaffingBookingPaid(session);
         }
         console.log('✓ Checkout completed:', session.id);
+        break;
+      }
+      case 'checkout.session.expired': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        if (session.metadata?.type === 'staffing_shift' && session.metadata?.booking_id) {
+          await expireStaffingBooking(session);
+        }
+        console.log('Checkout expired:', session.id);
         break;
       }
       default:

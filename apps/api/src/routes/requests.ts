@@ -3,6 +3,7 @@ import { query } from '../db.js';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
 import { createMatchesForRequest } from '../services/matching.js';
 import { sendJobRequestNotification } from '../services/email.js';
+import { generateRefId } from '../services/utils.js';
 
 const router = Router();
 
@@ -41,11 +42,17 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
     const { careType, details, location, zip, caregiverId } = req.body;
     if (!careType) return res.status(400).json({ error: 'Care type is required' });
 
+    const userCheck = await query('SELECT status FROM users WHERE id = $1', [req.user!.id]);
+    if (userCheck.rows[0]?.status === 'suspended') {
+      return res.status(403).json({ error: 'Your account is suspended. You cannot create new care requests.' });
+    }
+
+    const refId = generateRefId('REQ');
     const result = await query(
-      `INSERT INTO care_requests (family_id, care_type, details, location, zip, status)
-       VALUES ($1, $2, $3, $4, $5, 'matching')
-       RETURNING id, care_type, details, location, zip, status, created_at`,
-      [req.user!.id, careType, details || {}, location || '', zip || '']
+      `INSERT INTO care_requests (family_id, care_type, details, location, zip, status, ref_id)
+       VALUES ($1, $2, $3, $4, $5, 'matching', $6)
+       RETURNING id, care_type, details, location, zip, status, created_at, ref_id`,
+      [req.user!.id, careType, details || {}, location || '', zip || '', refId]
     );
 
     const careRequest = result.rows[0];
@@ -67,11 +74,12 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       }
 
       try {
+        const sesRefId = generateRefId('SES');
         const matchResult = await query(
-          `INSERT INTO matches (family_id, caregiver_id, request_id, status)
-           VALUES ($1, $2, $3, 'pending')
+          `INSERT INTO matches (family_id, caregiver_id, request_id, status, ref_id)
+           VALUES ($1, $2, $3, 'pending', $4)
            RETURNING id`,
-          [req.user!.id, caregiverId, careRequest.id]
+          [req.user!.id, caregiverId, careRequest.id, sesRefId]
         );
         await query(`UPDATE care_requests SET status = 'matched' WHERE id = $1`, [careRequest.id]);
 
@@ -125,7 +133,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
 
     if (req.user!.role === 'family') {
       result = await query(
-        `SELECT cr.id, cr.care_type, cr.details, cr.location, cr.zip, cr.status, cr.created_at,
+        `SELECT cr.id, cr.care_type, cr.details, cr.location, cr.zip, cr.status, cr.created_at, cr.ref_id,
                 COUNT(m.id) as match_count
          FROM care_requests cr
          LEFT JOIN matches m ON m.request_id = cr.id
@@ -136,7 +144,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
       );
     } else {
       result = await query(
-        `SELECT cr.id, cr.care_type, cr.details, cr.location, cr.zip, cr.status, cr.created_at,
+        `SELECT cr.id, cr.care_type, cr.details, cr.location, cr.zip, cr.status, cr.created_at, cr.ref_id,
                 u.name as family_name
          FROM care_requests cr
          JOIN matches m ON m.request_id = cr.id AND m.caregiver_id = $1

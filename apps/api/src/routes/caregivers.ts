@@ -6,11 +6,11 @@ import { getCached, setCached, invalidateCache } from '../services/cache.js';
 const router = Router();
 
 function formatCaregiver(row: any) {
-  let bgStatus: 'none' | 'pending' | 'approved' = 'none';
+  let bgStatus: 'none' | 'pending' | 'approved' | 'awaiting_payment' = 'none';
   if (row.background_checked) {
     bgStatus = 'approved';
-  } else if (row.pending_status === 'pending') {
-    bgStatus = 'pending';
+  } else if (row.pending_status) {
+    bgStatus = row.pending_status as any;
   }
 
   return {
@@ -64,9 +64,20 @@ router.get('/', async (req, res) => {
     if (verified === 'true') whereConditions.push('cp.verified = true');
     if (backgroundChecked === 'true') whereConditions.push('cp.background_checked = true');
     if (search) {
-      whereConditions.push(`(u.name ILIKE $${paramIdx} OR cp.bio ILIKE $${paramIdx} OR cp.job_title ILIKE $${paramIdx})`);
-      params.push(`%${search}%`);
-      paramIdx++;
+      const rawSearch = String(search).trim();
+      const normalizedSearch = rawSearch.toLowerCase().replace(/\s+/g, '-');
+      whereConditions.push(
+        `(u.name ILIKE $${paramIdx}
+          OR COALESCE(cp.bio, '') ILIKE $${paramIdx}
+          OR COALESCE(cp.job_title, '') ILIKE $${paramIdx}
+          OR COALESCE(cp.location, '') ILIKE $${paramIdx}
+          OR COALESCE(u.email, '') ILIKE $${paramIdx}
+          OR cp.specialties::text ILIKE $${paramIdx}
+          OR cp.specialties::text ILIKE $${paramIdx + 1}
+          OR cp.service_zips::text ILIKE $${paramIdx})`
+      );
+      params.push(`%${rawSearch}%`, `%${normalizedSearch}%`);
+      paramIdx += 2;
     }
 
     let orderBy = 'cp.rating DESC, cp.review_count DESC';
@@ -81,7 +92,7 @@ router.get('/', async (req, res) => {
               cp.rating, cp.review_count, cp.location, cp.service_zips,
               cp.verified, cp.background_checked, cp.years_experience, cp.availability,
               cp.job_title, cp.languages, cp.education, cp.certifications,
-              (SELECT status FROM verification_queue WHERE caregiver_id = u.id AND background_check = true AND status = 'pending' LIMIT 1) as pending_status
+              (SELECT status FROM verification_queue WHERE caregiver_id = u.id AND LOWER(COALESCE(background_check::text, 'false')) IN ('true', 't', '1', 'yes') AND status IN ('pending', 'awaiting_payment') LIMIT 1) as pending_status
        FROM users u
        JOIN caregiver_profiles cp ON cp.user_id = u.id
        WHERE ${whereConditions.join(' AND ')}
@@ -109,7 +120,7 @@ router.get('/profile/me', requireCaregiver, async (req: AuthRequest, res) => {
               cp.rating, cp.review_count, cp.location, cp.service_zips,
               cp.verified, cp.background_checked, cp.years_experience, cp.availability,
               cp.job_title, cp.languages, cp.education, cp.certifications,
-              (SELECT status FROM verification_queue WHERE caregiver_id = u.id AND background_check = true AND status = 'pending' LIMIT 1) as pending_status
+              (SELECT status FROM verification_queue WHERE caregiver_id = u.id AND LOWER(COALESCE(background_check::text, 'false')) IN ('true', 't', '1', 'yes') AND status IN ('pending', 'awaiting_payment') LIMIT 1) as pending_status
        FROM users u
        JOIN caregiver_profiles cp ON cp.user_id = u.id
        WHERE u.id = $1`,
@@ -138,7 +149,7 @@ router.get('/:id', async (req, res) => {
               cp.rating, cp.review_count, cp.location, cp.service_zips,
               cp.verified, cp.background_checked, cp.years_experience, cp.availability,
               cp.job_title, cp.languages, cp.education, cp.certifications,
-              (SELECT status FROM verification_queue WHERE caregiver_id = u.id AND background_check = true AND status = 'pending' LIMIT 1) as pending_status
+              (SELECT status FROM verification_queue WHERE caregiver_id = u.id AND LOWER(COALESCE(background_check::text, 'false')) IN ('true', 't', '1', 'yes') AND status IN ('pending', 'awaiting_payment') LIMIT 1) as pending_status
        FROM users u
        JOIN caregiver_profiles cp ON cp.user_id = u.id
        WHERE u.id = $1 AND u.role = 'caregiver'`,
@@ -216,7 +227,7 @@ router.put('/profile', requireCaregiver, async (req: AuthRequest, res) => {
               cp.rating, cp.review_count, cp.location, cp.service_zips,
               cp.verified, cp.background_checked, cp.years_experience, cp.availability,
               cp.job_title, cp.languages, cp.education, cp.certifications,
-              (SELECT status FROM verification_queue WHERE caregiver_id = u.id AND background_check = true AND status = 'pending' LIMIT 1) as pending_status
+              (SELECT status FROM verification_queue WHERE caregiver_id = u.id AND LOWER(COALESCE(background_check::text, 'false')) IN ('true', 't', '1', 'yes') AND status IN ('pending', 'awaiting_payment') LIMIT 1) as pending_status
        FROM users u JOIN caregiver_profiles cp ON cp.user_id = u.id WHERE u.id = $1`,
       [req.user!.id]
     );
@@ -242,7 +253,7 @@ router.post('/background-check', requireCaregiver, async (req: AuthRequest, res)
     // Insert into verification_queue
     const qResult = await query(
       `INSERT INTO verification_queue (caregiver_id, specialty, experience, documents, background_check, status, submitted_at)
-       VALUES ($1, $2, $3, $4, $5, 'pending', NOW())
+       VALUES ($1, $2, $3, $4, $5, 'awaiting_payment', NOW())
        RETURNING *`,
       [req.user!.id, 'General Care', 'N/A', JSON.stringify([documentObj]), true]
     );
@@ -268,15 +279,7 @@ router.post('/background-check/pay-success', requireCaregiver, async (req: AuthR
     try {
       stripe = await getUncachableStripeClient();
     } catch {
-      // Simulation/local fallback
-      await query(
-        `INSERT INTO verification_queue (caregiver_id, specialty, experience, documents, background_check, status, submitted_at)
-         VALUES ($1, $2, $3, $4, true, 'pending', NOW())
-         ON CONFLICT DO NOTHING`,
-        [req.user!.id, 'General Care', 'N/A', JSON.stringify([{ name: 'Paid Premium Background Verification (Simulated)', url: '#' }])]
-      );
-      invalidateCache('caregivers:');
-      return res.json({ success: true, simulated: true });
+      return res.status(503).json({ error: 'Payment service not configured' });
     }
 
     const session = await stripe.checkout.sessions.retrieve(sessionId);
@@ -288,7 +291,14 @@ router.post('/background-check/pay-success', requireCaregiver, async (req: AuthR
         [session.payment_intent || session.id, req.user!.id, sessionId]
       );
 
-      // Create queue entry
+      // Update queue entry
+      await query(
+        `UPDATE verification_queue SET status = 'pending', submitted_at = NOW()
+         WHERE caregiver_id = $1 AND status = 'awaiting_payment'`,
+        [req.user!.id]
+      );
+      
+      // Fallback if no entry exists yet (e.g. premium instant check without step 1 upload, though the UI should prevent this now)
       await query(
         `INSERT INTO verification_queue (caregiver_id, specialty, experience, documents, background_check, status, submitted_at)
          VALUES ($1, $2, $3, $4, true, 'pending', NOW())

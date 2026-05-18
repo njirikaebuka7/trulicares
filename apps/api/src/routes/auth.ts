@@ -8,8 +8,10 @@ import { uploadBase64Image } from '../services/storage.js';
 
 const router = Router();
 
-function detectRole(email: string, explicitRole?: string): 'family' | 'caregiver' | 'admin' {
+function detectRole(email: string, explicitRole?: string): 'family' | 'caregiver' | 'admin' | 'professional' | 'facility' {
   if (explicitRole === 'admin' || email.includes('admin')) return 'admin';
+  if (explicitRole === 'professional') return 'professional';
+  if (explicitRole === 'facility') return 'facility';
   if (explicitRole === 'caregiver' || email.includes('caregiver') || email.includes('provider')) return 'caregiver';
   if (explicitRole === 'family') return 'family';
   return 'family';
@@ -18,7 +20,7 @@ function detectRole(email: string, explicitRole?: string): 'family' | 'caregiver
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, role: requestedRole, caregiverData } = req.body;
+    const { name, email, password, role: requestedRole, caregiverData, phone } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Name, email and password are required' });
@@ -36,10 +38,10 @@ router.post('/register', async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 12);
 
     const result = await query(
-      `INSERT INTO users (name, email, password_hash, role, status)
-       VALUES ($1, $2, $3, $4, 'active')
-       RETURNING id, name, email, role, status, photo_url, created_at`,
-      [name.trim(), email.toLowerCase().trim(), passwordHash, role]
+      `INSERT INTO users (name, email, password_hash, role, status, phone)
+       VALUES ($1, $2, $3, $4, 'active', $5)
+       RETURNING id, name, email, role, status, photo_url, created_at, phone`,
+      [name.trim(), email.toLowerCase().trim(), passwordHash, role, phone || null]
     );
 
     const user = result.rows[0];
@@ -72,6 +74,7 @@ router.post('/register', async (req, res) => {
         [user.id, caregiverData?.specialties?.[0] || '', caregiverData?.yearsExperience?.toString() || '0']
       );
     }
+    // professional and facility profiles are created via /api/staffing/* routes after account creation
 
     const token = generateToken({ id: user.id, email: user.email, role: user.role, name: user.name });
 
@@ -391,7 +394,7 @@ router.post('/reset-password', async (req, res) => {
     if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
     const result = await query(
-      `SELECT id, name, email FROM users
+      `SELECT id, name, email, role FROM users
        WHERE reset_token = $1 AND reset_token_expires > NOW()`,
       [token]
     );
@@ -406,11 +409,57 @@ router.post('/reset-password', async (req, res) => {
       [passwordHash, user.id]
     );
 
-    const jwtToken = generateToken({ id: user.id, email: user.email, role: 'family', name: user.name });
-    res.json({ message: 'Password reset successfully.', token: jwtToken, user: { id: user.id, name: user.name, email: user.email } });
+    const jwtToken = generateToken({ id: user.id, email: user.email, role: user.role, name: user.name });
+    res.json({ message: 'Password reset successfully.', token: jwtToken, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
   } catch (err) {
     console.error('Reset password error:', err);
     res.status(500).json({ error: 'Failed to reset password' });
+  }
+});
+
+// POST /api/auth/otp/send
+router.post('/otp/send', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ error: 'Phone number is required' });
+    
+    // Generate 6-digit code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    
+    // Store in DB
+    await query('DELETE FROM otp_codes WHERE phone = $1', [phone]);
+    await query('INSERT INTO otp_codes (phone, code, expires_at) VALUES ($1, $2, $3)', [phone, code, expires]);
+    
+    // Simulate SMS (logging to console for now)
+    console.log(`[SIMULATED SMS] To: ${phone}, Code: ${code}`);
+    
+    res.json({ message: 'Verification code sent', simulatedCode: code }); // Returning code for easy testing, remove in prod
+  } catch (err) {
+    console.error('OTP send error:', err);
+    res.status(500).json({ error: 'Failed to send code' });
+  }
+});
+
+// POST /api/auth/otp/verify
+router.post('/otp/verify', async (req, res) => {
+  try {
+    const { phone, code } = req.body;
+    if (!phone || !code) return res.status(400).json({ error: 'Phone and code are required' });
+    
+    const result = await query(
+      'SELECT id FROM otp_codes WHERE phone = $1 AND code = $2 AND expires_at > NOW()',
+      [phone, code]
+    );
+    
+    // Delete code after use
+    await query('DELETE FROM otp_codes WHERE phone = $1', [phone]);
+    
+    // Allow any code to pass successfully for now (per user request)
+    res.json({ success: true, message: 'Phone verified' });
+  } catch (err) {
+    console.error('OTP verify error:', err);
+    res.status(500).json({ error: 'Verification failed' });
   }
 });
 

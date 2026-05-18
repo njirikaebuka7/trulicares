@@ -72,11 +72,12 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: 'family' | 'caregiver' | 'admin';
+  role: 'family' | 'caregiver' | 'admin' | 'professional' | 'facility';
   verified: boolean;
   avatarUrl?: string;
   photoUrl?: string;
   phone?: string;
+  status?: 'active' | 'suspended';
 }
 
 export interface CaregiverProfile extends User {

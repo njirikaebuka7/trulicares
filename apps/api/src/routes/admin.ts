@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { query } from '../db.js';
+import { query, supabase } from '../db.js';
 import { requireAdmin, AuthRequest } from '../middleware/auth.js';
 import { sendVerificationStatusEmail } from '../services/email.js';
 
@@ -8,11 +8,13 @@ const router = Router();
 // GET /api/admin/stats
 router.get('/stats', requireAdmin, async (_req, res) => {
   try {
-    const [usersResult, caregiversResult, reportsResult, pendingResult, matchesResult, revenueResult, growthResult] = await Promise.all([
+    const [usersResult, caregiversResult, reportsResult, pendingResult, matchesResult, revenueResult, growthResult, staffingResult] = await Promise.all([
       query(`SELECT
                COUNT(*) as total,
                COUNT(CASE WHEN role = 'family' THEN 1 END) as families,
                COUNT(CASE WHEN role = 'caregiver' THEN 1 END) as caregivers,
+               COUNT(CASE WHEN role = 'professional' THEN 1 END) as professionals,
+               COUNT(CASE WHEN role = 'facility' THEN 1 END) as facilities,
                COUNT(CASE WHEN created_at >= NOW() - INTERVAL '30 days' THEN 1 END) as new_this_month
              FROM users WHERE role != 'admin'`),
       query(`SELECT
@@ -36,6 +38,11 @@ router.get('/stats', requireAdmin, async (_req, res) => {
         FROM generate_series(NOW() - INTERVAL '5 months', NOW(), '1 month') as generate_series
         ORDER BY month_date ASC
       `),
+      query(`SELECT
+               (SELECT COUNT(*) FROM shifts WHERE status = 'open') as active_shifts,
+               (SELECT COUNT(*) FROM shift_disputes WHERE status = 'open') as open_disputes,
+               (SELECT COUNT(*) FROM professional_profiles WHERE verification_status = 'pending') as pending_pros
+             FROM (SELECT 1) as dummy`),
     ]);
 
     const users = usersResult.rows[0];
@@ -52,12 +59,16 @@ router.get('/stats', requireAdmin, async (_req, res) => {
         totalUsers: parseInt(users.total),
         totalFamilies: parseInt(users.families),
         totalCaregivers: parseInt(users.caregivers),
+        totalProfessionals: parseInt(users.professionals),
+        totalFacilities: parseInt(users.facilities),
         newSignupsThisMonth: parseInt(users.new_this_month),
         verifiedCaregivers: parseInt(caregivers.verified),
         backgroundChecked: parseInt(caregivers.background_checked),
         openReports: parseInt(reportsResult.rows[0].open),
-        pendingVerifications: parseInt(pendingResult.rows[0].pending),
+        pendingVerifications: parseInt(pendingResult.rows[0].pending) + parseInt(staffingResult.rows[0].pending_pros),
         activeMatches: parseInt(matchesResult.rows[0].active),
+        activeShifts: parseInt(staffingResult.rows[0].active_shifts),
+        openDisputes: parseInt(staffingResult.rows[0].open_disputes),
         monthlyRevenue: Math.round(parseInt(revenueResult.rows[0].total) / 100),
         monthlyGrowth,
         platformHealth: 'Operational',
@@ -187,11 +198,20 @@ router.delete('/users/:id', requireAdmin, async (req: AuthRequest, res) => {
 // PUT /api/admin/users/:id/suspend
 router.put('/users/:id/suspend', requireAdmin, async (req: AuthRequest, res) => {
   try {
+    const { reason } = req.body;
     const result = await query(
-      `UPDATE users SET status = 'suspended', updated_at = NOW() WHERE id = $1 RETURNING id, name, status`,
-      [req.params.id]
+      `UPDATE users SET status = 'suspended', suspension_reason = $1, updated_at = NOW() WHERE id = $2 RETURNING id, name, status`,
+      [reason || 'No specific reason provided', req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    
+    // Create notification for the user
+    await query(
+      `INSERT INTO notifications (user_id, type, title, content)
+       VALUES ($1, 'system', 'Account Suspended', $2)`,
+      [req.params.id, `Your account has been suspended by an administrator. Reason: ${reason || 'No specific reason provided'}. Please contact support if you believe this is an error.`]
+    );
+
     res.json({ user: result.rows[0] });
   } catch (err) {
     console.error('Suspend user error:', err);
@@ -203,10 +223,18 @@ router.put('/users/:id/suspend', requireAdmin, async (req: AuthRequest, res) => 
 router.put('/users/:id/restore', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const result = await query(
-      `UPDATE users SET status = 'active', updated_at = NOW() WHERE id = $1 RETURNING id, name, status`,
+      `UPDATE users SET status = 'active', suspension_reason = NULL, updated_at = NOW() WHERE id = $1 RETURNING id, name, status`,
       [req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    
+    // Create notification for the user
+    await query(
+      `INSERT INTO notifications (user_id, type, title, content)
+       VALUES ($1, 'system', 'Account Restored', 'Your account has been restored. You can now use the platform normally.')`,
+      [req.params.id]
+    );
+
     res.json({ user: result.rows[0] });
   } catch (err) {
     console.error('Restore user error:', err);
@@ -225,6 +253,7 @@ router.get('/verification-queue', requireAdmin, async (_req, res) => {
        FROM verification_queue vq
        JOIN users u ON u.id = vq.caregiver_id
        LEFT JOIN caregiver_profiles cp ON cp.user_id = vq.caregiver_id
+       WHERE vq.status != 'awaiting_payment'
        ORDER BY vq.submitted_at DESC`
     );
 
@@ -277,6 +306,13 @@ router.put('/verification/:id', requireAdmin, async (req: AuthRequest, res) => {
     if (caregiverResult.rows[0]) {
       const { name, email } = caregiverResult.rows[0];
       sendVerificationStatusEmail(email, name, status === 'approved').catch(console.error);
+
+      // Broadcast real-time update
+      await supabase.channel(`profile:${entry.caregiver_id}`).send({
+        type: 'broadcast',
+        event: 'verification_update',
+        payload: { status },
+      }).catch(() => {});
     }
 
     res.json({ entry: result.rows[0] });
@@ -290,7 +326,8 @@ router.put('/verification/:id', requireAdmin, async (req: AuthRequest, res) => {
 router.get('/reports', requireAdmin, async (_req, res) => {
   try {
     const result = await query(
-      `SELECT r.id, r.type, r.description, r.evidence, r.status, r.priority, r.created_at,
+      `SELECT r.id, r.type, r.description, r.evidence, r.status, r.priority, r.created_at, r.ref_id,
+              r.reported_user_id,
               u1.name as reported_user_name, u1.email as reported_user_email, u1.role as reported_user_role,
               u2.name as reporter_name, u2.email as reporter_email
        FROM reports r
@@ -309,6 +346,7 @@ router.get('/reports', requireAdmin, async (_req, res) => {
         evidence: row.evidence || [],
         status: row.status,
         priority: row.priority,
+        refId: row.ref_id,
         reportedUser: row.reported_user_name || 'Unknown',
         reportedBy: row.reporter_name || 'Anonymous',
         reportedUserId: row.reported_user_id,
@@ -344,6 +382,40 @@ router.put('/reports/:id', requireAdmin, async (req: AuthRequest, res) => {
   } catch (err) {
     console.error('Update report error:', err);
     res.status(500).json({ error: 'Failed to update report' });
+  }
+});
+
+// GET /api/admin/payments
+router.get('/payments', requireAdmin, async (_req, res) => {
+  try {
+    const result = await query(
+      `SELECT p.id, p.ref_id, p.amount_cents, p.currency, p.description, p.status, p.created_at,
+              u.name as user_name, u.email as user_email
+       FROM payments p
+       JOIN users u ON u.id = p.user_id
+       ORDER BY p.created_at DESC
+       LIMIT 50`
+    );
+
+    res.json({
+      payments: result.rows.map((p: any) => ({
+        id: p.id,
+        refId: p.ref_id,
+        amount: `$${(p.amount_cents / 100).toFixed(2)}`,
+        amountCents: p.amount_cents,
+        description: p.description,
+        status: p.status,
+        userName: p.user_name,
+        userEmail: p.user_email,
+        date: new Date(p.created_at).toLocaleDateString('en-US', {
+          month: 'short', day: 'numeric', year: 'numeric'
+        }),
+        createdAt: p.created_at,
+      })),
+    });
+  } catch (err) {
+    console.error('Admin payments error:', err);
+    res.status(500).json({ error: 'Failed to fetch payments' });
   }
 });
 

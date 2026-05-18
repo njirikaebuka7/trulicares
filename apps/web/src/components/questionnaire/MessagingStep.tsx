@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, ArrowRight, Phone, Video, Check, CheckCheck, Smile, Paperclip, Info, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Button from '@/components/ui/Button';
-import { caregivers as caregiversApi } from '@/lib/api';
+import { get } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
 
@@ -34,9 +34,20 @@ export default function MessagingStep({ matchId, onDashboard, onBack }: Props) {
   const [caregiver, setCaregiver] = useState<any>(null);
 
   useEffect(() => {
-    if (matchId) {
-      caregiversApi.get(matchId).then(d => setCaregiver(d.caregiver || d)).catch(() => {});
-    }
+    let cancelled = false;
+
+    const loadCaregiver = async () => {
+      try {
+        const d: any = await get('/matches');
+        const match = (d.matches || []).find((item: any) => item.id === matchId);
+        if (!cancelled) setCaregiver(match?.caregiver || null);
+      } catch {
+        if (!cancelled) setCaregiver(null);
+      }
+    };
+
+    if (matchId) loadCaregiver();
+    return () => { cancelled = true; };
   }, [matchId]);
 
   const scrollToBottom = () => {

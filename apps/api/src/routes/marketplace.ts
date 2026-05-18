@@ -7,6 +7,7 @@ import messagesRouter from './messages.js';
 import scheduleRouter from './schedule.js';
 import reviewsRouter from './reviews.js';
 import earningsRouter from './earnings.js';
+import reportsRouter from './reports.js';
 
 const router = Router();
 
@@ -19,5 +20,6 @@ router.use('/conversations', messagesRouter);
 router.use('/schedule', scheduleRouter);
 router.use('/reviews', reviewsRouter);
 router.use('/earnings', earningsRouter);
+router.use('/reports', reportsRouter);
 
 export default router;

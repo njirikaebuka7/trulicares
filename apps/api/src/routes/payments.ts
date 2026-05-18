@@ -8,6 +8,7 @@ const router = Router();
 function formatPayment(p: any) {
   return {
     id: p.id,
+    refId: p.ref_id,
     description: p.description,
     amount: `$${(p.amount_cents / 100).toFixed(2)}`,
     amountCents: p.amount_cents,
@@ -25,7 +26,7 @@ function formatPayment(p: any) {
 router.get('/', requireAuth, async (req: AuthRequest, res) => {
   try {
     const result = await query(
-      `SELECT id, amount_cents, currency, description, status, created_at
+      `SELECT id, ref_id, amount_cents, currency, description, status, created_at
        FROM payments WHERE user_id = $1 ORDER BY created_at DESC`,
       [req.user!.id]
     );
@@ -45,7 +46,7 @@ router.post('/intent', requireAuth, async (req: AuthRequest, res) => {
     try {
       stripe = await getUncachableStripeClient();
     } catch {
-      return res.json({ clientSecret: 'pi_mock_secret_for_dev', amount, currency: 'usd' });
+      return res.status(503).json({ error: 'Payment service not configured' });
     }
 
     const userResult = await query('SELECT name, email, stripe_customer_id FROM users WHERE id = $1', [req.user!.id]);
@@ -65,8 +66,8 @@ router.post('/intent', requireAuth, async (req: AuthRequest, res) => {
     });
 
     await query(
-      `INSERT INTO payments (user_id, amount_cents, currency, stripe_payment_intent_id, description, status)
-       VALUES ($1, $2, 'usd', $3, 'Messaging Unlock', 'pending')`,
+      `INSERT INTO payments (user_id, amount_cents, currency, stripe_payment_intent_id, description, status, ref_id)
+       VALUES ($1, $2, 'usd', $3, 'Messaging Unlock', 'pending', generate_payment_ref())`,
       [req.user!.id, amount, paymentIntent.id]
     );
 
@@ -126,8 +127,8 @@ router.post('/checkout', requireAuth, async (req: AuthRequest, res) => {
 
       // Pre-insert pending payment for background check history
       await query(
-        `INSERT INTO payments (user_id, amount_cents, currency, stripe_payment_intent_id, description, status)
-         VALUES ($1, $2, 'usd', $3, 'TruliCares Premium Background Check', 'pending')`,
+        `INSERT INTO payments (user_id, amount_cents, currency, stripe_payment_intent_id, description, status, ref_id)
+         VALUES ($1, $2, 'usd', $3, 'TruliCares Premium Background Check', 'pending', generate_payment_ref())`,
          [req.user!.id, 3900, session.id]
       );
     } else if (matchId) {
@@ -154,8 +155,8 @@ router.post('/checkout', requireAuth, async (req: AuthRequest, res) => {
 
       // Pre-insert pending payment for the history widget
       await query(
-        `INSERT INTO payments (user_id, match_id, amount_cents, currency, stripe_payment_intent_id, description, status)
-         VALUES ($1, $2, $3, 'usd', $4, 'Messaging Unlock', 'pending')`,
+        `INSERT INTO payments (user_id, match_id, amount_cents, currency, stripe_payment_intent_id, description, status, ref_id)
+         VALUES ($1, $2, $3, 'usd', $4, 'Messaging Unlock', 'pending', generate_payment_ref())`,
         [req.user!.id, matchId, 999, session.id]
       );
     } else {

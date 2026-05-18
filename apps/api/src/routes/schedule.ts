@@ -36,9 +36,12 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
     if (role === 'caregiver') {
       result = await query(
         `SELECT s.id, s.family_name, s.service, s.date_label, s.time_label, s.location, s.status,
-                s.created_at, u.name as family_name_real, u.photo_url as family_photo
+                s.created_at, u.name as family_name_real, u.photo_url as family_photo,
+                cr.ref_id
          FROM schedules s
          LEFT JOIN users u ON u.id = s.family_id
+         LEFT JOIN matches m ON (m.family_id = s.family_id AND m.caregiver_id = s.caregiver_id AND m.status = 'accepted')
+         LEFT JOIN care_requests cr ON cr.id = m.request_id
          WHERE s.caregiver_id = $1
          ORDER BY s.created_at DESC`,
         [id]
@@ -47,10 +50,12 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
       result = await query(
         `SELECT s.id, s.service, s.date_label, s.time_label, s.location, s.status,
                 s.created_at, u.name as caregiver_name, u.photo_url as caregiver_photo,
-                cp.job_title
+                cp.job_title, cr.ref_id
          FROM schedules s
          JOIN users u ON u.id = s.caregiver_id
          LEFT JOIN caregiver_profiles cp ON cp.user_id = s.caregiver_id
+         LEFT JOIN matches m ON (m.family_id = s.family_id AND m.caregiver_id = s.caregiver_id AND m.status = 'accepted')
+         LEFT JOIN care_requests cr ON cr.id = m.request_id
          WHERE s.family_id = $1
          ORDER BY s.created_at DESC`,
         [id]
@@ -64,6 +69,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
       time: row.time_label,
       location: row.location,
       status: row.status,
+      refId: row.ref_id,
       colorClass: colorMap[row.service] || 'bg-brand-500',
       familyName: row.family_name_real || row.family_name,
       familyPhoto: row.family_photo,

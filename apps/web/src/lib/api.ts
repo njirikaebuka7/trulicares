@@ -73,8 +73,8 @@ export async function del(path: string) {
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const auth = {
   login: (email: string, password: string) => post('/auth/login', { email, password }),
-  register: (name: string, email: string, password: string, role: string, caregiverData?: any) =>
-    post('/auth/register', { name, email, password, role, caregiverData }),
+  register: (name: string, email: string, password: string, role: string, phone?: string, caregiverData?: any) =>
+    post('/auth/register', { name, email, password, role, phone, caregiverData }),
   me: () => get('/auth/me'),
   settings: () => get('/auth/settings'),
   stats: () => get('/auth/stats'),
@@ -87,6 +87,8 @@ export const auth = {
   updatePrivacy: (prefs: Record<string, boolean>) => put('/auth/privacy', prefs),
   forgotPassword: (email: string) => post('/auth/forgot-password', { email }),
   resetPassword: (token: string, password: string) => post('/auth/reset-password', { token, password }),
+  sendOtp: (phone: string) => post('/auth/otp/send', { phone }),
+  verifyOtp: (phone: string, code: string) => post('/auth/otp/verify', { phone, code }),
 };
 
 // ── Clients ───────────────────────────────────────────────────────────────────

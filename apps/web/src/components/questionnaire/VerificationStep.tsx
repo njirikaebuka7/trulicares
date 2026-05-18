@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Phone, Shield, Check, CheckCircle, ArrowRight, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Button from '@/components/ui/Button';
+import { auth as authApi } from '@/lib/api';
 import logoImg from '@/assets/logo.png';
 
 interface Props {
@@ -25,6 +26,7 @@ export default function VerificationStep({ onComplete, onBack, onCancel, cancelL
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [step, setStep] = useState<Step>('phone');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handlePhoneInput = (raw: string) => {
     const digits = raw.replace(/\D/g, '').slice(0, 10);
@@ -34,17 +36,29 @@ export default function VerificationStep({ onComplete, onBack, onCancel, cancelL
   const handleSendOTP = async () => {
     if (phoneDigits.length < 10) return;
     setLoading(true);
-    await new Promise(r => setTimeout(r, 1000));
-    setLoading(false);
-    setStep('otp');
+    setError('');
+    try {
+      await authApi.sendOtp(`+1${phoneDigits}`);
+      setStep('otp');
+    } catch (err: any) {
+      setError(err.message || 'Failed to send code');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleVerifyOTP = async () => {
     if (otp.some(d => !d)) return;
     setLoading(true);
-    await new Promise(r => setTimeout(r, 1000));
-    setLoading(false);
-    setStep('confirmed');
+    setError('');
+    try {
+      await authApi.verifyOtp(`+1${phoneDigits}`, otp.join(''));
+      setStep('confirmed');
+    } catch (err: any) {
+      setError(err.message || 'Invalid verification code');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleOTPChange = (index: number, value: string) => {
@@ -154,6 +168,7 @@ export default function VerificationStep({ onComplete, onBack, onCancel, cancelL
               >
                 Send Verification Code
               </Button>
+              {error && <p className="text-red-500 text-sm text-center">{error}</p>}
             </div>
           </>
         )}
@@ -197,6 +212,7 @@ export default function VerificationStep({ onComplete, onBack, onCancel, cancelL
               >
                 Verify & Continue
               </Button>
+              {error && <p className="text-red-500 text-sm text-center">{error}</p>}
               <button
                 onClick={() => setStep('phone')}
                 className="w-full text-center text-sm text-brand-600 font-medium hover:underline"

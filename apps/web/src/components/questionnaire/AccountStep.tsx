@@ -39,10 +39,10 @@ export default function AccountStep({ onComplete, onBack, onCancel, cancelLabel 
     setLoading(true);
     setError('');
     try {
-      await signup(email, password, email.split('@')[0], 'family');
+      await signup(email, password, email.split('@')[0], 'family', undefined);
       onComplete();
-    } catch {
-      setError('Something went wrong. Please try again.');
+    } catch (err: any) {
+      setError(err.message || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }

@@ -48,8 +48,11 @@ export default function Login() {
     setLoading(true);
     setError('');
     try {
-      await login(email, password);
-      navigate('/dashboard');
+      const userData = await login(email, password);
+      // Role-based redirection
+      if (userData.role === 'professional') navigate('/professional-dashboard');
+      else if (userData.role === 'facility') navigate('/facility-dashboard');
+      else navigate('/dashboard');
     } catch {
       setError('Invalid email or password.');
     } finally {

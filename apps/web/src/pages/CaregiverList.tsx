@@ -54,21 +54,23 @@ export default function CaregiverList() {
       sort: sortBy,
       verified: verifiedOnly || undefined,
       backgroundChecked: bgCheckedOnly || undefined,
+      search: search.trim() || undefined,
     })
       .then((d: any) => setServerCaregivers(d.caregivers || []))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [activeCategory, sortBy, verifiedOnly, bgCheckedOnly]);
+  }, [activeCategory, sortBy, verifiedOnly, bgCheckedOnly, search]);
 
-  // Client-side search filter on top of server results
+  // Keep a defensive client-side filter on top of server results.
   const filtered = useMemo(() => {
     if (!search.trim()) return serverCaregivers;
     const q = search.toLowerCase();
     return serverCaregivers.filter(cg =>
-      cg.name.toLowerCase().includes(q) ||
-      cg.bio.toLowerCase().includes(q) ||
-      cg.location.toLowerCase().includes(q) ||
-      cg.specialties.some(s => s.includes(q))
+      (cg.name || '').toLowerCase().includes(q) ||
+      (cg.bio || '').toLowerCase().includes(q) ||
+      (cg.location || '').toLowerCase().includes(q) ||
+      (cg.serviceZips || []).some(zip => zip.toLowerCase().includes(q)) ||
+      (cg.specialties || []).some(s => s.toLowerCase().replace(/-/g, ' ').includes(q))
     );
   }, [search, serverCaregivers]);
 

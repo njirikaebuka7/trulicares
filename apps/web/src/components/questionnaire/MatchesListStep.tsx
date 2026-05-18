@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Star, Shield, MapPin, DollarSign, Check, ArrowLeft, Navigation } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Button from '@/components/ui/Button';
-import { caregivers as caregiversApi, get } from '@/lib/api';
+import { get } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import { extractZip } from '@/utils/geolocation';
 import logoImg from '@/assets/logo.png';
@@ -97,9 +97,17 @@ export default function MatchesListStep({ requestId, onSelectMatch, onBack, fami
           const servesFamily = Boolean(familyZip && cg.serviceZips?.includes(familyZip));
 
           return (
-            <button
+            <div
               key={m.id}
               onClick={() => setSelectedMatchId(m.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setSelectedMatchId(m.id);
+                }
+              }}
               className={cn(
                 'w-full bg-white rounded-3xl border-2 p-5 text-left transition-all duration-200',
                 isSelected
@@ -186,6 +194,12 @@ export default function MatchesListStep({ requestId, onSelectMatch, onBack, fami
                       )}
                     </div>
                   )}
+                  <div className="mt-4 flex items-center gap-2">
+                    <Link to={`/caregivers/${cg.id}`} onClick={(e) => e.stopPropagation()}>
+                      <Button variant="secondary" size="sm">View Profile</Button>
+                    </Link>
+                    {isSelected && <span className="text-xs font-semibold text-brand-600">Selected caregiver</span>}
+                  </div>
                 </div>
 
                 <div className={cn(
@@ -195,7 +209,7 @@ export default function MatchesListStep({ requestId, onSelectMatch, onBack, fami
                   {isSelected && <Check className="w-4 h-4 text-white" />}
                 </div>
               </div>
-            </button>
+            </div>
           );
         })}
 

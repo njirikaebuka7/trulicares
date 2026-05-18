@@ -5,10 +5,11 @@ import {
   Star, Shield, Check, ChevronRight, Calendar, Clock, CreditCard,
   FileText, X, Home, LayoutDashboard, ChevronLeft, ChevronRight as ChevronRightIcon,
   Edit3, Camera, MoreHorizontal, Send, Phone, Trash2, CheckCircle, AlertCircle,
-  Loader2
+  Loader2, Flag, AlertTriangle, Ban, Upload, ImagePlus, Scale
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import StripeCardModal from '@/components/ui/StripeCardModal';
+import ReportModal from '@/components/ReportModal';
 import { useAuth } from '@/context/AuthContext';
 import { get, post, put, auth as authApi, payments as paymentsApi, notifications as notificationsApi } from '@/lib/api';
 import { cn } from '@/utils/cn';
@@ -57,6 +58,20 @@ export default function FamilyDashboard() {
   const [selectedMessage, setSelectedMessage] = useState<string | null>(null);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showAddPayment, setShowAddPayment] = useState(false);
+  
+  // Dispute Report state
+  const [reportModal, setReportModal] = useState<{
+    isOpen: boolean;
+    reportedUserId: string;
+    reportedUserName: string;
+    requestId?: string;
+    matchId?: string;
+    refId?: string;
+  }>({
+    isOpen: false,
+    reportedUserId: '',
+    reportedUserName: '',
+  });
   const [editName, setEditName] = useState(user?.name || '');
   const [editPhone, setEditPhone] = useState('');
   const [notificationsRead, setNotificationsRead] = useState(false);
@@ -93,6 +108,18 @@ export default function FamilyDashboard() {
   const [reviewText, setReviewText] = useState('');
   const [reviewService, setReviewService] = useState('Child Care');
   const [reviewSaving, setReviewSaving] = useState(false);
+  const [reviewPhotos, setReviewPhotos] = useState<string[]>([]);
+  const reviewPhotoInputRef = useRef<HTMLInputElement>(null);
+
+  // Dispute Management state
+  const [showDisputeModal, setShowDisputeModal] = useState<null | { matchId: string; caregiverName: string; sessionDate?: string }>(null);
+  const [disputeReason, setDisputeReason] = useState('');
+  const [disputeDetails, setDisputeDetails] = useState('');
+  const [disputeEvidence, setDisputeEvidence] = useState<string[]>([]);
+  const [disputeSaving, setDisputeSaving] = useState(false);
+  const disputeEvidenceInputRef = useRef<HTMLInputElement>(null);
+
+  // Replaced with ReportModal component
 
   // ── Toast ──────────────────────────────────────────────────────────────────
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: 'success' | 'error' }>>([]);
@@ -197,7 +224,7 @@ export default function FamilyDashboard() {
         console.log('⚡ Realtime Care Request table mutated');
         fetchData();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedules' }, () => {
         console.log('⚡ Realtime Schedule table mutated');
         fetchData();
       })
@@ -211,6 +238,10 @@ export default function FamilyDashboard() {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reviews' }, () => {
         console.log('⚡ Realtime Reviews table mutated');
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => {
+        console.log('⚡ Realtime Payments table mutated');
         fetchData();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
@@ -510,7 +541,27 @@ export default function FamilyDashboard() {
   };
 
   return (
-    <div className="flex bg-gray-50 min-h-screen">
+    <div className="flex bg-gray-50 min-h-screen relative">
+      {user?.status === 'suspended' && (
+        <div className="fixed inset-0 z-[300] bg-white/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-20 h-20 bg-red-100 rounded-3xl flex items-center justify-center mb-6">
+            <Ban className="w-10 h-10 text-red-600" />
+          </div>
+          <h2 className="text-3xl font-bold text-gray-900 mb-3">Account Suspended</h2>
+          <p className="text-gray-600 max-w-md mb-8">
+            Your account has been suspended for violating our terms of service or due to a pending investigation. 
+            You cannot make new care requests or message caregivers at this time.
+          </p>
+          <div className="flex flex-col gap-3 w-full max-w-xs">
+            <Button variant="primary" fullWidth onClick={() => window.location.href = 'mailto:support@trulicares.com'}>
+              Contact Support
+            </Button>
+            <Button variant="ghost" fullWidth onClick={logout}>
+              Log Out
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* ── LEFT SIDEBAR (desktop) ── */}
       <aside className={cn(
@@ -953,6 +1004,19 @@ export default function FamilyDashboard() {
                                 </span>
                               )}
                               <Button variant="secondary" size="sm" onClick={() => navigate(`/caregivers/${match.caregiver?.id}`)}>View Profile</Button>
+                              <button 
+                                onClick={() => setReportModal({
+                                  isOpen: true,
+                                  reportedUserId: match.caregiver?.id || '',
+                                  reportedUserName: match.caregiver?.name || '',
+                                  requestId: match.careRequestId,
+                                  matchId: match.id,
+                                  refId: match.refId
+                                })}
+                                className="text-xs text-gray-400 hover:text-red-500 font-medium px-2 py-1 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1.5"
+                              >
+                                <Flag className="w-3 h-3" /> Dispute
+                              </button>
                             </div>
                           </div>
                         ))}
@@ -1058,6 +1122,11 @@ export default function FamilyDashboard() {
                             <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
                             <span className="text-xs font-semibold text-gray-700">{match.caregiver?.rating || '—'}</span>
                             {match.budget && <span className="text-xs text-gray-400">· {match.budget}</span>}
+                            {match.refId && (
+                              <span className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded ml-2 uppercase tracking-wider">
+                                ID: {match.refId}
+                              </span>
+                            )}
                           </div>
                           {match.caregiver?.specialties?.length > 0 && (
                             <div className="flex flex-wrap gap-1.5">
@@ -1092,6 +1161,32 @@ export default function FamilyDashboard() {
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-amber-50 text-amber-700 text-xs font-semibold transition-all shadow-sm"
                             >
                               <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500 shrink-0" /> Rate Caregiver
+                            </button>
+                            <button
+                              onClick={() => {
+                                setReportModal({
+                                  isOpen: true,
+                                  reportedUserId: match.caregiver?.id || '',
+                                  reportedUserName: match.caregiver?.name || 'Caregiver',
+                                  requestId: match.careRequestId,
+                                  refId: match.refId
+                                });
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-red-50 text-red-600 text-xs font-semibold transition-all shadow-sm"
+                            >
+                              <Flag className="w-3.5 h-3.5 shrink-0" /> Report Issue
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowDisputeModal({
+                                  matchId: match.id,
+                                  caregiverName: match.caregiver?.name || 'Caregiver',
+                                  sessionDate: match.scheduledAt || undefined,
+                                });
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-rose-50 text-rose-700 text-xs font-semibold transition-all shadow-sm"
+                            >
+                              <Scale className="w-3.5 h-3.5 shrink-0" /> File Dispute
                             </button>
                           </div>
                         ) : match.status === 'accepted' ? (
@@ -1228,17 +1323,31 @@ export default function FamilyDashboard() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-gray-900">{session.caregiverName}</p>
-                          <p className="text-sm text-gray-500">{session.service}</p>
+                          <p className="text-sm text-gray-500">{session.service} {session.refId && <span className="ml-2 font-mono text-[10px] bg-gray-50 px-1 py-0.5 rounded text-gray-400 uppercase tracking-tighter">ID: {session.refId}</span>}</p>
                           <div className="flex items-center gap-3 mt-1 text-xs text-gray-400 flex-wrap">
                             <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {session.date}</span>
                             <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {session.time}</span>
                             {session.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {session.location}</span>}
                           </div>
                         </div>
-                        <span className={cn('text-xs px-3 py-1 rounded-full font-semibold shrink-0',
-                          session.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700')}>
-                          {session.status}
-                        </span>
+                        <div className="flex flex-col items-end gap-2 shrink-0">
+                          <span className={cn('text-xs px-3 py-1 rounded-full font-semibold',
+                            session.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700')}>
+                            {session.status}
+                          </span>
+                          <button
+                            onClick={() => setReportModal({
+                              isOpen: true,
+                              reportedUserId: session.caregiverId,
+                              reportedUserName: session.caregiverName,
+                              refId: session.refId
+                            })}
+                            className="p-1.5 text-gray-300 hover:text-red-500 transition-colors"
+                            title="Report Issue"
+                          >
+                            <Flag className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1447,7 +1556,14 @@ export default function FamilyDashboard() {
                           <CreditCard className="w-4 h-4 text-green-600" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm text-gray-900">{pay.description}</p>
+                          <p className="font-semibold text-sm text-gray-900 flex items-center gap-2">
+                            {pay.description}
+                            {pay.refId && (
+                              <span className="text-[10px] font-mono bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded uppercase tracking-tighter">
+                                #{pay.refId}
+                              </span>
+                            )}
+                          </p>
                           <p className="text-xs text-gray-400">{dateDisplay} · {methodDisplay}</p>
                         </div>
                         <div className="text-right">
@@ -2128,7 +2244,9 @@ export default function FamilyDashboard() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Ref ID</span>
-                  <span className="text-xs font-mono font-medium text-gray-400">#{selectedPayment.id.slice(0, 8).toUpperCase()}</span>
+                  <span className="text-xs font-mono font-medium text-gray-400">
+                    {selectedPayment.refId ? selectedPayment.refId : `#${selectedPayment.id.slice(0, 8).toUpperCase()}`}
+                  </span>
                 </div>
               </div>
 
@@ -2323,8 +2441,55 @@ export default function FamilyDashboard() {
                 />
               </div>
 
+              {/* Photo Upload */}
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Add Photos (optional)</label>
+                <input
+                  ref={reviewPhotoInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={async e => {
+                    const files = Array.from(e.target.files || []);
+                    const previews: string[] = [];
+                    for (const file of files.slice(0, 3)) {
+                      const reader = new FileReader();
+                      await new Promise<void>(res => { reader.onload = () => { previews.push(reader.result as string); res(); }; reader.readAsDataURL(file); });
+                    }
+                    setReviewPhotos(prev => [...prev, ...previews].slice(0, 3));
+                    e.target.value = '';
+                  }}
+                />
+                {reviewPhotos.length < 3 && (
+                  <button
+                    type="button"
+                    onClick={() => reviewPhotoInputRef.current?.click()}
+                    className="w-full py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 text-xs font-bold hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50 transition-all flex items-center justify-center gap-2"
+                  >
+                    <ImagePlus className="w-4 h-4" /> Upload Photos ({reviewPhotos.length}/3)
+                  </button>
+                )}
+                {reviewPhotos.length > 0 && (
+                  <div className="flex gap-2 mt-2 flex-wrap">
+                    {reviewPhotos.map((src, i) => (
+                      <div key={i} className="relative">
+                        <img src={src} alt={`Review photo ${i+1}`} className="w-16 h-16 object-cover rounded-xl border border-gray-200" />
+                        <button
+                          onClick={() => setReviewPhotos(prev => prev.filter((_, idx) => idx !== i))}
+                          className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
+                        >
+                          <X className="w-3 h-3 text-white" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
               <div className="flex gap-3 pt-2">
-                <Button variant="secondary" fullWidth onClick={() => setShowReviewModal(null)}>Cancel</Button>
+                <Button variant="secondary" fullWidth onClick={() => { setShowReviewModal(null); setReviewPhotos([]); }}>Cancel</Button>
                 <Button
                   variant="primary"
                   fullWidth
@@ -2336,13 +2501,15 @@ export default function FamilyDashboard() {
                         caregiverId: showReviewModal.caregiverId,
                         rating: reviewRating,
                         text: reviewText.trim(),
-                        service: reviewService
+                        service: reviewService,
+                        photos: reviewPhotos,
                       });
                       showToast('Thank you! Your rating was submitted successfully.');
                       fetchData();
                       setShowReviewModal(null);
                       setReviewText('');
                       setReviewRating(5);
+                      setReviewPhotos([]);
                     } catch {
                       showToast('Failed to submit review.', 'error');
                     } finally {
@@ -2358,6 +2525,164 @@ export default function FamilyDashboard() {
           </div>
         </div>
       )}
+
+      {/* ── DISPUTE MANAGEMENT MODAL ── */}
+      {showDisputeModal && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowDisputeModal(null)} />
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl z-10 overflow-hidden animate-fade-in-up">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-600 to-rose-700 px-6 py-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                  <Scale className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-lg">File a Dispute</h3>
+                  <p className="text-red-100 text-xs">Against: {showDisputeModal.caregiverName}</p>
+                </div>
+              </div>
+              <button onClick={() => setShowDisputeModal(null)} className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center">
+                <X className="w-4 h-4 text-white" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+              {/* Info Banner */}
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold text-amber-800">Official Dispute Process</p>
+                  <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">Our team will review your dispute within 2–3 business days. You may be contacted for additional information.</p>
+                </div>
+              </div>
+
+              {/* Reason */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Reason for Dispute *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    'No-show / Late arrival',
+                    'Poor quality of care',
+                    'Unprofessional behavior',
+                    'Property damage',
+                    'Billing discrepancy',
+                    'Other',
+                  ].map(r => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setDisputeReason(r)}
+                      className={`px-3 py-2.5 rounded-xl border-2 text-xs font-bold text-left transition-all ${
+                        disputeReason === r
+                          ? 'border-red-500 bg-red-50 text-red-700'
+                          : 'border-gray-200 text-gray-600 hover:border-red-300'
+                      }`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Details */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Describe what happened *</label>
+                <textarea
+                  value={disputeDetails}
+                  onChange={e => setDisputeDetails(e.target.value)}
+                  placeholder="Please provide as much detail as possible about the incident, including dates, times, and specific concerns..."
+                  rows={4}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none text-sm resize-none"
+                />
+              </div>
+
+              {/* Evidence Upload */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Attach Evidence (optional)</label>
+                <input
+                  ref={disputeEvidenceInputRef}
+                  type="file"
+                  accept="image/*,application/pdf"
+                  multiple
+                  className="hidden"
+                  onChange={async e => {
+                    const files = Array.from(e.target.files || []);
+                    const previews: string[] = [];
+                    for (const file of files.slice(0, 3)) {
+                      const reader = new FileReader();
+                      await new Promise<void>(res => { reader.onload = () => { previews.push(reader.result as string); res(); }; reader.readAsDataURL(file); });
+                    }
+                    setDisputeEvidence(prev => [...prev, ...previews].slice(0, 3));
+                    e.target.value = '';
+                  }}
+                />
+                {disputeEvidence.length < 3 && (
+                  <button
+                    type="button"
+                    onClick={() => disputeEvidenceInputRef.current?.click()}
+                    className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 text-sm font-bold hover:border-red-400 hover:text-red-600 hover:bg-red-50 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Upload className="w-4 h-4" /> Attach Photos or Documents (up to 3)
+                  </button>
+                )}
+                {disputeEvidence.length > 0 && (
+                  <div className="flex gap-2 mt-2 flex-wrap">
+                    {disputeEvidence.map((src, i) => (
+                      <div key={i} className="relative">
+                        <img src={src} alt={`Evidence ${i+1}`} className="w-16 h-16 object-cover rounded-xl border border-gray-200" />
+                        <button
+                          onClick={() => setDisputeEvidence(prev => prev.filter((_, idx) => idx !== i))}
+                          className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
+                        >
+                          <X className="w-3 h-3 text-white" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 pb-6 pt-2 flex gap-3">
+              <Button variant="secondary" fullWidth onClick={() => { setShowDisputeModal(null); setDisputeReason(''); setDisputeDetails(''); setDisputeEvidence([]); }}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                fullWidth
+                disabled={disputeSaving || !disputeReason || disputeDetails.trim().length < 20}
+                onClick={async () => {
+                  setDisputeSaving(true);
+                  try {
+                    await post('/disputes', {
+                      matchId: showDisputeModal.matchId,
+                      reason: disputeReason,
+                      details: disputeDetails.trim(),
+                      evidence: disputeEvidence,
+                    });
+                    showToast('Dispute filed successfully. Our team will review it within 2–3 business days.');
+                    setShowDisputeModal(null);
+                    setDisputeReason('');
+                    setDisputeDetails('');
+                    setDisputeEvidence([]);
+                  } catch {
+                    showToast('Failed to submit dispute. Please try again.', 'error');
+                  } finally {
+                    setDisputeSaving(false);
+                  }
+                }}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {disputeSaving ? 'Filing...' : 'Submit Dispute'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Replaced by ReportModal component below */}
 
     </div>
   );

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Lock, Check, ExternalLink, ShieldCheck, CreditCard, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { caregivers as caregiversApi, post } from '@/lib/api';
+import { caregivers as caregiversApi, get, post } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
 
@@ -26,13 +26,40 @@ const features = [
 export default function PaymentStep({ matchId, caregiverId, onComplete, onBack, onCancel, cancelLabel }: Props) {
   const [state, setState] = useState<PaymentState>('idle');
   const [caregiver, setCaregiver] = useState<any>(null);
+  void onComplete;
 
   useEffect(() => {
-    const fetchId = caregiverId || matchId;
-    if (fetchId) {
-      caregiversApi.get(fetchId).then(d => setCaregiver(d.caregiver || d)).catch(() => {});
-    }
+    let cancelled = false;
+
+    const loadCaregiver = async () => {
+      try {
+        if (caregiverId) {
+          const d: any = await caregiversApi.get(caregiverId);
+          if (!cancelled) setCaregiver(d.caregiver || d);
+          return;
+        }
+
+        const d: any = await get('/matches');
+        const match = (d.matches || []).find((item: any) => item.id === matchId);
+        if (!cancelled) setCaregiver(match?.caregiver || null);
+      } catch {
+        if (!cancelled) setCaregiver(null);
+      }
+    };
+
+    if (matchId || caregiverId) loadCaregiver();
+    return () => { cancelled = true; };
   }, [matchId, caregiverId]);
+
+  const caregiverName = caregiver?.name || 'this caregiver';
+  const caregiverInitials = caregiver?.name
+    ? caregiver.name.split(' ').map((n: string) => n[0]).join('')
+    : 'CG';
+  const caregiverRate = Array.isArray(caregiver?.hourlyRate) ? caregiver.hourlyRate : [15, 30];
+  void caregiverRate;
+  const caregiverMeta = [caregiver?.availability, caregiver?.location].filter(Boolean).join(' • ');
+
+  void caregiverMeta;
 
   const handleStripeCheckout = async () => {
     setState('redirecting');
@@ -125,7 +152,7 @@ export default function PaymentStep({ matchId, caregiverId, onComplete, onBack, 
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Unlock Direct Messaging</h2>
           <p className="text-gray-500 text-sm leading-relaxed">
-            Connect directly with <span className="font-semibold text-gray-800">{caregiver?.name}</span> to get started on your care journey.
+            Connect directly with <span className="font-semibold text-gray-800">{caregiverName}</span> to get started on your care journey.
           </p>
         </div>
 
@@ -135,11 +162,11 @@ export default function PaymentStep({ matchId, caregiverId, onComplete, onBack, 
             <img src={caregiver.photoUrl} alt={caregiver.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
           ) : (
             <div className="w-14 h-14 rounded-xl bg-coral-400 flex items-center justify-center text-white font-bold text-lg shrink-0">
-              {caregiver?.name?.split(' ').map((n: string) => n[0]).join('') ?? '?'}
+              {caregiverInitials}
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <p className="font-bold text-gray-900">{caregiver?.name}</p>
+            <p className="font-bold text-gray-900">{caregiverName}</p>
             <p className="text-sm text-gray-500">{caregiver?.availability} · {caregiver?.location}</p>
           </div>
           <div className="text-right shrink-0">

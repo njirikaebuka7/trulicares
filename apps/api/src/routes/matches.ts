@@ -35,6 +35,7 @@ function formatFamilyMatch(row: any) {
   return {
     id: row.id,
     careRequestId: row.request_id || '',
+    refId: row.ref_id || '',
     caregiver,
     caregiverId: row.caregiver_id,
     status: row.status,
@@ -53,7 +54,10 @@ function formatCaregiverMatch(row: any) {
     id: row.id,
     familyId: row.family_id,
     familyName: row.family_name || '',
+    familyEmail: row.family_email || '',
+    familyPhone: row.family_phone || '',
     familyPhoto: row.family_photo || null,
+    refId: row.ref_id || '',
     careType: row.care_type || '',
     service: row.care_type || '',
     location: row.request_location || '',
@@ -82,7 +86,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
                 cp.rating, cp.review_count, cp.verified, cp.background_checked,
                 cp.years_experience, cp.availability, cp.location as caregiver_location,
                 cp.service_zips,
-                cr.care_type, cr.location as request_location
+                cr.care_type, cr.location as request_location, cr.ref_id
          FROM matches m
          JOIN users uc ON uc.id = m.caregiver_id
          LEFT JOIN caregiver_profiles cp ON cp.user_id = m.caregiver_id
@@ -98,8 +102,8 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
       const result = await query(
         `SELECT m.id, m.request_id, m.caregiver_id, m.family_id, m.status,
                 m.near_you, m.messaging_unlocked, m.created_at,
-                uf.name as family_name, uf.photo_url as family_photo,
-                cr.care_type, cr.location as request_location, cr.details,
+                uf.name as family_name, uf.photo_url as family_photo, uf.email as family_email, uf.phone as family_phone,
+                cr.care_type, cr.location as request_location, cr.details, cr.ref_id,
                 CONCAT('$', cp.hourly_rate_min, '–$', cp.hourly_rate_max, '/hr') as budget_str
          FROM matches m
          JOIN users uf ON uf.id = m.family_id
@@ -134,6 +138,11 @@ router.post('/:id/request', requireAuth, async (req: AuthRequest, res) => {
     const { id: userId, role } = req.user!;
     if (role !== 'family') return res.status(403).json({ error: 'Only families can request caregivers' });
 
+    const userCheck = await query('SELECT status FROM users WHERE id = $1', [userId]);
+    if (userCheck.rows[0]?.status === 'suspended') {
+      return res.status(403).json({ error: 'Your account is suspended. Contact support.' });
+    }
+
     const result = await query(
       `UPDATE matches SET status = 'pending' 
        WHERE id = $1 AND family_id = $2 AND status = 'matching' 
@@ -159,6 +168,10 @@ router.post('/:id/request', requireAuth, async (req: AuthRequest, res) => {
 // PUT /api/matches/:id/accept
 router.put('/:id/accept', requireAuth, async (req: AuthRequest, res) => {
   try {
+    const userCheck = await query('SELECT status FROM users WHERE id = $1', [req.user!.id]);
+    if (userCheck.rows[0]?.status === 'suspended') {
+      return res.status(403).json({ error: 'Your account is suspended. Contact support.' });
+    }
     const result = await query(
       `UPDATE matches SET status = 'accepted' WHERE id = $1 AND caregiver_id = $2 RETURNING *`,
       [req.params.id, req.user!.id]

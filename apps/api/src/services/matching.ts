@@ -1,4 +1,5 @@
 import { query } from '../db.js';
+import { generateRefId } from './utils.js';
 
 export interface MatchCandidate {
   id: string;
@@ -184,11 +185,12 @@ export async function createMatchesForRequest(
   const candidates = await findMatches(careType, familyLocation, familyZip, budgetStr);
 
   for (const candidate of candidates.slice(0, 5)) {
+    const refId = generateRefId('SES');
     await query(`
-      INSERT INTO matches (request_id, caregiver_id, family_id, near_you, status)
-      VALUES ($1, $2, $3, $4, 'matching')
+      INSERT INTO matches (request_id, caregiver_id, family_id, near_you, status, ref_id)
+      VALUES ($1, $2, $3, $4, 'matching', $5)
       ON CONFLICT (request_id, caregiver_id) DO NOTHING
-    `, [requestId, candidate.id, familyId, candidate.near_you || false]);
+    `, [requestId, candidate.id, familyId, candidate.near_you || false, refId]);
   }
 
   return candidates;

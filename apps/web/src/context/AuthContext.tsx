@@ -7,8 +7,8 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name: string, role: 'family' | 'caregiver', caregiverData?: any) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
+  signup: (email: string, password: string, name: string, role: 'family' | 'caregiver' | 'professional' | 'facility', phone?: string, caregiverData?: any) => Promise<User>;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
 }
@@ -33,6 +33,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: data.role,
           verified: data.status === 'active',
           photoUrl: data.photoUrl,
+          status: data.status,
+          phone: data.phone,
         });
       })
       .catch(() => {
@@ -44,33 +46,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     const data: any = await authApi.login(email, password);
     setToken(data.token);
-    setUser({
+    const newUser = {
       id: data.user.id,
       email: data.user.email,
       name: data.user.name,
       role: data.user.role,
       verified: true,
       photoUrl: data.user.photoUrl,
-    });
+      status: data.user.status,
+      phone: data.user.phone,
+    };
+    setUser(newUser);
+    return newUser;
   };
 
   const signup = async (
     email: string,
     password: string,
     name: string,
-    role: 'family' | 'caregiver',
+    role: 'family' | 'caregiver' | 'professional' | 'facility',
+    phone?: string,
     caregiverData?: any
   ) => {
-    const data: any = await authApi.register(name, email, password, role, caregiverData);
+    const data: any = await authApi.register(name, email, password, role, phone, caregiverData);
     setToken(data.token);
-    setUser({
+    const newUser = {
       id: data.user.id,
       email: data.user.email,
       name: data.user.name,
       role: data.user.role,
       verified: false,
       photoUrl: data.user.photoUrl,
-    });
+      status: data.user.status,
+      phone: data.user.phone,
+    };
+    setUser(newUser);
+    return newUser;
   };
 
   const logout = () => {

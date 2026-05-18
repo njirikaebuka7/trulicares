@@ -1,12 +1,16 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, BriefcaseBusiness, Bell, Star, MapPin, Clock } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import logoImg from '@/assets/logo.png';
+import RoleSelectionModal from '@/components/staffing/RoleSelectionModal';
 
 export default function FinalCTA() {
   const navigate = useNavigate();
+  const [showRoleModal, setShowRoleModal] = useState(false);
 
   return (
+    <>
     <section className="py-20 lg:py-28 relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-brand-900 via-brand-800 to-brand-950" />
       <div className="absolute inset-0">
@@ -45,7 +49,7 @@ export default function FinalCTA() {
               <Button
                 variant="secondary"
                 size="xl"
-                onClick={() => navigate('/provide-care')}
+                onClick={() => setShowRoleModal(true)}
                 className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:border-white/30"
               >
                 Provide Care
@@ -146,5 +150,8 @@ export default function FinalCTA() {
         </div>
       </div>
     </section>
+
+    <RoleSelectionModal isOpen={showRoleModal} onClose={() => setShowRoleModal(false)} />
+  </>
   );
 }

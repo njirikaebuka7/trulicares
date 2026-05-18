@@ -20,6 +20,10 @@ import ResourceArticle from '@/pages/ResourceArticle';
 import CaregiverProfile from '@/pages/CaregiverProfile';
 import CaregiverList from '@/pages/CaregiverList';
 import ResetPassword from '@/pages/ResetPassword';
+import ProfessionalOnboarding from '@/pages/staffing/ProfessionalOnboarding';
+import FacilityOnboarding from '@/pages/staffing/FacilityOnboarding';
+import ProfessionalDashboard from '@/pages/staffing/ProfessionalDashboard';
+import FacilityDashboard from '@/pages/staffing/FacilityDashboard';
 
 export default function App() {
   return (
@@ -56,6 +60,12 @@ export default function App() {
           <Route path="/provide-care" element={<ProvideCare />} />
           <Route path="/login" element={<Login />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+
+          {/* Staffing Module Routes */}
+          <Route path="/professional-onboarding" element={<ProfessionalOnboarding />} />
+          <Route path="/facility-onboarding" element={<FacilityOnboarding />} />
+          <Route path="/professional-dashboard/*" element={<ProtectedRoute requiredRole="professional"><ProfessionalDashboard /></ProtectedRoute>} />
+          <Route path="/facility-dashboard/*" element={<ProtectedRoute requiredRole="facility"><FacilityDashboard /></ProtectedRoute>} />
 
           {/* 404 */}
           <Route path="*" element={<NotFound />} />

@@ -12,6 +12,7 @@ import paymentsRouter from './routes/payments.js';
 import notificationsRouter from './routes/notifications.js';
 import adminRouter from './routes/admin.js';
 import clientsRouter from './routes/clients.js';
+import staffingRouter from './routes/staffing/index.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
 
 const app: Express = express();
@@ -66,6 +67,7 @@ app.use('/api/payments', paymentsRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/clients', clientsRouter);
+app.use('/api/staffing', staffingRouter); // Independent staffing module
 
 // ── 404 handler for unknown API routes ────────────────────────────────────────
 app.use('/api/*path', (_req, res) => {

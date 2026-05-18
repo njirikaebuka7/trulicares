@@ -33,3 +33,9 @@ Thumbs.db
 *.log
 zipFile.zip
 attached_assets/
+
+# Temporary/AI/Scratch
+brain/
+scratch/
+apps/web/build_log.txt
+

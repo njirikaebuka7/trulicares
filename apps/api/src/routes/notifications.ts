@@ -24,7 +24,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
         type: n.type,
         title: n.title,
         content: n.content,
-        read: n.is_read,
+        is_read: n.is_read,
         createdAt: n.created_at,
         timeAgo: getTimeAgo(new Date(n.created_at)),
       })),
