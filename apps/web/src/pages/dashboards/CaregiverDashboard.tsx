@@ -578,9 +578,6 @@ export default function CaregiverDashboard() {
               {navItems.find(n => n.id === activeTab)?.label}
             </h1>
           </div>
-          <p className="lg:hidden absolute left-1/2 -translate-x-1/2 text-sm font-semibold text-gray-800 pointer-events-none">
-            {navItems.find(n => n.id === activeTab)?.label}
-          </p>
           <div className="flex items-center gap-1">
             <div className="relative">
               <button onClick={openNotifications}

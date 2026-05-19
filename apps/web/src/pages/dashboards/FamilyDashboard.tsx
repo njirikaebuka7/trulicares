@@ -681,15 +681,13 @@ export default function FamilyDashboard() {
         <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between shrink-0 shadow-sm">
           {/* Mobile: logo | Desktop: page title */}
           <div className="flex items-center gap-3">
-            <img src={logoImg} alt="TruliCares" className="h-7 w-auto lg:hidden" />
+            <Link to="/">
+              <img src={logoImg} alt="TruliCares" className="h-7 w-auto lg:hidden" />
+            </Link>
             <h1 className="hidden lg:block text-base font-bold text-gray-900">
               {navItems.find(n => n.id === activeTab)?.label}
             </h1>
           </div>
-          {/* Mobile: tab name centered */}
-          <p className="lg:hidden absolute left-1/2 -translate-x-1/2 text-sm font-semibold text-gray-800 pointer-events-none">
-            {navItems.find(n => n.id === activeTab)?.label}
-          </p>
           <div className="flex items-center gap-1">
             <div className="relative">
               <button

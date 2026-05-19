@@ -351,7 +351,6 @@ export default function AdminDashboard() {
               <img src={logoImg} alt="TruliCares" className="h-6 w-auto lg:hidden" />
             </Link>
             <h1 className="text-base font-bold text-gray-900 hidden lg:block">{navItems.find(n => n.id === activeTab)?.label}</h1>
-            <h1 className="text-base font-bold text-gray-900 lg:hidden">{navItems.find(n => n.id === activeTab)?.label}</h1>
             <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold hidden sm:inline">Internal</span>
           </div>
           <div className="flex items-center gap-1">
