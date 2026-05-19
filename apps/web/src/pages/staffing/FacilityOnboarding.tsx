@@ -40,7 +40,7 @@ const benefits = [
 
 export default function FacilityOnboarding() {
   const navigate = useNavigate();
-  const { updateUser } = useAuth();
+  const { signup } = useAuth();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -87,19 +87,14 @@ export default function FacilityOnboarding() {
     setLoading(true);
     setError('');
     try {
-      // Step 1: Create auth account
-      const authData: any = await authApi.register(
-        form.facilityName, form.email, form.password, 'facility', form.phone
+      // Step 1: Create auth account and sign in via AuthContext
+      await signup(
+        form.email,
+        form.password,
+        form.facilityName,
+        'facility',
+        form.phone
       );
-      setToken(authData.token);
-      updateUser({
-        id: authData.user.id,
-        name: authData.user.name,
-        email: authData.user.email,
-        role: 'facility' as any,
-        verified: false,
-        status: 'active',
-      });
 
       // Step 2: Create facility profile (best-effort)
       try {
@@ -312,9 +307,15 @@ export default function FacilityOnboarding() {
                             const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
                             const data = await res.json();
                             const addr = data.address;
+                            const road = addr.road || addr.pedestrian || addr.highway || addr.suburb || '';
+                            const houseNumber = addr.house_number || '';
+                            let streetAddress = `${houseNumber ? houseNumber + ' ' : ''}${road}`.trim();
+                            if (!streetAddress && data.display_name) {
+                              streetAddress = data.display_name.split(',').slice(0, 2).join(',').trim();
+                            }
                             setForm(prev => ({
                               ...prev,
-                              address: `${addr.house_number ? addr.house_number + ' ' : ''}${addr.road || ''}`,
+                              address: streetAddress || 'Current Location',
                               city: addr.city || addr.town || addr.village || '',
                               state: addr.state || '',
                               zip: addr.postcode || ''

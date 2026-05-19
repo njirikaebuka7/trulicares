@@ -7,7 +7,7 @@ import {
   User, Stethoscope, FileText, MapPin, CheckCircle,
   ArrowRight, ArrowLeft, Eye, EyeOff, Loader2, Shield, AlertCircle,
   PlusCircle, X, Heart, Star, Briefcase, Clock, Phone, DollarSign,
-  Camera, Lock
+  Camera, Lock, Mail
 } from 'lucide-react';
 import logoImg from '@/assets/logo.png';
 import Button from '@/components/ui/Button';
@@ -39,7 +39,7 @@ const benefits = [
 
 export default function ProfessionalOnboarding() {
   const navigate = useNavigate();
-  const { updateUser } = useAuth();
+  const { signup } = useAuth();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -98,19 +98,14 @@ export default function ProfessionalOnboarding() {
     setLoading(true);
     setError('');
     try {
-      // Step 1: Create auth account
-      const authData: any = await authApi.register(
-        form.name, form.email, form.password, 'professional', form.phone
+      // Step 1: Create auth account and sign in via AuthContext
+      await signup(
+        form.email,
+        form.password,
+        form.name,
+        'professional',
+        form.phone
       );
-      setToken(authData.token);
-      updateUser({
-        id: authData.user.id,
-        name: authData.user.name,
-        email: authData.user.email,
-        role: 'professional' as any,
-        verified: false,
-        status: 'active',
-      });
 
       // Step 2: Create professional profile (best-effort; navigate even if this fails)
       try {
