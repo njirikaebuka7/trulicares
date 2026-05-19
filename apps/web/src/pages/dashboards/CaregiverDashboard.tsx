@@ -86,6 +86,7 @@ export default function CaregiverDashboard() {
   const [cgMsgInput, setCgMsgInput] = useState('');
   const [cgFamilyMessages, setCgFamilyMessages] = useState<Record<string, { text: string; fromMe: boolean; time: string }[]>>({});
   const cgMsgEndRef = useRef<HTMLDivElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [cgSaving, setCgSaving] = useState(false);
   const [cgToast, setCgToast] = useState<string | null>(null);
   const [cgSpecialties, setCgSpecialties] = useState<string[]>([]);
