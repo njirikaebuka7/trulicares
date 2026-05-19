@@ -567,7 +567,7 @@ export default function CaregiverDashboard() {
       </aside>
 
       {/* ── MAIN CONTENT ── */}
-      <div className={cn('flex-1 flex flex-col min-h-screen transition-all duration-300', collapsed ? 'lg:ml-16' : 'lg:ml-64')}>
+      <div className={cn('flex-1 flex flex-col min-h-screen min-w-0 overflow-x-hidden transition-all duration-300', collapsed ? 'lg:ml-16' : 'lg:ml-64')}>
 
         {/* Top header */}
         <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between shrink-0 shadow-sm">

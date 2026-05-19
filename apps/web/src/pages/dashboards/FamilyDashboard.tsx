@@ -675,7 +675,7 @@ export default function FamilyDashboard() {
       </aside>
 
       {/* ── MAIN CONTENT ── */}
-      <div className={cn('flex-1 flex flex-col min-h-screen transition-all duration-300', collapsed ? 'lg:ml-16' : 'lg:ml-64')}>
+      <div className={cn('flex-1 flex flex-col min-h-screen min-w-0 overflow-x-hidden transition-all duration-300', collapsed ? 'lg:ml-16' : 'lg:ml-64')}>
 
         {/* Top header */}
         <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between shrink-0 shadow-sm">
@@ -1162,7 +1162,7 @@ export default function FamilyDashboard() {
                       </div>
                       <div className="mt-4 flex gap-2 flex-wrap items-center border-t border-gray-50 pt-4">
                         {match.messagingUnlocked ? (
-                          <div className="flex gap-2 shrink-0">
+                          <>
                             <Button variant="primary" size="sm" onClick={() => setActiveTab('Messages')}>
                               <MessageCircle className="w-3.5 h-3.5" /> Message
                             </Button>
@@ -1205,7 +1205,7 @@ export default function FamilyDashboard() {
                             >
                               <Scale className="w-3.5 h-3.5 shrink-0" /> File Dispute
                             </button>
-                          </div>
+                          </>
                         ) : match.status === 'accepted' ? (
                           <Button variant="coral" size="sm" onClick={async () => {
                             try {
