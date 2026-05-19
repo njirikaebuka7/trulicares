@@ -150,7 +150,7 @@ export default function ProfessionalOnboarding() {
   const progressPct = step > 0 ? ((step - 1) / (steps.length - 1)) * 100 : 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-coral-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-coral-50 flex flex-col">
       {/* Hero Section (Step 0) */}
       {step === 0 && (
         <section className="bg-gradient-to-br from-brand-900 via-brand-800 to-brand-950 relative pt-10 pb-16">
@@ -161,21 +161,21 @@ export default function ProfessionalOnboarding() {
             <Link to="/" className="inline-block mb-10">
               <img src={logoImg} alt="TruliCares" className="h-12 w-auto brightness-0 invert" />
             </Link>
-            <h1 className="text-5xl font-black text-white tracking-tight leading-tight max-w-3xl mx-auto">
-              Ready to redefine your <span className="text-brand-400">nursing career?</span>
+            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-4 max-w-3xl mx-auto">
+              Ready to redefine your <span className="text-brand-300">nursing career?</span>
             </h1>
-            <p className="text-brand-100 text-lg mt-6 max-w-xl mx-auto font-medium opacity-90">
+            <p className="text-brand-200 max-w-xl mx-auto mb-8">
               Join thousands of healthcare professionals who choose their own shifts, rates, and schedule.
             </p>
 
-            <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 max-w-3xl mx-auto">
               {benefits.map((b, i) => (
-                <div key={i} className="bg-white/5 backdrop-blur-md border border-white/10 rounded-[2rem] p-6 text-left hover:bg-white/10 transition-all group">
-                  <div className="w-12 h-12 bg-brand-500/20 rounded-2xl flex items-center justify-center text-brand-400 mb-4 group-hover:scale-110 transition-transform">
+                <div key={i} className="glass rounded-2xl p-4 text-left">
+                  <div className="w-10 h-10 rounded-xl bg-brand-500/30 flex items-center justify-center text-brand-200 mb-2">
                     {b.icon}
                   </div>
-                  <h3 className="text-white font-bold text-sm mb-1">{b.title}</h3>
-                  <p className="text-brand-200/70 text-[11px] leading-relaxed">{b.desc}</p>
+                  <h4 className="text-white font-semibold text-sm">{b.title}</h4>
+                  <p className="text-brand-300 text-xs mt-1">{b.desc}</p>
                 </div>
               ))}
             </div>
@@ -214,25 +214,25 @@ export default function ProfessionalOnboarding() {
               <div className="w-20 h-20 bg-brand-100 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner">
                 <Briefcase className="w-10 h-10 text-brand-600" />
               </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-3">Ready to start?</h2>
-              <p className="text-gray-500 mb-8">Create your professional account in less than 5 minutes.</p>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Ready to start?</h2>
+              <p className="text-gray-500 text-sm mb-6">Create your professional account in less than 5 minutes.</p>
             </div>
           )}
 
           {/* ── Step 1: Account ── */}
           {step === 1 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-900">Personal Information</h2>
-                <p className="text-gray-500 text-sm mt-1">Start your journey as a TruliCares professional.</p>
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Personal Information</h2>
+                <p className="text-gray-500 text-sm">Start your journey as a TruliCares professional.</p>
               </div>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">Full Name</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
                   <div className="relative">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
-                      className="w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-500/5 transition-all outline-none"
+                      className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-500/5 transition-all outline-none"
                       placeholder="e.g. Sarah Johnson"
                       value={form.name}
                       onChange={e => set('name', e.target.value)}
@@ -240,12 +240,12 @@ export default function ProfessionalOnboarding() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">Email Address</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
                   <div className="relative">
-                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
                       type="email"
-                      className="w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-500/5 transition-all outline-none"
+                      className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-500/5 transition-all outline-none"
                       placeholder="you@example.com"
                       value={form.email}
                       onChange={e => set('email', e.target.value)}
@@ -253,12 +253,12 @@ export default function ProfessionalOnboarding() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">Password</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
                       type={showPass ? 'text' : 'password'}
-                      className="w-full pl-12 pr-12 py-4 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-500/5 transition-all outline-none"
+                      className="w-full pl-12 pr-12 py-3.5 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-500/5 transition-all outline-none"
                       placeholder="At least 8 characters"
                       value={form.password}
                       onChange={e => set('password', e.target.value)}
@@ -275,9 +275,9 @@ export default function ProfessionalOnboarding() {
           {/* ── Step 2: Licenses ── */}
           {step === 2 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-900">License & Credentials</h2>
-                <p className="text-gray-500 text-sm mt-1">We need to verify your clinical qualifications.</p>
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">License & Credentials</h2>
+                <p className="text-gray-500 text-sm">We need to verify your clinical qualifications.</p>
               </div>
               
               <div className="space-y-6">
@@ -293,7 +293,7 @@ export default function ProfessionalOnboarding() {
                     )}
                     
                     <div>
-                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 ml-1">Primary Role *</label>
+                      <label className="block text-xs font-medium text-gray-400 uppercase tracking-widest mb-4">Primary Role *</label>
                       <div className="grid grid-cols-3 gap-2">
                         {LICENSE_TYPES.map(lt => (
                           <button
@@ -319,7 +319,7 @@ export default function ProfessionalOnboarding() {
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">License #</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">License #</label>
                         <input
                           className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/5 transition-all outline-none text-sm font-medium"
                           placeholder="RN-123456"
@@ -332,7 +332,7 @@ export default function ProfessionalOnboarding() {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">State</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
                         <input
                           className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/5 transition-all outline-none text-sm font-medium"
                           placeholder="NY"
@@ -362,9 +362,9 @@ export default function ProfessionalOnboarding() {
           {/* ── Step 3: Specialties ── */}
           {step === 3 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-900">Your Specialties</h2>
-                <p className="text-gray-500 text-sm mt-1">Select the clinical areas where you excel.</p>
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Your Specialties</h2>
+                <p className="text-gray-500 text-sm">Select the clinical areas where you excel.</p>
               </div>
 
               <div className="space-y-3">
@@ -387,7 +387,7 @@ export default function ProfessionalOnboarding() {
                 </div>
 
                 <div className="pt-6">
-                  <label className="block text-sm font-bold text-gray-700 mb-4 ml-1">Total Nursing Experience</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-4">Total Nursing Experience</label>
                   <div className="grid grid-cols-2 gap-3">
                     {['0-1 Year', '2-5 Years', '5-10 Years', '10+ Years'].map(exp => (
                       <SelectCard
@@ -406,18 +406,18 @@ export default function ProfessionalOnboarding() {
           {/* ── Step 4: Location ── */}
           {step === 4 && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="text-center">
-                <h2 className="text-2xl font-bold text-gray-900">Where are you based?</h2>
-                <p className="text-gray-500 text-sm mt-1">We'll show you shifts within your preferred radius.</p>
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Where are you based?</h2>
+                <p className="text-gray-500 text-sm">We'll show you shifts within your preferred radius.</p>
               </div>
 
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-3 ml-1">Primary City, State</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Primary City, State</label>
                   <div className="relative">
                     <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
-                      className="w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
+                      className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
                       placeholder="e.g. Brooklyn, NY"
                       value={form.location}
                       onChange={e => set('location', e.target.value)}
@@ -451,7 +451,7 @@ export default function ProfessionalOnboarding() {
                 </div>
 
                 <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-                  <label className="block text-sm font-bold text-gray-800 mb-4 flex justify-between">
+                  <label className="block text-sm font-medium text-gray-700 mb-4 flex justify-between">
                     Work Radius: <span className="text-brand-600">{form.preferredRadiusMiles} miles</span>
                   </label>
                   <input
@@ -474,12 +474,12 @@ export default function ProfessionalOnboarding() {
           {/* ── Step 5: Finish ── */}
           {step === 5 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="text-center mb-8">
+              <div className="text-center mb-6">
                 <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600 shadow-inner">
                   <CheckCircle className="w-10 h-10" />
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900">Ready to go!</h2>
-                <p className="text-gray-500 text-sm mt-1">Review your details and create your profile.</p>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Ready to go!</h2>
+                <p className="text-gray-500 text-sm">Review your details and create your profile.</p>
               </div>
 
               <div className="space-y-4">

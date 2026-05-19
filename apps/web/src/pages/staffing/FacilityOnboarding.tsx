@@ -138,7 +138,7 @@ export default function FacilityOnboarding() {
   const progressPct = step > 0 ? ((step - 1) / (steps.length - 1)) * 100 : 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-coral-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-coral-50 flex flex-col">
       {/* Hero Section (Step 0) */}
       {step === 0 && (
         <section className="bg-gradient-to-br from-brand-900 via-brand-800 to-brand-950 relative pt-10 pb-16">
@@ -149,20 +149,20 @@ export default function FacilityOnboarding() {
             <Link to="/" className="inline-block mb-10">
               <img src={logoImg} alt="TruliCares" className="h-10 w-auto brightness-0 invert opacity-90" />
             </Link>
-            <h1 className="text-4xl sm:text-5xl font-bold text-white mb-6">
+            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-4 max-w-3xl mx-auto">
               Hire the best <span className="text-brand-300">clinical</span> talent
             </h1>
-            <p className="text-brand-200 text-lg max-w-2xl mx-auto mb-12">
+            <p className="text-brand-200 max-w-xl mx-auto mb-8">
               Transform your facility's staffing with our on-demand marketplace. Verified professionals at your fingertips.
             </p>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 max-w-4xl mx-auto">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 max-w-3xl mx-auto">
               {benefits.map((b, i) => (
-                <div key={i} className="bg-white/5 backdrop-blur-md rounded-2xl p-5 border border-white/10 text-left">
-                  <div className="w-12 h-12 rounded-2xl bg-brand-500/20 flex items-center justify-center text-brand-300 mb-4 shadow-inner">
+                <div key={i} className="glass rounded-2xl p-4 text-left">
+                  <div className="w-10 h-10 rounded-xl bg-brand-500/30 flex items-center justify-center text-brand-200 mb-2">
                     {b.icon}
                   </div>
-                  <h4 className="text-white font-bold text-base mb-1">{b.title}</h4>
-                  <p className="text-brand-300/80 text-xs leading-relaxed">{b.desc}</p>
+                  <h4 className="text-white font-semibold text-sm">{b.title}</h4>
+                  <p className="text-brand-300 text-xs mt-1">{b.desc}</p>
                 </div>
               ))}
             </div>
@@ -200,26 +200,26 @@ export default function FacilityOnboarding() {
               <div className="w-20 h-20 bg-brand-100 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner">
                 <Building2 className="w-10 h-10 text-brand-600" />
               </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-3">Facility Partner</h2>
-              <p className="text-gray-500 mb-8">Set up your facility account and start hiring verified professionals.</p>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Facility Partner</h2>
+              <p className="text-gray-500 text-sm mb-6">Set up your facility account and start hiring verified professionals.</p>
             </div>
           )}
 
           {/* ── Step 1 ── */}
           {step === 1 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-900">Facility Information</h2>
-                <p className="text-gray-500 text-sm mt-1">Tell us about your healthcare organization.</p>
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Facility Information</h2>
+                <p className="text-gray-500 text-sm">Tell us about your healthcare organization.</p>
               </div>
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">Facility Name</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Facility Name</label>
                   <div className="relative">
                     <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
-                      className="w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
+                      className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
                       placeholder="e.g. Sunrise Medical Center"
                       value={form.facilityName}
                       onChange={e => set('facilityName', e.target.value)}
@@ -228,7 +228,7 @@ export default function FacilityOnboarding() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-3 ml-1">Facility Type</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Facility Type</label>
                   <div className="grid grid-cols-1 gap-2">
                     {FACILITY_TYPES.map(ft => (
                       <SelectCard
@@ -242,12 +242,12 @@ export default function FacilityOnboarding() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">Account Email</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Account Email</label>
                   <div className="relative">
-                    < Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
                       type="email"
-                      className="w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
+                      className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
                       placeholder="billing@facility.com"
                       value={form.email}
                       onChange={e => set('email', e.target.value)}
@@ -256,12 +256,12 @@ export default function FacilityOnboarding() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">Password</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
                       type={showPass ? 'text' : 'password'}
-                      className="w-full pl-12 pr-12 py-4 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
+                      className="w-full pl-12 pr-12 py-3.5 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
                       placeholder="At least 8 characters"
                       value={form.password}
                       onChange={e => set('password', e.target.value)}
@@ -278,16 +278,16 @@ export default function FacilityOnboarding() {
           {/* ── Step 2 ── */}
           {step === 2 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-900">Business Details</h2>
-                <p className="text-gray-500 text-sm mt-1">Verification details for compliance.</p>
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Business Details</h2>
+                <p className="text-gray-500 text-sm">Verification details for compliance.</p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">EIN</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">EIN</label>
                   <input
-                    className="w-full px-4 py-4 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
+                    className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
                     placeholder="XX-XXXXXXX"
                     value={form.ein}
                     onChange={e => set('ein', e.target.value)}
@@ -295,9 +295,9 @@ export default function FacilityOnboarding() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-3 ml-1">Street Address</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Street Address</label>
                   <input
-                    className="w-full px-4 py-4 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
+                    className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
                     placeholder="123 Medical Drive"
                     value={form.address}
                     onChange={e => set('address', e.target.value)}
@@ -335,9 +335,9 @@ export default function FacilityOnboarding() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">City</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
                     <input
-                      className="w-full px-4 py-4 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
+                      className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
                       placeholder="Brooklyn"
                       value={form.city}
                       onChange={e => set('city', e.target.value)}
@@ -345,9 +345,9 @@ export default function FacilityOnboarding() {
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">State</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
                       <input
-                        className="w-full px-4 py-4 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium uppercase text-center"
+                        className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium uppercase text-center"
                         placeholder="NY"
                         value={form.state}
                         onChange={e => set('state', e.target.value.toUpperCase())}
@@ -355,9 +355,9 @@ export default function FacilityOnboarding() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">ZIP</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">ZIP</label>
                       <input
-                        className="w-full px-4 py-4 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium text-center"
+                        className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium text-center"
                         placeholder="11201"
                         value={form.zip}
                         onChange={e => set('zip', e.target.value)}
@@ -372,18 +372,18 @@ export default function FacilityOnboarding() {
           {/* ── Step 3 ── */}
           {step === 3 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-900">Contact Person</h2>
-                <p className="text-gray-500 text-sm mt-1">Who should professionals reach out to?</p>
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Contact Person</h2>
+                <p className="text-gray-500 text-sm">Who should professionals reach out to?</p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">Contact Name</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Contact Name</label>
                   <div className="relative">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
-                      className="w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
+                      className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
                       placeholder="e.g. Maria Rodriguez"
                       value={form.contactName}
                       onChange={e => set('contactName', e.target.value)}
@@ -391,9 +391,9 @@ export default function FacilityOnboarding() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">Contact Title</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Contact Title</label>
                   <input
-                    className="w-full px-4 py-4 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
+                    className="w-full px-4 py-3.5 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
                     placeholder="e.g. HR Director, Staffing Manager"
                     value={form.contactTitle}
                     onChange={e => set('contactTitle', e.target.value)}
@@ -406,12 +406,12 @@ export default function FacilityOnboarding() {
           {/* ── Step 4: Finish ── */}
           {step === 4 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="text-center mb-8">
+              <div className="text-center mb-6">
                 <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600 shadow-inner">
                   <CheckCircle className="w-10 h-10" />
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900">Partner with TruliCares</h2>
-                <p className="text-gray-500 text-sm mt-1">Your business verification is ready to submit.</p>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Partner with TruliCares</h2>
+                <p className="text-gray-500 text-sm">Your business verification is ready to submit.</p>
               </div>
 
               <div className="space-y-4">
