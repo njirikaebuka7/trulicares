@@ -44,6 +44,10 @@ function locationsTally(
   // Helper to normalize location names (remove zip codes, trim whitespace, lowercase)
   const normalize = (loc: string | null | undefined): string => {
     if (!loc) return '';
+    // If the location is just a ZIP code (e.g., "10028"), don't strip it!
+    if (/^\s*\d{5}\s*$/.test(loc)) {
+      return loc.trim();
+    }
     // Remove zip codes if present (e.g. "Brooklyn, NY 11201" -> "Brooklyn, NY")
     let cleaned = loc.replace(/\b\d{5}\b/g, '');
     // Clean up multiple spaces, trailing commas, and lowercase

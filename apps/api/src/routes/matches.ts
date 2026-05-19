@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
+import { createMatchesForRequest } from '../services/matching.js';
 
 const router = Router();
 
@@ -78,6 +79,20 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
     const { role, id } = req.user!;
 
     if (role === 'family') {
+      // Auto-generate/update matches for active requests first
+      try {
+        const activeRequests = await query(
+          `SELECT id, care_type, location, zip FROM care_requests 
+           WHERE family_id = $1 AND status IN ('matching', 'matched')`,
+          [id]
+        );
+        for (const reqRow of activeRequests.rows) {
+          await createMatchesForRequest(reqRow.id, id, reqRow.care_type, reqRow.location || undefined, reqRow.zip || undefined);
+        }
+      } catch (matchErr) {
+        console.error('Error auto-generating matches on GET /api/matches:', matchErr);
+      }
+
       const result = await query(
         `SELECT m.id, m.request_id, m.caregiver_id, m.family_id, m.status,
                 m.near_you, m.messaging_unlocked, m.care_date, m.created_at,

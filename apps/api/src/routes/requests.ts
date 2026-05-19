@@ -132,6 +132,20 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
     let result;
 
     if (req.user!.role === 'family') {
+      // Auto-generate/update matches for active requests first
+      try {
+        const activeRequests = await query(
+          `SELECT id, care_type, location, zip FROM care_requests 
+           WHERE family_id = $1 AND status IN ('matching', 'matched')`,
+          [req.user!.id]
+        );
+        for (const reqRow of activeRequests.rows) {
+          await createMatchesForRequest(reqRow.id, req.user!.id, reqRow.care_type, reqRow.location || undefined, reqRow.zip || undefined);
+        }
+      } catch (matchErr) {
+        console.error('Error auto-generating matches on GET /api/care-requests:', matchErr);
+      }
+
       result = await query(
         `SELECT cr.id, cr.care_type, cr.details, cr.location, cr.zip, cr.status, cr.created_at, cr.ref_id,
                 COUNT(m.id) as match_count
