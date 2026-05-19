@@ -5,7 +5,7 @@ import {
   CheckCircle, XCircle, Clock, X, Search,
   Activity, DollarSign, UserCheck, Flag, BarChart2, LayoutDashboard,
   ChevronLeft, ChevronRight as ChevronRightIcon, Pencil, Trash2,
-  FileText, Eye, Ban, RotateCcw, Mail, Calendar, Briefcase, User
+  FileText, Eye, Ban, RotateCcw, Mail, Calendar, Briefcase, User, MapPin, Sparkles
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
@@ -19,6 +19,7 @@ type Tab = 'Overview' | 'Users' | 'Verification Queue' | 'Reports' | 'Staffing' 
 type AdminUser = {
   id: string; name: string; email: string; role: string;
   status: string; photoUrl?: string; joined: string; matches: number;
+  location?: string; specialties?: string[];
 };
 type AdminReport = {
   id: string; type: string; reportedUser: string; reportedBy: string;
@@ -1060,14 +1061,14 @@ export default function AdminDashboard() {
       {selectedUser && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setSelectedUser(null)} />
-          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
               <h3 className="font-bold text-gray-900 text-lg">User Details</h3>
               <button onClick={() => setSelectedUser(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
                 <X className="w-4 h-4 text-gray-500" />
               </button>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
               {/* Avatar + name */}
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-2xl bg-slate-700 flex items-center justify-center text-white text-2xl font-bold shrink-0">
@@ -1085,7 +1086,7 @@ export default function AdminDashboard() {
               <div className="space-y-3 bg-gray-50 rounded-2xl p-4">
                 <div className="flex items-center gap-3 text-sm">
                   <Mail className="w-4 h-4 text-gray-400 shrink-0" />
-                  <span className="text-gray-700">{selectedUser.email}</span>
+                  <span className="text-gray-700 break-all">{selectedUser.email}</span>
                 </div>
                 <div className="flex items-center gap-3 text-sm">
                   <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
@@ -1094,6 +1095,11 @@ export default function AdminDashboard() {
                 <div className="flex items-center gap-3 text-sm">
                   <Briefcase className="w-4 h-4 text-gray-400 shrink-0" />
                   <span className="text-gray-700">{selectedUser.matches} matches</span>
+                </div>
+                {/* Location row */}
+                <div className="flex items-center gap-3 text-sm">
+                  <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
+                  <span className="text-gray-700">{selectedUser.location || 'Not specified'}</span>
                 </div>
                 <div className="flex items-center gap-3 text-sm">
                   <span className={cn('w-2 h-2 rounded-full shrink-0',
@@ -1104,6 +1110,23 @@ export default function AdminDashboard() {
                   </span>
                 </div>
               </div>
+
+              {/* Specialties Section */}
+              {selectedUser.role === 'caregiver' && selectedUser.specialties && selectedUser.specialties.length > 0 && (
+                <div className="space-y-2 bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-1">
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    <span>Specialties</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedUser.specialties.map((spec, i) => (
+                      <span key={i} className="text-xs px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100/50 font-medium capitalize">
+                        {spec.replace('-', ' ')}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
               {/* Actions */}
               <div className="grid grid-cols-2 gap-2">
                 <button onClick={() => openEdit(selectedUser)}

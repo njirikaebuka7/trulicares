@@ -109,8 +109,8 @@ router.get('/users', requireAdmin, async (req: AuthRequest, res) => {
     params.push(limit, offset);
 
     const result = await query(
-      `SELECT u.id, u.name, u.email, u.role, u.status, u.photo_url, u.created_at,
-              cp.verified, cp.background_checked, cp.rating, cp.review_count, cp.location,
+      `SELECT u.id, u.name, u.email, u.role, u.status, u.photo_url, u.created_at, u.address,
+              cp.verified, cp.background_checked, cp.rating, cp.review_count, cp.location, cp.specialties,
               (SELECT COUNT(*) FROM matches WHERE caregiver_id = u.id OR family_id = u.id) as match_count
        FROM users u
        LEFT JOIN caregiver_profiles cp ON cp.user_id = u.id
@@ -130,7 +130,8 @@ router.get('/users', requireAdmin, async (req: AuthRequest, res) => {
         role: u.role,
         status: u.status,
         photoUrl: u.photo_url,
-        location: u.location || 'Not specified',
+        location: u.location || u.address || 'Not specified',
+        specialties: u.specialties || [],
         verified: u.verified || false,
         backgroundChecked: u.background_checked || false,
         rating: parseFloat(u.rating) || null,
