@@ -220,7 +220,17 @@ export default function FacilityProfileView() {
                     type="text"
                     className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent focus:border-brand-500 rounded-2xl text-sm font-medium outline-none transition-all"
                     value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    onChange={(e) => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      if (val.length > 10) val = val.slice(0, 10);
+                      let formatted = val;
+                      if (val.length > 0) {
+                        if (val.length <= 3) formatted = `(${val}`;
+                        else if (val.length <= 6) formatted = `(${val.slice(0, 3)}) ${val.slice(3)}`;
+                        else formatted = `(${val.slice(0, 3)}) ${val.slice(3, 6)}-${val.slice(6)}`;
+                      }
+                      setForm({ ...form, phone: formatted });
+                    }}
                   />
                 ) : (
                   <p className="text-gray-800 text-sm font-bold p-3 bg-gray-50/50 rounded-2xl">{profile?.phone || 'N/A'}</p>

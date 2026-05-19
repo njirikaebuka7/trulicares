@@ -91,14 +91,14 @@ export default function RoleSelectionModal({ isOpen, onClose }: RoleSelectionMod
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-200 ${isExiting ? 'opacity-0' : 'opacity-100'}`}
+      className={`fixed inset-0 z-50 flex sm:items-center justify-center p-4 sm:p-6 transition-all duration-200 ${isExiting ? 'opacity-0' : 'opacity-100'} overflow-y-auto`}
       onClick={(e) => e.target === e.currentTarget && handleClose()}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm pointer-events-none" />
 
       {/* Modal */}
-      <div className={`relative bg-white rounded-3xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh] transition-all duration-300 ${isExiting ? 'scale-95 opacity-0' : 'scale-100 opacity-100'}`}>
+      <div className={`relative bg-white rounded-3xl shadow-2xl w-full max-w-4xl my-auto transition-all duration-300 flex flex-col ${isExiting ? 'scale-95 opacity-0' : 'scale-100 opacity-100'}`}>
         {/* Header */}
         <div className="relative p-8 pb-6 text-center border-b border-gray-100">
           <button
@@ -118,7 +118,7 @@ export default function RoleSelectionModal({ isOpen, onClose }: RoleSelectionMod
         </div>
 
         {/* Role Cards */}
-        <div className="p-6 grid sm:grid-cols-3 gap-4 overflow-y-auto flex-1 min-h-0">
+        <div className="p-4 sm:p-6 grid sm:grid-cols-3 gap-4">
           {roles.map((role) => {
             const Icon = role.icon;
             const isActive = selected === role.id;

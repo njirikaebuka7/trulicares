@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   Bell, MessageCircle, User, Settings, LogOut, Plus, MapPin, DollarSign,
   Star, Shield, Check, ChevronRight, Calendar, Clock, CreditCard,
@@ -55,6 +55,7 @@ export default function FamilyDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('Overview');
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<string | null>(null);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showAddPayment, setShowAddPayment] = useState(false);
@@ -571,11 +572,13 @@ export default function FamilyDashboard() {
       )}>
         {/* Logo + collapse toggle */}
         <div className={cn(
-          'flex items-center h-14 border-b border-brand-800/60 shrink-0',
+          'flex items-center border-b border-slate-700/60 shrink-0 h-14',
           collapsed ? 'justify-center px-3' : 'justify-between px-4'
         )}>
           {!collapsed && (
-            <img src={logoImg} alt="TruliCares" className="h-7 w-auto brightness-0 invert opacity-80" />
+            <Link to="/">
+              <img src={logoImg} alt="TruliCares" className="h-7 w-auto brightness-0 invert opacity-80 hover:opacity-100 transition-opacity" />
+            </Link>
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
@@ -1919,7 +1922,17 @@ export default function FamilyDashboard() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number</label>
-                <input type="tel" value={editPhone} onChange={e => setEditPhone(e.target.value)}
+                <input type="tel" value={editPhone} onChange={e => {
+                  let val = e.target.value.replace(/\D/g, '');
+                  if (val.length > 10) val = val.slice(0, 10);
+                  let formatted = val;
+                  if (val.length > 0) {
+                    if (val.length <= 3) formatted = `(${val}`;
+                    else if (val.length <= 6) formatted = `(${val.slice(0, 3)}) ${val.slice(3)}`;
+                    else formatted = `(${val.slice(0, 3)}) ${val.slice(3, 6)}-${val.slice(6)}`;
+                  }
+                  setEditPhone(formatted);
+                }}
                   placeholder="(555) 000-0000"
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
               </div>
@@ -1958,7 +1971,17 @@ export default function FamilyDashboard() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone Number</label>
                 <input type="tel" value={personalForm.phone} placeholder="(555) 000-0000"
-                  onChange={e => setPersonalForm(p => ({ ...p, phone: e.target.value }))}
+                  onChange={e => {
+                    let val = e.target.value.replace(/\D/g, '');
+                    if (val.length > 10) val = val.slice(0, 10);
+                    let formatted = val;
+                    if (val.length > 0) {
+                      if (val.length <= 3) formatted = `(${val}`;
+                      else if (val.length <= 6) formatted = `(${val.slice(0, 3)}) ${val.slice(3)}`;
+                      else formatted = `(${val.slice(0, 3)}) ${val.slice(3, 6)}-${val.slice(6)}`;
+                    }
+                    setPersonalForm(p => ({ ...p, phone: formatted }));
+                  }}
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
               </div>
               <div>

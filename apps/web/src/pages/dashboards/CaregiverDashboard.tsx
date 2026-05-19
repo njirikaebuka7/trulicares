@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   Bell, MessageCircle, User, Settings, LogOut, MapPin, DollarSign,
   Star, Shield, Check, ChevronRight, Calendar, Clock, TrendingUp,
@@ -69,8 +69,9 @@ export default function CaregiverDashboard() {
   const [bookStartTime, setBookStartTime] = useState('09:00');
   const [bookEndTime, setBookEndTime] = useState('17:00');
   const [bookLocation, setBookLocation] = useState('');
-  const [bookSaving, setBookSaving] = useState(false);
-  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [cgModal, setCgModal] = useState<null | 'bio' | 'rates' | 'availability' | 'notifications' | 'account' | 'serviceArea'>(null);
   const [selectedJobDetail, setSelectedJobDetail] = useState<any | null>(null);
@@ -451,11 +452,13 @@ export default function CaregiverDashboard() {
       )}>
         {/* Logo + collapse toggle */}
         <div className={cn(
-          'flex items-center h-14 border-b border-emerald-800/60 shrink-0',
+          'flex items-center border-b border-slate-700/60 shrink-0 h-14',
           collapsed ? 'justify-center px-3' : 'justify-between px-4'
         )}>
           {!collapsed && (
-            <img src={logoImg} alt="TruliCares" className="h-7 w-auto brightness-0 invert opacity-80" />
+            <Link to="/">
+              <img src={logoImg} alt="TruliCares" className="h-7 w-auto brightness-0 invert opacity-80 hover:opacity-100 transition-opacity" />
+            </Link>
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
@@ -568,7 +571,9 @@ export default function CaregiverDashboard() {
         {/* Top header */}
         <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between shrink-0 shadow-sm">
           <div className="flex items-center gap-3">
-            <img src={logoImg} alt="TruliCares" className="h-7 w-auto lg:hidden" />
+            <Link to="/">
+              <img src={logoImg} alt="TruliCares" className="h-7 w-auto lg:hidden" />
+            </Link>
             <h1 className="hidden lg:block text-base font-bold text-gray-900">
               {navItems.find(n => n.id === activeTab)?.label}
             </h1>
@@ -605,12 +610,28 @@ export default function CaregiverDashboard() {
                 </div>
               )}
             </div>
-            <button
-              className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center text-white text-xs font-bold lg:hidden transition-all active:scale-95"
-              onClick={() => setActiveTab('Profile')}
-            >
-              {initials}
-            </button>
+            <div className="relative lg:hidden">
+              <button
+                onClick={() => setMobileUserMenuOpen(!mobileUserMenuOpen)}
+                className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center text-white text-xs font-bold transition-all active:scale-95"
+              >
+                {initials}
+              </button>
+              {mobileUserMenuOpen && (
+                <div className="absolute right-0 top-10 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-50">
+                  <div className="px-4 py-2 border-b border-gray-100">
+                    <p className="text-sm font-bold text-gray-900 truncate">{user?.name || 'Caregiver'}</p>
+                    <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                  </div>
+                  <button onClick={() => { setMobileUserMenuOpen(false); setActiveTab('Profile'); }} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                    <User className="w-4 h-4 text-gray-400" /> Profile
+                  </button>
+                  <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
+                    <LogOut className="w-4 h-4 text-red-500" /> Log out
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

@@ -289,7 +289,21 @@ export default function ProvideCare() {
               <input 
                 type="tel" 
                 value={phone} 
-                onChange={e => setPhone(e.target.value)} 
+                onChange={e => {
+                  let val = e.target.value.replace(/\D/g, '');
+                  if (val.length > 10) val = val.slice(0, 10);
+                  let formatted = val;
+                  if (val.length > 0) {
+                    if (val.length <= 3) {
+                      formatted = `(${val}`;
+                    } else if (val.length <= 6) {
+                      formatted = `(${val.slice(0, 3)}) ${val.slice(3)}`;
+                    } else {
+                      formatted = `(${val.slice(0, 3)}) ${val.slice(3, 6)}-${val.slice(6)}`;
+                    }
+                  }
+                  setPhone(formatted);
+                }} 
                 placeholder="(555) 000-0000"
                 className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none" 
               />
@@ -409,7 +423,7 @@ export default function ProvideCare() {
           try {
             const { address, zip } = await detectLocationWithZip();
             const label = zip || address;
-            if (label && !serviceZips.includes(label)) setServiceZips(prev => [...prev, label]);
+            if (label) setZipInput(label);
           } catch {
             // User denied or unavailable
           } finally {

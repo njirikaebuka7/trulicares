@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   Bell, LogOut, Users, Shield, AlertTriangle,
   CheckCircle, XCircle, Clock, X, Search,
@@ -60,6 +60,7 @@ export default function AdminDashboard() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [notificationsRead, setNotificationsRead] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false);
   const [userFilter, setUserFilter] = useState<'all' | 'family' | 'caregiver' | 'professional' | 'facility'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [verificationActions, setVerificationActions] = useState<Record<string, 'approved' | 'rejected' | null>>({});
@@ -231,7 +232,9 @@ export default function AdminDashboard() {
           collapsed ? 'justify-center px-3' : 'justify-between px-4'
         )}>
           {!collapsed && (
-            <img src={logoImg} alt="TruliCares" className="h-7 w-auto brightness-0 invert opacity-80" />
+            <Link to="/">
+              <img src={logoImg} alt="TruliCares" className="h-7 w-auto brightness-0 invert opacity-80 hover:opacity-100 transition-opacity" />
+            </Link>
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
@@ -344,7 +347,9 @@ export default function AdminDashboard() {
         {/* Top header */}
         <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
-            <img src={logoImg} alt="TruliCares" className="h-6 w-auto lg:hidden" />
+            <Link to="/">
+              <img src={logoImg} alt="TruliCares" className="h-6 w-auto lg:hidden" />
+            </Link>
             <h1 className="text-base font-bold text-gray-900 hidden lg:block">{navItems.find(n => n.id === activeTab)?.label}</h1>
             <h1 className="text-base font-bold text-gray-900 lg:hidden">{navItems.find(n => n.id === activeTab)?.label}</h1>
             <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold hidden sm:inline">Internal</span>
@@ -387,8 +392,27 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
-            <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-white text-xs font-bold cursor-pointer lg:hidden">
-              AD
+            <div className="relative lg:hidden">
+              <div 
+                onClick={() => setMobileUserMenuOpen(!mobileUserMenuOpen)}
+                className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-white text-xs font-bold cursor-pointer"
+              >
+                {initials}
+              </div>
+              {mobileUserMenuOpen && (
+                <div className="absolute right-0 top-10 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-50">
+                  <div className="px-4 py-2 border-b border-gray-100">
+                    <p className="text-sm font-bold text-gray-900 truncate">{user?.name || 'Admin'}</p>
+                    <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                  </div>
+                  <button onClick={() => { setMobileUserMenuOpen(false); /* Add profile nav if needed */ }} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                    <User className="w-4 h-4 text-gray-400" /> Profile
+                  </button>
+                  <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
+                    <LogOut className="w-4 h-4 text-red-500" /> Log out
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
