@@ -70,7 +70,7 @@ export default function ProfessionalCalendar() {
             {day}
           </span>
           {dayShifts.length > 0 && (
-            <span className="text-[10px] font-black text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded uppercase">
+            <span className="text-[10px] font-semibold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded uppercase">
               {dayShifts.length} {dayShifts.length === 1 ? 'Shift' : 'Shifts'}
             </span>
           )}
@@ -98,7 +98,7 @@ export default function ProfessionalCalendar() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600">
             <CalendarIcon className="w-6 h-6" />
@@ -108,27 +108,27 @@ export default function ProfessionalCalendar() {
             <p className="text-gray-500 text-sm font-medium">Viewing your upcoming and past shifts</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-2xl border border-gray-100">
-          <button onClick={prevMonth} className="p-2 hover:bg-white hover:shadow-sm rounded-xl transition-all">
+        <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-xl border border-gray-100">
+          <button onClick={prevMonth} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all">
             <ChevronLeft className="w-5 h-5 text-gray-600" />
           </button>
           <button 
             onClick={() => setCurrentDate(new Date())}
-            className="px-4 py-2 text-sm font-bold text-gray-700 hover:bg-white hover:shadow-sm rounded-xl transition-all"
+            className="px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-white hover:shadow-sm rounded-lg transition-all"
           >
             Today
           </button>
-          <button onClick={nextMonth} className="p-2 hover:bg-white hover:shadow-sm rounded-xl transition-all">
+          <button onClick={nextMonth} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all">
             <ChevronRight className="w-5 h-5 text-gray-600" />
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-gray-200 shadow-xl overflow-hidden">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         {/* Days Header */}
         <div className="grid grid-cols-7 border-b border-gray-100 px-4 pt-4">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
-            <div key={d} className="py-3 text-center text-xs font-black text-gray-400 uppercase tracking-widest bg-gray-50/30 rounded-t-xl">
+            <div key={d} className="py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-widest bg-gray-50/30 rounded-t-xl">
               {d}
             </div>
           ))}
@@ -142,7 +142,7 @@ export default function ProfessionalCalendar() {
 
       {/* Selected Day Details */}
       {selectedDay && (
-        <div className="bg-white rounded-3xl border-2 border-blue-100 p-6 shadow-xl shadow-blue-50 animate-fade-in-up">
+        <div className="bg-white rounded-2xl border border-blue-100 p-6 shadow-sm animate-fade-in-up">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-xl font-bold text-gray-900">
               Shifts for {monthNames[month]} {selectedDay}, {year}
@@ -154,15 +154,15 @@ export default function ProfessionalCalendar() {
 
           <div className="space-y-4">
             {selectedShifts.map((booking) => (
-              <div key={booking.id} className="p-6 rounded-3xl bg-gray-50 border border-gray-100 flex flex-col md:flex-row justify-between gap-6">
+              <div key={booking.id} className="p-6 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col md:flex-row justify-between gap-6">
                 <div className="flex gap-6">
-                  <div className="w-14 h-14 rounded-2xl bg-white border border-gray-200 flex items-center justify-center text-blue-600 shadow-sm">
+                  <div className="w-14 h-14 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-blue-600 shadow-sm">
                     <Clock className="w-7 h-7" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="px-2 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-black">{booking.shift_role}</span>
-                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
+                      <span className="px-2 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-semibold">{booking.shift_role}</span>
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase ${
                         booking.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
                       }`}>
                         {booking.status.replace('_', ' ')}
@@ -177,16 +177,16 @@ export default function ProfessionalCalendar() {
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <button className="flex-1 md:flex-none px-6 py-3 bg-white border border-gray-200 rounded-2xl text-gray-700 font-bold text-sm hover:bg-gray-50 transition-all flex items-center justify-center gap-2">
+                  <button className="flex-1 md:flex-none px-5 py-2 bg-white border border-gray-200 rounded-full text-gray-700 font-semibold text-sm hover:bg-gray-50 transition-all flex items-center justify-center gap-2 active:scale-95">
                     <Phone className="w-4 h-4" /> Call Facility
                   </button>
                   {booking.status === 'paid' && (
-                    <button className="flex-1 md:flex-none px-8 py-3 bg-blue-600 text-white rounded-2xl font-bold text-sm hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all">
+                    <button className="flex-1 md:flex-none px-6 py-2 bg-blue-600 text-white rounded-full font-semibold text-sm hover:bg-blue-700 transition-all active:scale-95 shadow-sm">
                       Check In
                     </button>
                   )}
                   {booking.status === 'completed' && (
-                    <div className="flex items-center gap-2 text-emerald-600 font-bold px-4 py-2 bg-emerald-50 rounded-xl">
+                    <div className="flex items-center gap-2 text-emerald-600 font-semibold px-4 py-2 bg-emerald-50 rounded-full text-sm">
                       <CheckCircle className="w-5 h-5" /> Completed
                     </div>
                   )}

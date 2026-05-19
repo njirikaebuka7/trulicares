@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { 
-  PlusCircle, Calendar, Clock, DollarSign, 
-  MapPin, Briefcase, FileText, CheckCircle,
-  ArrowRight, ArrowLeft, Loader2, Info, Building2, AlertCircle
+  PlusCircle, Clock, DollarSign, 
+  MapPin, Briefcase, CheckCircle,
+  ArrowRight, ArrowLeft, Loader2, Info, AlertCircle
 } from 'lucide-react';
 import { shifts as shiftApi } from '@/lib/staffingApi';
 import logoImg from '@/assets/logo.png';
@@ -97,15 +97,13 @@ export default function PostShift() {
     }
   };
 
-  const progressPct = (step / steps.length) * 100;
-
   return (
-    <div className="max-w-3xl mx-auto space-y-8 animate-fade-in pb-12">
+    <div className="max-w-3xl mx-auto space-y-6 animate-fade-in pb-12">
       {/* Header & Progress */}
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-brand-50 rounded-2xl flex items-center justify-center text-brand-600 shadow-sm border border-brand-100">
+            <div className="w-12 h-12 bg-brand-50 rounded-xl flex items-center justify-center text-brand-600 shadow-sm border border-brand-100">
               <PlusCircle className="w-6 h-6" />
             </div>
             <div>
@@ -119,7 +117,7 @@ export default function PostShift() {
         </div>
 
         {/* Multi-step indicator */}
-        <div className="flex items-center justify-between gap-2 px-2">
+        <div className="flex items-center justify-between gap-2 px-2 bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
           {steps.map((s, i) => {
             const Icon = s.icon;
             const isActive = step === s.id;
@@ -145,22 +143,22 @@ export default function PostShift() {
         </div>
       </div>
 
-      <div className="bg-white rounded-[2.5rem] p-8 sm:p-10 border border-gray-100 shadow-xl shadow-gray-200/50">
+      <div className="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-sm">
         {error && (
-          <div className="bg-red-50 border border-red-100 text-red-600 p-4 rounded-2xl text-sm font-semibold flex items-center gap-2 mb-8 animate-shake">
+          <div className="bg-red-50 border border-red-100 text-red-600 p-4 rounded-xl text-sm font-semibold flex items-center gap-2 mb-6 animate-shake">
             <AlertCircle className="w-5 h-5" /> {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-8">
+        <form onSubmit={handleSubmit} className="space-y-6">
           {/* STEP 1: Requirements */}
           {step === 1 && (
-            <div className="space-y-6 animate-slide-in">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4 animate-slide-in">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Role Required *</label>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Role Required *</label>
                   <select 
-                    className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent focus:border-brand-500 rounded-2xl text-sm font-semibold outline-none transition-all"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 focus:ring-2 focus:ring-brand-500 focus:border-transparent rounded-xl text-sm font-medium outline-none transition-all"
                     value={form.role}
                     onChange={(e) => set('role', e.target.value)}
                     required
@@ -170,9 +168,9 @@ export default function PostShift() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Specialty (Optional)</label>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Specialty (Optional)</label>
                   <input 
-                    className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent focus:border-brand-500 rounded-2xl text-sm font-semibold outline-none transition-all"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 focus:ring-2 focus:ring-brand-500 focus:border-transparent rounded-xl text-sm font-medium outline-none transition-all"
                     placeholder="e.g. ICU, Emergency"
                     value={form.specialty}
                     onChange={(e) => set('specialty', e.target.value)}
@@ -180,19 +178,19 @@ export default function PostShift() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Number of Slots *</label>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Number of Slots *</label>
                 <input 
                   type="number"
                   min="1"
-                  className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent focus:border-brand-500 rounded-2xl text-sm font-semibold outline-none transition-all"
+                  className="w-full px-4 py-3 bg-white border border-gray-200 focus:ring-2 focus:ring-brand-500 focus:border-transparent rounded-xl text-sm font-medium outline-none transition-all"
                   value={form.slotsTotal}
                   onChange={(e) => set('slotsTotal', e.target.value)}
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Job Description</label>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Job Description</label>
                 <textarea 
-                  className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent focus:border-brand-500 rounded-2xl text-sm font-semibold outline-none transition-all resize-none"
+                  className="w-full px-4 py-3 bg-white border border-gray-200 focus:ring-2 focus:ring-brand-500 focus:border-transparent rounded-xl text-sm font-medium outline-none transition-all resize-none"
                   rows={4}
                   placeholder="Describe the responsibilities and any specific requirements..."
                   value={form.description}
@@ -204,24 +202,24 @@ export default function PostShift() {
 
           {/* STEP 2: Timing */}
           {step === 2 && (
-            <div className="space-y-6 animate-slide-in">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4 animate-slide-in">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Start Date & Time *</label>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Start Date & Time *</label>
                   <input 
                     type="datetime-local"
-                    className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent focus:border-brand-500 rounded-2xl text-sm font-semibold outline-none transition-all"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 focus:ring-2 focus:ring-brand-500 focus:border-transparent rounded-xl text-sm font-medium outline-none transition-all"
                     value={form.startTime}
                     onChange={(e) => set('startTime', e.target.value)}
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Duration (Hours) *</label>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Duration (Hours) *</label>
                   <input 
                     type="number"
                     step="0.5"
-                    className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent focus:border-brand-500 rounded-2xl text-sm font-semibold outline-none transition-all"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 focus:ring-2 focus:ring-brand-500 focus:border-transparent rounded-xl text-sm font-medium outline-none transition-all"
                     placeholder="e.g. 8"
                     value={form.durationHours}
                     onChange={(e) => set('durationHours', e.target.value)}
@@ -234,14 +232,14 @@ export default function PostShift() {
 
           {/* STEP 3: Compensation */}
           {step === 3 && (
-            <div className="space-y-6 animate-slide-in">
+            <div className="space-y-4 animate-slide-in">
               <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Hourly Pay Rate *</label>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Hourly Pay Rate *</label>
                 <div className="relative">
-                  <DollarSign className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input 
                     type="number"
-                    className="w-full pl-12 pr-6 py-5 bg-gray-50 border-2 border-transparent focus:border-brand-500 rounded-2xl text-2xl font-bold outline-none transition-all text-brand-700"
+                    className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 focus:ring-2 focus:ring-brand-500 focus:border-transparent rounded-xl text-xl font-bold outline-none transition-all text-brand-700"
                     placeholder="0.00"
                     value={form.payRate}
                     onChange={(e) => set('payRate', e.target.value)}
@@ -249,8 +247,8 @@ export default function PostShift() {
                   />
                 </div>
               </div>
-              <div className="bg-brand-50 border border-brand-100 rounded-2xl p-6 flex gap-4">
-                <Info className="w-6 h-6 text-brand-600 flex-shrink-0 mt-0.5" />
+              <div className="bg-brand-50 border border-brand-100 rounded-xl p-5 flex gap-4">
+                <Info className="w-5 h-5 text-brand-600 flex-shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <p className="text-sm text-brand-800 font-bold">Platform Fee Transparency</p>
                   <p className="text-xs text-brand-700 leading-relaxed font-medium">
@@ -263,12 +261,12 @@ export default function PostShift() {
 
           {/* STEP 4: Location */}
           {step === 4 && (
-            <div className="space-y-6 animate-slide-in">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4 animate-slide-in">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Unit / Department *</label>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Unit / Department *</label>
                   <input 
-                    className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent focus:border-brand-500 rounded-2xl text-sm font-semibold outline-none transition-all"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 focus:ring-2 focus:ring-brand-500 focus:border-transparent rounded-xl text-sm font-medium outline-none transition-all"
                     placeholder="e.g. ICU Wing, Floor 4"
                     value={form.location}
                     onChange={(e) => set('location', e.target.value)}
@@ -276,9 +274,9 @@ export default function PostShift() {
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Street Address</label>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Street Address</label>
                   <input 
-                    className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent focus:border-brand-500 rounded-2xl text-sm font-semibold outline-none transition-all"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 focus:ring-2 focus:ring-brand-500 focus:border-transparent rounded-xl text-sm font-medium outline-none transition-all"
                     placeholder="123 Care St"
                     value={form.address}
                     onChange={(e) => set('address', e.target.value)}
@@ -286,7 +284,7 @@ export default function PostShift() {
                 </div>
                 <div>
                   <input 
-                    className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent focus:border-brand-500 rounded-2xl text-sm font-semibold outline-none transition-all"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 focus:ring-2 focus:ring-brand-500 focus:border-transparent rounded-xl text-sm font-medium outline-none transition-all"
                     placeholder="City"
                     value={form.city}
                     onChange={(e) => set('city', e.target.value)}
@@ -294,14 +292,14 @@ export default function PostShift() {
                 </div>
                 <div className="flex gap-4">
                   <input 
-                    className="w-1/3 px-6 py-4 bg-gray-50 border-2 border-transparent focus:border-brand-500 rounded-2xl text-sm font-semibold outline-none transition-all"
+                    className="w-1/3 px-4 py-3 bg-white border border-gray-200 focus:ring-2 focus:ring-brand-500 focus:border-transparent rounded-xl text-sm font-medium outline-none transition-all text-center"
                     placeholder="ST"
                     value={form.state}
                     onChange={(e) => set('state', e.target.value.toUpperCase())}
                     maxLength={2}
                   />
                   <input 
-                    className="flex-1 px-6 py-4 bg-gray-50 border-2 border-transparent focus:border-brand-500 rounded-2xl text-sm font-semibold outline-none transition-all"
+                    className="flex-1 px-4 py-3 bg-white border border-gray-200 focus:ring-2 focus:ring-brand-500 focus:border-transparent rounded-xl text-sm font-medium outline-none transition-all"
                     placeholder="ZIP"
                     value={form.zip}
                     onChange={(e) => set('zip', e.target.value)}
@@ -317,26 +315,26 @@ export default function PostShift() {
               <button 
                 type="button"
                 onClick={handleBack}
-                className="flex-1 py-4 border-2 border-gray-100 text-gray-500 font-bold rounded-2xl hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
+                className="flex-1 py-2.5 border border-gray-200 text-gray-600 font-semibold rounded-full hover:bg-gray-50 transition-all flex items-center justify-center gap-2 active:scale-95 text-sm"
               >
-                <ArrowLeft className="w-5 h-5" /> Back
+                <ArrowLeft className="w-4 h-4" /> Back
               </button>
             )}
             {step < steps.length ? (
               <button 
                 type="button"
                 onClick={handleNext}
-                className="flex-[2] py-4 bg-brand-600 text-white font-bold rounded-2xl shadow-xl shadow-brand-200 hover:bg-brand-700 transition-all flex items-center justify-center gap-2"
+                className="flex-[2] py-2.5 bg-brand-600 text-white font-semibold rounded-full hover:bg-brand-700 transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm text-sm"
               >
-                Continue <ArrowRight className="w-5 h-5" />
+                Continue <ArrowRight className="w-4 h-4" />
               </button>
             ) : (
               <button 
                 type="submit"
                 disabled={loading}
-                className="flex-[2] py-4 bg-brand-600 text-white font-bold rounded-2xl shadow-xl shadow-brand-200 hover:bg-brand-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="flex-[2] py-2.5 bg-brand-600 text-white font-semibold rounded-full hover:bg-brand-700 transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm text-sm disabled:opacity-50"
               >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Complete & Post Shift <CheckCircle className="w-5 h-5" /></>}
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Complete & Post Shift <CheckCircle className="w-4 h-4" /></>}
               </button>
             )}
           </div>

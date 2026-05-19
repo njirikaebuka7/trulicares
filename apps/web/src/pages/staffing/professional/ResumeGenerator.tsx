@@ -37,7 +37,7 @@ export default function ResumeGenerator() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-24">
+      <div className="flex items-center justify-center py-24 bg-white rounded-2xl border border-gray-100 shadow-sm">
         <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
       </div>
     );
@@ -46,19 +46,19 @@ export default function ResumeGenerator() {
   return (
     <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
       {/* Controls Bar */}
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 print:hidden">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 print:hidden">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Resume Generator</h2>
-          <p className="text-gray-500 text-sm mt-0.5">Generate a professional resume to share with facilities.</p>
+          <p className="text-gray-500 text-sm mt-0.5 font-medium">Generate a professional resume to share with facilities.</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           {/* Style Picker */}
-          <div className="flex items-center bg-gray-100 p-1 rounded-2xl gap-1">
+          <div className="flex items-center bg-gray-100 p-1 rounded-xl gap-1">
             {(['professional', 'modern', 'minimal'] as const).map(s => (
               <button
                 key={s}
                 onClick={() => setResumeStyle(s)}
-                className={`px-4 py-1.5 rounded-xl text-xs font-bold capitalize transition-all ${
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${
                   resumeStyle === s ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
@@ -69,7 +69,7 @@ export default function ResumeGenerator() {
           <button
             onClick={handlePrint}
             disabled={printing}
-            className="flex items-center gap-2 px-5 py-2.5 bg-brand-600 text-white font-bold rounded-2xl hover:bg-brand-700 transition-all shadow-lg shadow-brand-100 text-sm"
+            className="flex items-center gap-2 px-5 py-2 bg-brand-600 text-white font-semibold rounded-full hover:bg-brand-700 transition-all active:scale-95 shadow-sm text-sm"
           >
             {printing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
             Print / Save PDF
@@ -80,7 +80,7 @@ export default function ResumeGenerator() {
       {/* Resume Preview */}
       <div
         ref={resumeRef}
-        className={`bg-white shadow-xl rounded-3xl overflow-hidden print:shadow-none print:rounded-none ${
+        className={`bg-white shadow-md rounded-2xl overflow-hidden print:shadow-none print:rounded-none ${
           resumeStyle === 'minimal' ? 'border border-gray-200' : ''
         }`}
         id="resume-printable"
@@ -90,7 +90,7 @@ export default function ResumeGenerator() {
           <div className="bg-gradient-to-br from-brand-900 via-brand-800 to-brand-950 px-10 py-8 text-white">
             <div className="flex items-start justify-between gap-6">
               <div className="flex items-center gap-6">
-                <div className="w-20 h-20 rounded-2xl bg-white/10 border-2 border-white/20 flex items-center justify-center text-3xl font-bold text-white overflow-hidden flex-shrink-0">
+                <div className="w-20 h-20 rounded-xl bg-white/10 border-2 border-white/20 flex items-center justify-center text-3xl font-bold text-white overflow-hidden flex-shrink-0">
                   {user?.photoUrl
                     ? <img src={user.photoUrl} alt={user.name} className="w-full h-full object-cover" />
                     : (user?.name?.charAt(0) || 'P')
@@ -99,7 +99,7 @@ export default function ResumeGenerator() {
                 <div>
                   <h1 className="text-3xl font-bold text-white mb-1">{user?.name || 'Professional'}</h1>
                   <p className="text-brand-300 font-semibold text-lg">{profile?.license_type || 'Healthcare Professional'}</p>
-                  <div className="flex items-center gap-4 mt-2 text-brand-200 text-sm">
+                  <div className="flex items-center gap-4 mt-2 text-brand-200 text-sm font-medium">
                     {profile?.location && (
                       <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> {profile.location}</span>
                     )}
@@ -124,11 +124,11 @@ export default function ResumeGenerator() {
         {resumeStyle === 'modern' && (
           <div className="bg-gray-900 px-10 py-8 text-white flex items-center justify-between gap-6">
             <div>
-              <p className="text-gray-400 text-sm font-bold uppercase tracking-widest mb-1">Healthcare Professional</p>
-              <h1 className="text-4xl font-black text-white">{user?.name || 'Professional'}</h1>
+              <p className="text-gray-400 text-sm font-semibold uppercase tracking-wider mb-1">Healthcare Professional</p>
+              <h1 className="text-3xl font-bold text-white">{user?.name || 'Professional'}</h1>
               <p className="text-emerald-400 font-bold mt-1 text-lg">{profile?.license_type}</p>
             </div>
-            <div className="text-right text-gray-400 text-sm space-y-1">
+            <div className="text-right text-gray-400 text-sm space-y-1 font-medium">
               {user?.email && <p className="flex items-center justify-end gap-2"><Mail className="w-3.5 h-3.5" /> {user.email}</p>}
               {profile?.location && <p className="flex items-center justify-end gap-2"><MapPin className="w-3.5 h-3.5" /> {profile.location}</p>}
               <div className="flex items-center justify-end gap-1.5 text-emerald-400 font-bold mt-2">
@@ -142,10 +142,10 @@ export default function ResumeGenerator() {
           <div className="px-10 py-8 border-b-2 border-gray-900">
             <div className="flex items-end justify-between">
               <div>
-                <h1 className="text-4xl font-black text-gray-900">{user?.name || 'Professional'}</h1>
+                <h1 className="text-3xl font-bold text-gray-900">{user?.name || 'Professional'}</h1>
                 <p className="text-gray-500 font-semibold mt-1">{profile?.license_type} · {profile?.location}</p>
               </div>
-              <div className="text-right text-sm text-gray-500 space-y-0.5">
+              <div className="text-right text-sm text-gray-500 space-y-0.5 font-medium">
                 <p>{user?.email}</p>
                 <p className="text-brand-600 font-bold flex items-center justify-end gap-1.5"><Shield className="w-3.5 h-3.5" /> TruliCares Verified</p>
               </div>
@@ -163,7 +163,7 @@ export default function ResumeGenerator() {
             {profile?.bio && (
               <section>
                 <SectionTitle style={resumeStyle} icon={<User className="w-4 h-4" />} title="Professional Summary" />
-                <p className="text-gray-600 leading-relaxed text-sm mt-3">{profile.bio}</p>
+                <p className="text-gray-600 leading-relaxed text-sm mt-3 font-medium">{profile.bio}</p>
               </section>
             )}
 
@@ -196,8 +196,8 @@ export default function ResumeGenerator() {
                       {yearsExp > 0 ? `${yearsExp}+ years` : 'Entry Level'}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-500">TruliCares Staffing Network</p>
-                  <ul className="mt-2 space-y-1 text-sm text-gray-600">
+                  <p className="text-sm text-gray-500 font-medium">TruliCares Staffing Network</p>
+                  <ul className="mt-2 space-y-1 text-sm text-gray-600 font-medium">
                     <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0 mt-0.5" /> Providing patient-centered care in multiple healthcare settings</li>
                     <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0 mt-0.5" /> Maintaining accurate patient documentation and care records</li>
                     {specialties.length > 0 && (
@@ -217,7 +217,7 @@ export default function ResumeGenerator() {
               <SectionTitle style={resumeStyle} icon={<Award className="w-4 h-4" />} title="Licenses & Credentials" />
               <div className="mt-3 space-y-3">
                 {licenses.length > 0 ? licenses.map((lic: any, i: number) => (
-                  <div key={i} className={`p-3 rounded-2xl border ${
+                  <div key={i} className={`p-3 rounded-xl border ${
                     resumeStyle === 'professional' ? 'bg-brand-50 border-brand-100' :
                     resumeStyle === 'modern' ? 'bg-gray-50 border-gray-200' :
                     'border-gray-200'
@@ -226,16 +226,16 @@ export default function ResumeGenerator() {
                       <Shield className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
                       <span className="font-bold text-gray-900 text-sm">{lic.type || profile?.license_type}</span>
                     </div>
-                    {lic.number && <p className="text-xs text-gray-500">License #: {lic.number}</p>}
-                    {lic.state && <p className="text-xs text-gray-500">State: {lic.state}</p>}
-                    {lic.expiry && <p className="text-xs text-gray-500">Expires: {new Date(lic.expiry).toLocaleDateString()}</p>}
+                    {lic.number && <p className="text-xs text-gray-500 font-medium">License #: {lic.number}</p>}
+                    {lic.state && <p className="text-xs text-gray-500 font-medium">State: {lic.state}</p>}
+                    {lic.expiry && <p className="text-xs text-gray-500 font-medium">Expires: {new Date(lic.expiry).toLocaleDateString()}</p>}
                     <div className="flex items-center gap-1 mt-1.5">
                       <CheckCircle className="w-3 h-3 text-emerald-500" />
                       <span className="text-[10px] text-emerald-600 font-bold">Admin Verified</span>
                     </div>
                   </div>
                 )) : (
-                  <div className="p-3 rounded-2xl border border-brand-100 bg-brand-50">
+                  <div className="p-3 rounded-xl border border-brand-100 bg-brand-50">
                     <div className="flex items-center gap-2">
                       <Shield className="w-3.5 h-3.5 text-emerald-600" />
                       <span className="font-bold text-gray-900 text-sm">{profile?.license_type}</span>
@@ -252,7 +252,7 @@ export default function ResumeGenerator() {
             {/* Availability */}
             <section>
               <SectionTitle style={resumeStyle} icon={<Clock className="w-4 h-4" />} title="Availability & Preferences" />
-              <div className="mt-3 space-y-2 text-sm text-gray-600">
+              <div className="mt-3 space-y-2 text-sm text-gray-600 font-medium">
                 <div className="flex items-center justify-between">
                   <span>Preferred Radius</span>
                   <span className="font-bold text-gray-900">{profile?.preferred_radius_miles || 25} miles</span>
@@ -269,7 +269,7 @@ export default function ResumeGenerator() {
             </section>
 
             {/* TruliCares Badge */}
-            <div className={`p-4 rounded-2xl text-center ${
+            <div className={`p-4 rounded-xl text-center ${
               resumeStyle === 'professional' ? 'bg-brand-900 text-white' :
               resumeStyle === 'modern' ? 'bg-gray-900 text-white' :
               'border-2 border-gray-900'
@@ -282,7 +282,7 @@ export default function ResumeGenerator() {
         </div>
 
         {/* Footer */}
-        <div className="px-10 py-4 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
+        <div className="px-10 py-4 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400 font-medium">
           <span>Generated by TruliCares Staffing · trulicares.com</span>
           <span>{new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
         </div>
@@ -305,7 +305,7 @@ function SectionTitle({ title, icon, style }: { title: string; icon: React.React
     return (
       <div className="flex items-center gap-2 border-b-2 border-brand-100 pb-2">
         <div className="w-6 h-6 bg-brand-100 rounded-lg flex items-center justify-center text-brand-600">{icon}</div>
-        <h3 className="font-black text-gray-900 text-sm uppercase tracking-wider">{title}</h3>
+        <h3 className="font-semibold text-gray-900 text-sm uppercase tracking-wider">{title}</h3>
       </div>
     );
   }
@@ -313,12 +313,12 @@ function SectionTitle({ title, icon, style }: { title: string; icon: React.React
     return (
       <div className="flex items-center gap-2">
         <div className="text-gray-400">{icon}</div>
-        <h3 className="font-black text-gray-900 text-sm uppercase tracking-widest">{title}</h3>
+        <h3 className="font-semibold text-gray-900 text-sm uppercase tracking-wider">{title}</h3>
         <div className="flex-1 h-px bg-gray-200 ml-2" />
       </div>
     );
   }
   return (
-    <h3 className="font-black text-gray-900 text-sm uppercase tracking-widest border-b border-gray-300 pb-1">{title}</h3>
+    <h3 className="font-semibold text-gray-900 text-sm uppercase tracking-wider border-b border-gray-300 pb-1">{title}</h3>
   );
 }

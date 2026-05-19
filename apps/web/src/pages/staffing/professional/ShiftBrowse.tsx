@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Search, Filter, MapPin, Clock, DollarSign, 
   Building2, ArrowRight, Briefcase, ChevronRight,
@@ -55,13 +56,13 @@ export default function ShiftBrowse() {
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">
       {/* Search & Filter Bar */}
-      <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4">
+      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4">
         <div className="flex-1 relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input 
             type="text"
             placeholder="Search by city or facility..."
-            className="w-full pl-12 pr-4 py-3 bg-gray-50 border-none rounded-2xl text-sm focus:ring-2 focus:ring-brand-500 transition-all"
+            className="w-full pl-12 pr-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-brand-500 transition-all"
             value={filters.city}
             onChange={(e) => setFilters(f => ({ ...f, city: e.target.value }))}
             onKeyPress={(e) => e.key === 'Enter' && loadShifts()}
@@ -69,7 +70,7 @@ export default function ShiftBrowse() {
         </div>
         <div className="flex gap-4">
           <select 
-            className="px-4 py-3 bg-gray-50 border-none rounded-2xl text-sm focus:ring-2 focus:ring-brand-500 transition-all font-semibold text-gray-700"
+            className="px-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-brand-500 transition-all font-semibold text-gray-700"
             value={filters.role}
             onChange={(e) => setFilters(f => ({ ...f, role: e.target.value }))}
           >
@@ -80,7 +81,7 @@ export default function ShiftBrowse() {
           </select>
           <button 
             onClick={loadShifts}
-            className="px-6 py-3 bg-brand-600 text-white font-bold rounded-2xl hover:bg-brand-700 transition-all shadow-lg shadow-brand-100"
+            className="px-6 py-2.5 bg-brand-600 text-white font-semibold rounded-full hover:bg-brand-700 transition-all active:scale-95 shadow-sm text-sm"
           >
             Search
           </button>
@@ -88,7 +89,7 @@ export default function ShiftBrowse() {
       </div>
 
       {/* Matching Toggle */}
-      <div className="flex items-center gap-3 bg-brand-50/50 p-2 pl-4 rounded-2xl border border-brand-100 w-fit">
+      <div className="flex items-center gap-3 bg-brand-50/50 p-2 pl-4 rounded-xl border border-brand-100 w-fit">
         <span className="text-xs font-bold text-brand-700">Show Best Matches Only</span>
         <button 
           onClick={() => setFilters(f => ({ ...f, matchesOnly: !f.matchesOnly }))}
@@ -106,17 +107,17 @@ export default function ShiftBrowse() {
 
       {/* Shift List */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-gray-100">
+        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-100">
           <Loader2 className="w-10 h-10 text-brand-600 animate-spin mb-4" />
           <p className="text-gray-500 font-medium">Finding available shifts...</p>
         </div>
       ) : shifts.length === 0 ? (
-        <div className="bg-white rounded-3xl border border-gray-100 p-12 text-center">
+        <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
           <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
             <Search className="w-10 h-10 text-gray-300" />
           </div>
           <h3 className="text-xl font-bold text-gray-900 mb-2">No shifts found</h3>
-          <p className="text-gray-500 max-w-sm mx-auto">Try adjusting your filters or checking back later. New shifts are posted daily.</p>
+          <p className="text-gray-500 max-w-sm mx-auto text-sm">Try adjusting your filters or checking back later. New shifts are posted daily.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
@@ -125,17 +126,17 @@ export default function ShiftBrowse() {
             .map((shift) => (
             <div 
               key={shift.id} 
-              className="group bg-white border border-gray-100 rounded-3xl p-6 shadow-sm hover:shadow-xl hover:border-brand-100 transition-all duration-300 relative overflow-hidden"
+              className="group bg-white border border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-brand-100 transition-all duration-300 relative overflow-hidden"
             >
               {/* Status Badge */}
-              <div className="absolute top-0 right-0 px-6 py-2 bg-brand-50 text-brand-600 text-[10px] font-bold uppercase tracking-widest rounded-bl-2xl">
+              <div className="absolute top-0 right-0 px-4 py-1.5 bg-brand-50 text-brand-600 text-[10px] font-semibold uppercase tracking-wider rounded-bl-xl">
                 Open for Application
               </div>
 
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 {/* Main Info */}
                 <div className="flex items-start gap-6">
-                  <div className="w-16 h-16 rounded-2xl bg-brand-50 flex flex-col items-center justify-center text-brand-600 flex-shrink-0">
+                  <div className="w-16 h-16 rounded-xl bg-brand-50 flex flex-col items-center justify-center text-brand-600 flex-shrink-0">
                     <span className="text-[10px] font-bold uppercase">{new Date(shift.start_time).toLocaleString('default', { month: 'short' })}</span>
                     <span className="text-xl font-bold">{new Date(shift.start_time).getDate()}</span>
                   </div>
@@ -168,13 +169,13 @@ export default function ShiftBrowse() {
                 <div className="flex items-center justify-between md:flex-col md:items-end gap-4 border-t md:border-t-0 pt-4 md:pt-0">
                   <div className="text-right">
                     <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Total Pay</p>
-                    <p className="text-2xl font-black text-emerald-600">${shift.total_pay.toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-emerald-600">${shift.total_pay.toFixed(2)}</p>
                     <p className="text-xs text-gray-500 font-bold">${shift.pay_rate}/hr</p>
                   </div>
                   <button 
                     onClick={() => handleApply(shift.id)}
                     disabled={applyingId === shift.id}
-                    className="flex items-center justify-center gap-2 px-8 py-3 bg-gray-900 text-white rounded-2xl font-bold text-sm hover:bg-brand-600 hover:shadow-lg hover:shadow-brand-200 transition-all disabled:bg-gray-400"
+                    className="flex items-center justify-center gap-2 px-6 py-2.5 bg-gray-900 text-white rounded-full font-semibold text-sm hover:bg-brand-600 transition-all active:scale-95 disabled:bg-gray-400 shadow-sm"
                   >
                     {applyingId === shift.id ? (
                       <><Loader2 className="w-4 h-4 animate-spin" /> Applying...</>
@@ -190,19 +191,19 @@ export default function ShiftBrowse() {
       )}
 
       {/* Info Card */}
-      <div className="bg-gradient-to-r from-brand-600 to-emerald-700 rounded-3xl p-8 text-white flex flex-col md:flex-row items-center gap-8 shadow-xl shadow-brand-200 mt-12">
-        <div className="w-20 h-20 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0">
-          <Info className="w-10 h-10 text-white" />
+      <div className="bg-gradient-to-r from-brand-600 to-emerald-700 rounded-2xl p-6 text-white flex flex-col md:flex-row items-center gap-6 shadow-sm mt-12">
+        <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+          <Info className="w-8 h-8 text-white" />
         </div>
         <div className="flex-1 text-center md:text-left">
           <h3 className="text-xl font-bold mb-2">How it works</h3>
-          <p className="text-brand-50 text-sm leading-relaxed max-w-xl">
+          <p className="text-brand-55 text-sm leading-relaxed max-w-xl opacity-90">
             When you apply for a shift, the facility will review your profile and credentials. If accepted, the shift is locked in your schedule. You'll check in via the app when you arrive at the facility.
           </p>
         </div>
         <Link 
           to="/professional-dashboard/profile"
-          className="px-6 py-3 bg-white text-brand-700 font-bold rounded-2xl hover:bg-brand-50 transition-colors whitespace-nowrap"
+          className="px-6 py-2.5 bg-white text-brand-700 font-semibold rounded-full hover:bg-brand-50 transition-colors whitespace-nowrap active:scale-95 text-sm"
         >
           Check My Credentials
         </Link>
