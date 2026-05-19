@@ -38,6 +38,7 @@ function ProfessionalDashboardInner() {
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   // Global Staffing Listeners (Realtime updates)
   useEffect(() => {
@@ -234,6 +235,112 @@ function ProfessionalDashboardInner() {
             <Route path="resume" element={<ResumeGenerator />} />
           </Routes>
         </div>
+
+        {/* Mobile Bottom Navigation & Drawer */}
+        {(() => {
+          const MOBILE_PRIMARY = [
+            '/professional-dashboard',
+            '/professional-dashboard/browse',
+            '/professional-dashboard/schedule',
+            '/professional-dashboard/wallet',
+          ];
+          const mobileNav = navItems.filter(n => MOBILE_PRIMARY.includes(n.path));
+          const moreNav = navItems.filter(n => !MOBILE_PRIMARY.includes(n.path));
+          const moreActive = moreNav.some(n => location.pathname === n.path || location.pathname.startsWith(n.path));
+
+          return (
+            <>
+              {/* More drawer */}
+              {moreOpen && (
+                <div className="lg:hidden fixed inset-0 z-40" onClick={() => setMoreOpen(false)}>
+                  <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+                  <div
+                    className="absolute bottom-[64px] left-0 right-0 bg-white rounded-t-3xl shadow-2xl overflow-hidden animate-fade-in-up"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-3 mb-4" />
+                    <p className="px-5 pb-2 text-xs font-bold text-gray-400 uppercase tracking-widest">More</p>
+                    <div className="px-3 pb-4 space-y-1">
+                      {moreNav.map(item => {
+                        const isActive = location.pathname === item.path || location.pathname.startsWith(item.path);
+                        return (
+                          <Link
+                            key={item.path}
+                            to={item.path}
+                            onClick={() => setMoreOpen(false)}
+                            className={cn(
+                              'w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-colors',
+                              isActive ? 'bg-emerald-50 text-emerald-700' : 'text-gray-700 hover:bg-gray-50'
+                            )}
+                          >
+                            <span className={cn(isActive ? 'text-emerald-600' : 'text-gray-400')}>
+                              <item.icon className="w-5 h-5" />
+                            </span>
+                            <span className="font-semibold text-sm flex-1 text-left">{item.label}</span>
+                          </Link>
+                        );
+                      })}
+                      <button
+                        onClick={() => { setMoreOpen(false); handleLogout(); }}
+                        className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <span className="text-red-400">
+                          <LogOut className="w-5 h-5" />
+                        </span>
+                        <span className="font-semibold text-sm flex-1 text-left">Log Out</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Bottom Nav Bar */}
+              <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-lg border-t border-gray-100 z-30" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+                <div className="flex items-stretch h-16">
+                  {mobileNav.map(item => {
+                    const isActive = location.pathname === item.path || (item.path !== '/professional-dashboard' && location.pathname.startsWith(item.path));
+                    return (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        onClick={() => setMoreOpen(false)}
+                        className={cn(
+                          'relative flex-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-200',
+                          isActive ? 'text-emerald-600' : 'text-gray-400'
+                        )}
+                      >
+                        <span className={cn(
+                          'flex items-center justify-center w-12 h-7 rounded-full transition-all',
+                          isActive ? 'bg-emerald-100 text-emerald-700' : ''
+                        )}>
+                          <item.icon className="w-5 h-5" />
+                        </span>
+                        <span className="text-[10px] font-semibold leading-none">{item.label.split(' ')[0]}</span>
+                      </Link>
+                    );
+                  })}
+
+                  {/* More button */}
+                  <button
+                    onClick={() => setMoreOpen(!moreOpen)}
+                    className={cn(
+                      'relative flex-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-200',
+                      moreActive || moreOpen ? 'text-emerald-600' : 'text-gray-400'
+                    )}
+                  >
+                    <span className={cn(
+                      'flex items-center justify-center w-12 h-7 rounded-full transition-all',
+                      (moreActive || moreOpen) ? 'bg-emerald-100 text-emerald-700' : ''
+                    )}>
+                      <Menu className="w-5 h-5" />
+                    </span>
+                    <span className="text-[10px] font-semibold leading-none">More</span>
+                  </button>
+                </div>
+              </nav>
+            </>
+          );
+        })()}
       </div>
     </div>
   );

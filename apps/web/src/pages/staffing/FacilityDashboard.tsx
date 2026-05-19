@@ -214,6 +214,35 @@ function FacilityDashboardInner() {
             <Route path="profile" element={<FacilityProfileView />} />
           </Routes>
         </div>
+
+        {/* Mobile Bottom Navigation */}
+        <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-lg border-t border-gray-100 z-30" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+          <div className="flex items-stretch h-16">
+            {navItems.map(item => {
+              const isActive = location.pathname === item.path || (item.path !== '/facility-dashboard' && location.pathname.startsWith(item.path));
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={cn(
+                    'relative flex-1 flex flex-col items-center justify-center gap-0.5 transition-all duration-200',
+                    isActive ? 'text-emerald-600' : 'text-gray-400'
+                  )}
+                >
+                  <span className={cn(
+                    'flex items-center justify-center w-12 h-7 rounded-full transition-all',
+                    isActive ? 'bg-emerald-100 text-emerald-700' : ''
+                  )}>
+                    <item.icon className="w-5 h-5" />
+                  </span>
+                  <span className="text-[10px] font-semibold leading-none">
+                    {item.label === 'Facility Profile' ? 'Profile' : item.label === 'Post a Shift' ? 'Post' : item.label === 'My Shifts' ? 'Shifts' : item.label}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
       </div>
     </div>
   );
