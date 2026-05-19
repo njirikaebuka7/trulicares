@@ -57,7 +57,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
         matchId: row.resolved_match_id || row.match_id || null,
         otherId,
         otherName,
-        otherPhoto: otherPhoto || `https://randomuser.me/api/portraits/women/1.jpg`,
+        otherPhoto: otherPhoto || null,
         otherPhone: otherPhone || null,
         otherRole,
         messagingUnlocked,

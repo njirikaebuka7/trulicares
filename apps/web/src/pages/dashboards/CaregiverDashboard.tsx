@@ -883,6 +883,7 @@ export default function CaregiverDashboard() {
               care: conv.careType || 'Care',
               color: avatarColors[idx % avatarColors.length],
               unread: conv.unreadCount || 0,
+              photoUrl: conv.otherPhoto || null,
             }));
 
             const sendCgMsg = async () => {
@@ -908,9 +909,13 @@ export default function CaregiverDashboard() {
                         onClick={() => setCgSelectedMsg(null)}
                         className="text-sm text-emerald-600 font-semibold hover:underline"
                       >← Back</button>
-                      <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0', family.color)}>
-                        {family.name.charAt(0)}
-                      </div>
+                      {family.photoUrl ? (
+                        <img src={family.photoUrl} alt={family.name} className="w-9 h-9 rounded-xl object-cover shrink-0" />
+                      ) : (
+                        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0', family.color)}>
+                          {family.name.charAt(0)}
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-gray-900 text-sm truncate">{family.name}</p>
                         <p className="text-xs text-emerald-600">● {family.care}</p>
@@ -934,7 +939,16 @@ export default function CaregiverDashboard() {
 
                     <div className="flex-1 overflow-y-auto px-5 py-5 space-y-3">
                       {msgs.map((m, i) => (
-                        <div key={i} className={cn('flex', m.fromMe ? 'justify-end' : 'justify-start')}>
+                        <div key={i} className={cn('flex gap-3', m.fromMe ? 'justify-end' : 'justify-start')}>
+                          {!m.fromMe && (
+                            family.photoUrl ? (
+                              <img src={family.photoUrl} alt="" className="w-8 h-8 rounded-full object-cover shrink-0 self-end" />
+                            ) : (
+                              <div className={cn('w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0 self-end', family.color)}>
+                                {family.name.charAt(0)}
+                              </div>
+                            )
+                          )}
                           <div className={cn(
                             'max-w-[80%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed',
                             m.fromMe ? 'bg-emerald-600 text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'
@@ -982,12 +996,21 @@ export default function CaregiverDashboard() {
                         onClick={() => { setCgSelectedMsg(family.id); loadCgMessages(family.id); }}
                         className="w-full flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors text-left"
                       >
-                        <div className={cn('w-11 h-11 rounded-2xl flex items-center justify-center text-white font-bold text-sm shrink-0 relative', family.color)}>
-                          {family.name.charAt(0)}
-                          {family.unread > 0 && (
-                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-coral-500 rounded-full border-2 border-white" />
-                          )}
-                        </div>
+                        {family.photoUrl ? (
+                          <div className="relative shrink-0">
+                            <img src={family.photoUrl} alt={family.name} className="w-11 h-11 rounded-2xl object-cover" />
+                            {family.unread > 0 && (
+                              <span className="absolute -top-1 -right-1 w-4 h-4 bg-coral-500 rounded-full border-2 border-white" />
+                            )}
+                          </div>
+                        ) : (
+                          <div className={cn('w-11 h-11 rounded-2xl flex items-center justify-center text-white font-bold text-sm shrink-0 relative', family.color)}>
+                            {family.name.charAt(0)}
+                            {family.unread > 0 && (
+                              <span className="absolute -top-1 -right-1 w-4 h-4 bg-coral-500 rounded-full border-2 border-white" />
+                            )}
+                          </div>
+                        )}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-0.5">
                             <p className={cn('text-sm font-semibold truncate', family.unread > 0 ? 'text-gray-900' : 'text-gray-700')}>

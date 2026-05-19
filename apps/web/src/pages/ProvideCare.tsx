@@ -186,7 +186,7 @@ export default function ProvideCare() {
 
   const isNextDisabled = () => {
     switch (step) {
-      case 0: return !name || !email || !password || password.length < 8;
+      case 0: return !name || !email || !password || password.length < 8 || !photoBase64;
       case 1: return !isPhoneVerified;
       case 2: return specialties.length === 0;
       case 3: return serviceZips.length === 0;
@@ -235,7 +235,7 @@ export default function ProvideCare() {
             <Camera className="w-3 h-3 text-white" />
           </span>
         </button>
-        <span className="text-xs text-gray-400 mt-2">Profile photo (optional)</span>
+        <span className="text-xs text-brand-600 font-semibold mt-2">Profile photo (required)</span>
       </div>
 
       <div className="space-y-4">
