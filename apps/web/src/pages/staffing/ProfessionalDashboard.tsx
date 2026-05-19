@@ -39,6 +39,7 @@ function ProfessionalDashboardInner() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false);
 
   // Global Staffing Listeners (Realtime updates)
   useEffect(() => {
@@ -100,19 +101,10 @@ function ProfessionalDashboardInner() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex font-sans overflow-x-hidden relative">
-      {/* Sidebar Overlay (Mobile) */}
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm transition-opacity"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-
-      {/* Sidebar */}
+      {/* Sidebar (Desktop Only) */}
       <aside className={cn(
-        "fixed inset-y-0 left-0 bg-emerald-950 border-r border-white/5 z-50 transition-all duration-300 transform lg:translate-x-0 shadow-2xl flex flex-col",
-        isSidebarOpen ? "translate-x-0" : "-translate-x-full",
-        isCollapsed ? "lg:w-16" : "lg:w-64"
+        "hidden lg:flex flex-col fixed inset-y-0 left-0 bg-emerald-950 border-r border-white/5 z-50 transition-all duration-300",
+        isCollapsed ? "w-16" : "w-64"
       )}>
         {/* Logo + collapse toggle */}
         <div className={cn(
@@ -168,7 +160,6 @@ function ProfessionalDashboardInner() {
                     ? "bg-white/10 text-white" 
                     : "text-emerald-300 hover:bg-white/5 hover:text-white"
                 )}
-                onClick={() => setIsSidebarOpen(false)}
               >
                 <item.icon className={cn("w-5 h-5 shrink-0 transition-transform", isActive ? "text-white" : "text-emerald-400")} />
                 {!isCollapsed && <span className="flex-1 text-left">{item.label}</span>}
@@ -203,15 +194,15 @@ function ProfessionalDashboardInner() {
         {/* Top Header */}
         <header className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between shrink-0 shadow-sm">
           <div className="flex items-center gap-3">
-            <button className="lg:hidden p-2.5 hover:bg-gray-100 rounded-xl transition-colors" onClick={() => setIsSidebarOpen(true)}>
-              <Menu className="w-5 h-5 text-gray-500" />
-            </button>
+            <Link to="/">
+              <img src={logoImg} alt="TruliCares" className="h-7 w-auto lg:hidden" />
+            </Link>
             <h1 className="hidden lg:block text-base font-bold text-gray-900">
               {navItems.find(i => location.pathname === i.path || (i.path !== '/professional-dashboard' && location.pathname.startsWith(i.path)))?.label || 'Dashboard'}
             </h1>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
             <div className="hidden sm:flex items-center gap-3 bg-gray-50 border border-gray-100 p-1.5 rounded-2xl pr-4">
               <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-bold text-xs">
                 {initials}
@@ -221,6 +212,43 @@ function ProfessionalDashboardInner() {
             <button className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors">
               <Bell className="w-5 h-5 text-gray-500" />
             </button>
+
+            {/* Mobile User Menu Dropdown */}
+            <div className="relative lg:hidden">
+              <button
+                onClick={() => setMobileUserMenuOpen(!mobileUserMenuOpen)}
+                className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center text-white text-xs font-bold transition-all active:scale-95 overflow-hidden"
+              >
+                {initials}
+              </button>
+              {mobileUserMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setMobileUserMenuOpen(false)} />
+                  <div className="absolute right-0 top-10 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-50 animate-fade-in">
+                    <div className="px-4 py-2 border-b border-gray-100">
+                      <p className="text-sm font-bold text-gray-900 truncate">{profile?.name || user?.name || 'Professional'}</p>
+                      <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                    </div>
+                    <Link 
+                      to="/professional-dashboard/profile" 
+                      onClick={() => setMobileUserMenuOpen(false)}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    >
+                      My Profile
+                    </Link>
+                    <button 
+                      onClick={() => {
+                        setMobileUserMenuOpen(false);
+                        handleLogout();
+                      }} 
+                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                    >
+                      Log Out
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </header>
 
