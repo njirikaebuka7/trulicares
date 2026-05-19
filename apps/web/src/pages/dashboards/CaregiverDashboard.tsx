@@ -613,9 +613,11 @@ export default function CaregiverDashboard() {
             <div className="relative lg:hidden">
               <button
                 onClick={() => setMobileUserMenuOpen(!mobileUserMenuOpen)}
-                className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center text-white text-xs font-bold transition-all active:scale-95"
+                className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center text-white text-xs font-bold transition-all active:scale-95 overflow-hidden"
               >
-                {initials}
+                {user?.photoUrl ? (
+                  <img src={user.photoUrl} alt={user.name} className="w-full h-full object-cover" />
+                ) : initials}
               </button>
               {mobileUserMenuOpen && (
                 <div className="absolute right-0 top-10 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-50">

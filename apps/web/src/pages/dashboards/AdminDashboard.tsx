@@ -5,7 +5,7 @@ import {
   CheckCircle, XCircle, Clock, X, Search,
   Activity, DollarSign, UserCheck, Flag, BarChart2, LayoutDashboard,
   ChevronLeft, ChevronRight as ChevronRightIcon, Pencil, Trash2,
-  FileText, Eye, Ban, RotateCcw, Mail, Calendar, Briefcase
+  FileText, Eye, Ban, RotateCcw, Mail, Calendar, Briefcase, User
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
@@ -395,9 +395,11 @@ export default function AdminDashboard() {
             <div className="relative lg:hidden">
               <div 
                 onClick={() => setMobileUserMenuOpen(!mobileUserMenuOpen)}
-                className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-white text-xs font-bold cursor-pointer"
+                className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-white text-xs font-bold cursor-pointer overflow-hidden"
               >
-                {initials}
+                {user?.photoUrl ? (
+                  <img src={user.photoUrl} alt={user.name} className="w-full h-full object-cover" />
+                ) : initials}
               </div>
               {mobileUserMenuOpen && (
                 <div className="absolute right-0 top-10 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-50">

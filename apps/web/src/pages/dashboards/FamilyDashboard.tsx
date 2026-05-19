@@ -724,14 +724,30 @@ export default function FamilyDashboard() {
                 </div>
               )}
             </div>
-            <button
-              className="w-9 h-9 rounded-full bg-brand-600 flex items-center justify-center text-white text-xs font-bold lg:hidden transition-all active:scale-95 overflow-hidden"
-              onClick={() => setActiveTab('Profile')}
-            >
-              {user?.photoUrl
-                ? <img src={user.photoUrl} alt={user.name} className="w-full h-full object-cover" />
-                : initials}
-            </button>
+            <div className="relative lg:hidden">
+              <button
+                className="w-9 h-9 rounded-full bg-brand-600 flex items-center justify-center text-white text-xs font-bold transition-all active:scale-95 overflow-hidden"
+                onClick={() => setMobileUserMenuOpen(!mobileUserMenuOpen)}
+              >
+                {user?.photoUrl
+                  ? <img src={user.photoUrl} alt={user.name} className="w-full h-full object-cover" />
+                  : initials}
+              </button>
+              {mobileUserMenuOpen && (
+                <div className="absolute right-0 top-10 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-50 animate-fade-in-up">
+                  <div className="px-4 py-2 border-b border-gray-100">
+                    <p className="text-sm font-bold text-gray-900 truncate">{user?.name || 'Family'}</p>
+                    <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                  </div>
+                  <button onClick={() => { setMobileUserMenuOpen(false); setActiveTab('Profile'); }} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                    <User className="w-4 h-4 text-gray-400" /> Profile
+                  </button>
+                  <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
+                    <LogOut className="w-4 h-4 text-red-500" /> Log out
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
