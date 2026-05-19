@@ -117,25 +117,25 @@ export default function PostShift() {
         </div>
 
         {/* Multi-step indicator */}
-        <div className="flex items-center justify-between gap-2 px-2 bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+        <div className="flex items-center justify-between gap-1 px-3 py-3 bg-white rounded-2xl sm:p-4 border border-gray-100 shadow-sm">
           {steps.map((s, i) => {
             const Icon = s.icon;
             const isActive = step === s.id;
             const isDone = step > s.id;
             return (
-              <div key={s.id} className="flex items-center flex-1 last:flex-none">
-                <div className="flex flex-col items-center gap-1.5">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all border-2 ${
+              <div key={s.id} className="flex items-center flex-1 last:flex-none min-w-0">
+                <div className="flex flex-col items-center gap-1.5 shrink-0">
+                  <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all border-2 ${
                     isDone ? 'bg-brand-500 border-brand-500 text-white' : 
                     isActive ? 'bg-white border-brand-500 text-brand-600' : 
                     'bg-gray-50 border-gray-100 text-gray-300'
                   }`}>
-                    {isDone ? <CheckCircle className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
+                    {isDone ? <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" /> : <Icon className="w-4 h-4 sm:w-5 sm:h-5" />}
                   </div>
-                  <span className={`text-[10px] font-bold uppercase tracking-wider ${isActive ? 'text-brand-600' : 'text-gray-400'}`}>{s.title}</span>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider hidden sm:block ${isActive ? 'text-brand-600' : 'text-gray-400'}`}>{s.title}</span>
                 </div>
                 {i < steps.length - 1 && (
-                  <div className={`flex-1 h-0.5 mx-4 -mt-5 transition-all ${isDone ? 'bg-brand-500' : 'bg-gray-100'}`} />
+                  <div className={`flex-1 h-0.5 mx-1.5 sm:mx-4 -mt-0 sm:-mt-5 transition-all ${isDone ? 'bg-brand-500' : 'bg-gray-100'}`} />
                 )}
               </div>
             );
@@ -143,7 +143,7 @@ export default function PostShift() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-sm">
+      <div className="bg-white rounded-2xl p-4 sm:p-8 border border-gray-100 shadow-sm">
         {error && (
           <div className="bg-red-50 border border-red-100 text-red-600 p-4 rounded-xl text-sm font-semibold flex items-center gap-2 mb-6 animate-shake">
             <AlertCircle className="w-5 h-5" /> {error}
