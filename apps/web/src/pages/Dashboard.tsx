@@ -6,7 +6,7 @@ import AdminDashboard from '@/pages/dashboards/AdminDashboard';
 import ProfessionalDashboard from '@/pages/staffing/ProfessionalDashboard';
 import FacilityDashboard from '@/pages/staffing/FacilityDashboard';
 import Button from '@/components/ui/Button';
-import logoImg from '@/assets/logo.png';
+import heartLogoImg from '@/assets/heart-logo.png';
 
 export default function Dashboard() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -18,7 +18,7 @@ export default function Dashboard() {
         <div className="relative flex flex-col items-center gap-6">
           <div className="absolute -inset-4 rounded-3xl bg-brand-500/10 blur-xl animate-pulse" />
           <div className="relative w-28 h-28 bg-white rounded-3xl shadow-xl flex items-center justify-center p-4 border border-brand-100/50">
-            <img src={logoImg} alt="TruliCares Logo" className="w-full h-full object-contain" />
+            <img src={heartLogoImg} alt="TruliCares Logo" className="w-full h-full object-contain" />
           </div>
           <div className="flex flex-col items-center gap-3">
             <div className="flex items-center gap-2">
