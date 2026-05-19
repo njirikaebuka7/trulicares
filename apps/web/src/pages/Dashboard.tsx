@@ -6,11 +6,34 @@ import AdminDashboard from '@/pages/dashboards/AdminDashboard';
 import ProfessionalDashboard from '@/pages/staffing/ProfessionalDashboard';
 import FacilityDashboard from '@/pages/staffing/FacilityDashboard';
 import Button from '@/components/ui/Button';
+import logoImg from '@/assets/logo.png';
 
 export default function Dashboard() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-coral-50 flex flex-col items-center justify-center p-4">
+        <div className="relative flex flex-col items-center gap-6">
+          <div className="absolute -inset-4 rounded-3xl bg-brand-500/10 blur-xl animate-pulse" />
+          <div className="relative w-28 h-28 bg-white rounded-3xl shadow-xl flex items-center justify-center p-4 border border-brand-100/50">
+            <img src={logoImg} alt="TruliCares Logo" className="w-full h-full object-contain" />
+          </div>
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 bg-brand-600 rounded-full animate-bounce [animation-delay:-0.3s]" />
+              <span className="w-2.5 h-2.5 bg-brand-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+              <span className="w-2.5 h-2.5 bg-coral-400 rounded-full animate-bounce" />
+            </div>
+            <p className="text-sm font-semibold text-brand-900/80 tracking-wide uppercase">
+              Loading your dashboard...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (!isAuthenticated || !user) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 px-4">
