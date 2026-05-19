@@ -7,17 +7,17 @@ dotenv.config({ path: path.join(__dirname, '../../../.env') });
 
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseUrl = process.env.SUPABASE_URL || 'https://dummy.supabase.co';
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy_key';
 
-if (!supabaseUrl || !supabaseServiceRoleKey) {
+if (supabaseUrl === 'https://dummy.supabase.co') {
   console.warn('⚠ Supabase credentials missing. Supabase SDK features will be limited.');
 }
 
 // Service Role client for server-side operations (bypasses RLS)
 export const supabase = createClient(
-  supabaseUrl || '',
-  supabaseServiceRoleKey || '',
+  supabaseUrl,
+  supabaseServiceRoleKey,
   {
     auth: {
       autoRefreshToken: false,
