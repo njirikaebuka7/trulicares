@@ -309,6 +309,43 @@ export default function CaregiverProfile() {
               <p className="text-gray-600 leading-relaxed">{caregiver.bio}</p>
             </div>
 
+            {/* Certifications & Qualifications */}
+            {caregiver.certifications && caregiver.certifications.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <Award className="w-5 h-5 text-brand-600" /> Certifications & Qualifications
+                </h2>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {caregiver.certifications.map((cert: any) => (
+                    <div key={cert.id} className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex gap-3.5 items-start">
+                      <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center shrink-0 border border-brand-100 text-brand-700">
+                        <Award className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-gray-900 text-sm leading-snug">{cert.name}</h4>
+                        <p className="text-xs text-gray-500 font-semibold mt-0.5">{cert.authority}</p>
+                        {cert.expiryDate && cert.expiryDate !== 'N/A' && (
+                          <span className="inline-block text-3xs text-gray-400 font-bold bg-white border border-gray-150 rounded-md px-1.5 py-0.5 mt-2">
+                            Expires: {cert.expiryDate}
+                          </span>
+                        )}
+                        {cert.fileUrl && cert.fileUrl !== '#' && (
+                          <a
+                            href={cert.fileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-3xs text-brand-600 hover:text-brand-700 hover:underline font-extrabold block mt-2.5"
+                          >
+                            View Verified Document Scan
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Reviews */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
               <div className="flex items-center justify-between mb-4">

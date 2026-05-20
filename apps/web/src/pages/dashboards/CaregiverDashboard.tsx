@@ -4,7 +4,7 @@ import {
   Bell, MessageCircle, User, Settings, LogOut, MapPin, DollarSign,
   Star, Shield, Check, ChevronRight, Calendar, Clock, TrendingUp,
   Briefcase, X, CheckCircle, XCircle, Edit3, LayoutDashboard,
-  ChevronLeft, ChevronRight as ChevronRightIcon, Camera, Send, MoreHorizontal, Loader2, Plus, AlertCircle, Phone, Trash2, Upload, Zap, CreditCard, Flag, AlertTriangle, Ban
+  ChevronLeft, ChevronRight as ChevronRightIcon, Camera, Send, MoreHorizontal, Loader2, Plus, AlertCircle, Phone, Trash2, Upload, Zap, CreditCard, Flag, AlertTriangle, Ban, Award
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import ReportModal from '@/components/ReportModal';
@@ -96,6 +96,32 @@ export default function CaregiverDashboard() {
   const [bgCheckModalOpen, setBgCheckModalOpen] = useState(false);
   const [dashboardLoading, setDashboardLoading] = useState(true);
 
+  // Rebuilt Profile Builder States
+  const [profileSubTab, setProfileSubTab] = useState<'bio' | 'id_verification' | 'background_check' | 'services' | 'resumes' | 'certifications' | 'security' | 'notifications'>('bio');
+  const [idCardNumber, setIdCardNumber] = useState('');
+  const [idCardFront, setIdCardFront] = useState('');
+  const [idCardBack, setIdCardBack] = useState('');
+  const [idSelfie, setIdSelfie] = useState('');
+  const [idVerificationStatus, setIdVerificationStatus] = useState('none');
+  const [resumes, setResumes] = useState<any[]>([]);
+  const [certifications, setCertifications] = useState<any[]>([]);
+
+  // ID Verification Submission steps (1: Number, 2: ID Upload, 3: Selfie)
+  const [idSubmitStep, setIdSubmitStep] = useState(1);
+  const [idVerifying, setIdVerifying] = useState(false);
+
+  // Background Check Details Submission
+  const [bgConsent, setBgConsent] = useState(false);
+  const [bgLegalName, setBgLegalName] = useState('');
+  const [bgDob, setBgDob] = useState('');
+  const [bgCurrentAddress, setBgCurrentAddress] = useState('');
+  const [bgPreviousAddress, setBgPreviousAddress] = useState('');
+  const [bgSsn, setBgSsn] = useState('');
+  const [bgOffersTransport, setBgOffersTransport] = useState(false);
+  const [bgDriversLicense, setBgDriversLicense] = useState('');
+  const [bgSubmitLoading, setBgSubmitLoading] = useState(false);
+  const [bgApplyStep, setBgApplyStep] = useState(0); // 0: Prompt/Start, 1: Consent, 2: Details Form
+
   const [showReportModal, setShowReportModal] = useState<null | { reportedUserId: string; reportedUserName: string; requestId?: string; refId?: string }>(null);
 
   const getDisplayName = (familyName: string, unlocked: boolean) => {
@@ -176,6 +202,15 @@ export default function CaregiverDashboard() {
           setPhotoUrl(cg.photoUrl || null);
           setBgCheckStatus((cg.backgroundCheckStatus || 'none') as any);
           setCgAvailType(cg.availability || 'Flexible');
+
+          // Populating built-profile fields
+          setIdCardNumber(cg.idCardNumber || '');
+          setIdCardFront(cg.idCardFront || '');
+          setIdCardBack(cg.idCardBack || '');
+          setIdSelfie(cg.idSelfie || '');
+          setIdVerificationStatus(cg.idVerificationStatus || 'none');
+          setResumes(cg.resumes || []);
+          setCertifications(cg.certifications || []);
         }
       }).catch(() => {}),
     ]).catch(console.error)
@@ -1222,224 +1257,1358 @@ export default function CaregiverDashboard() {
 
           {/* ── PROFILE ── */}
           {activeTab === 'Profile' && (
-            <div className="space-y-5 max-w-2xl">
-              <h2 className="text-xl font-bold text-gray-900">Profile & Settings</h2>
+            <div className="space-y-6">
+              {/* Main Profile Builder Layout */}
+              <div className="flex flex-col lg:flex-row gap-6 items-stretch">
+                
+                {/* Left Sidebar / Checklist Panel */}
+                <div className="w-full lg:w-80 shrink-0 flex flex-col gap-5">
+                  
+                  {/* Profile Header & Stats */}
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-center text-center">
+                    <div className="relative shrink-0 mb-3">
+                      {photoUrl ? (
+                        <div className="relative w-24 h-24 rounded-2xl overflow-hidden shadow-md">
+                          <img src={photoUrl} alt="Profile" className="w-full h-full object-cover" />
+                          {photoUploading && (
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white">
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="w-24 h-24 rounded-2xl bg-emerald-600 flex items-center justify-center text-white text-3xl font-bold relative shadow-md">
+                          {initials}
+                          {photoUploading && (
+                            <div className="absolute inset-0 bg-black/40 rounded-2xl flex items-center justify-center text-white">
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <button
+                        onClick={() => photoInputRef.current?.click()}
+                        disabled={photoUploading}
+                        className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white shadow-md hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                        title="Upload profile image"
+                      >
+                        <Camera className="w-4 h-4" />
+                      </button>
+                      <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+                    </div>
+                    
+                    <h3 className="font-bold text-gray-900 text-lg">{user?.name || 'Caregiver'}</h3>
+                    <p className="text-gray-500 text-xs mb-3">{user?.email}</p>
+                    
+                    {/* Status Badges */}
+                    <div className="flex flex-col gap-1.5 w-full">
+                      <div className="flex items-center justify-center gap-1.5 py-1 px-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-100 text-xs font-bold">
+                        <Check className="w-3.5 h-3.5" /> Caregiver Account
+                      </div>
+                      
+                      {idVerificationStatus === 'approved' ? (
+                        <div className="flex items-center justify-center gap-1.5 py-1 px-3 rounded-xl bg-blue-50 text-blue-800 border border-blue-100 text-xs font-bold">
+                          <Shield className="w-3.5 h-3.5" /> ID Verified
+                        </div>
+                      ) : idVerificationStatus === 'pending' ? (
+                        <div className="flex items-center justify-center gap-1.5 py-1 px-3 rounded-xl bg-amber-50 text-amber-800 border border-amber-100 text-xs font-bold">
+                          <Clock className="w-3.5 h-3.5 animate-pulse" /> ID Verification Pending
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center gap-1.5 py-1 px-3 rounded-xl bg-gray-50 text-gray-500 border border-gray-100 text-xs font-bold">
+                          <Shield className="w-3.5 h-3.5 text-gray-400" /> ID Unverified
+                        </div>
+                      )}
 
-              {/* Profile header card */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                <div className="flex items-center gap-5">
-                  <div className="relative shrink-0">
-                    {photoUrl ? (
-                      <div className="relative w-20 h-20 rounded-2xl overflow-hidden">
-                        <img src={photoUrl} alt="Profile" className="w-full h-full object-cover" />
-                        {photoUploading && (
-                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white">
-                            <Loader2 className="w-5 h-5 animate-spin" />
+                      {bgCheckStatus === 'approved' ? (
+                        <div className="flex items-center justify-center gap-1.5 py-1 px-3 rounded-xl bg-green-50 text-green-800 border border-green-100 text-xs font-bold">
+                          <CheckCircle className="w-3.5 h-3.5" /> Background Checked
+                        </div>
+                      ) : bgCheckStatus === 'pending' ? (
+                        <div className="flex items-center justify-center gap-1.5 py-1 px-3 rounded-xl bg-amber-50 text-amber-800 border border-amber-100 text-xs font-bold">
+                          <Clock className="w-3.5 h-3.5 animate-pulse" /> Pending Background-Check
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center gap-1.5 py-1 px-3 rounded-xl bg-gray-50 text-gray-500 border border-gray-100 text-xs font-bold">
+                          <CheckCircle className="w-3.5 h-3.5 text-gray-400" /> No Background Check
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Profile Sub-navigation (LinkedIn style Sidebar) */}
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hidden lg:block">
+                    <div className="p-4 border-b border-gray-50">
+                      <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Profile Sections</span>
+                    </div>
+                    <nav className="divide-y divide-gray-50">
+                      {[
+                        { id: 'bio', label: 'Bio & Specialties', icon: <User className="w-4 h-4" /> },
+                        { id: 'id_verification', label: 'Government ID', icon: <Shield className="w-4 h-4" />, status: idVerificationStatus },
+                        { id: 'background_check', label: 'Background Check', icon: <CheckCircle className="w-4 h-4" />, status: bgCheckStatus },
+                        { id: 'services', label: 'Rates & Areas', icon: <MapPin className="w-4 h-4" /> },
+                        { id: 'resumes', label: 'Resumes', icon: <Briefcase className="w-4 h-4" />, count: resumes.length },
+                        { id: 'certifications', label: 'Certifications', icon: <Award className="w-4 h-4" />, count: certifications.length },
+                        { id: 'security', label: 'Account Security', icon: <Settings className="w-4 h-4" /> },
+                        { id: 'notifications', label: 'Notifications', icon: <Bell className="w-4 h-4" /> }
+                      ].map(sub => (
+                        <button
+                          key={sub.id}
+                          onClick={() => setProfileSubTab(sub.id as any)}
+                          className={cn(
+                            "w-full text-left px-4 py-3.5 text-sm font-semibold flex items-center justify-between transition-colors",
+                            profileSubTab === sub.id
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "text-gray-600 hover:bg-gray-50"
+                          )}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className={profileSubTab === sub.id ? "text-emerald-600" : "text-gray-400"}>
+                              {sub.icon}
+                            </span>
+                            <span>{sub.label}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {sub.count !== undefined && sub.count > 0 && (
+                              <span className="bg-gray-100 text-gray-600 text-2xs px-2 py-0.5 rounded-full font-bold">
+                                {sub.count}
+                              </span>
+                            )}
+                            {sub.status === 'approved' && (
+                              <span className="w-2 h-2 rounded-full bg-green-500" />
+                            )}
+                            {sub.status === 'pending' && (
+                              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                            )}
+                            <ChevronRight className={cn("w-4 h-4 opacity-50", profileSubTab === sub.id ? "text-emerald-500" : "text-gray-300")} />
+                          </div>
+                        </button>
+                      ))}
+                    </nav>
+                  </div>
+                  
+                  {/* Quick Profile Builder Checklist */}
+                  <div className="bg-gradient-to-br from-slate-900 to-emerald-950 rounded-2xl p-5 text-white shadow-md relative overflow-hidden hidden lg:block">
+                    <div className="absolute -top-10 -right-10 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl" />
+                    <h4 className="font-bold text-sm mb-1.5 flex items-center gap-1.5">
+                      <Zap className="w-4 h-4 text-emerald-400" /> Checklist Status
+                    </h4>
+                    <div className="space-y-2 mt-3 text-xs text-slate-300">
+                      <div className="flex items-center justify-between">
+                        <span>Profile Photo</span>
+                        <span>{photoUrl ? '✓' : '✖'}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Specialties & Bio</span>
+                        <span>{cgBio ? '✓' : '✖'}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>ID Verification</span>
+                        <span>{idVerificationStatus === 'approved' ? '✓' : idVerificationStatus === 'pending' ? '⏳' : '✖'}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Background Check</span>
+                        <span>{bgCheckStatus === 'approved' ? '✓' : bgCheckStatus === 'pending' ? '⏳' : '✖'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Mobile Selector / Slider Menu */}
+                <div className="w-full block lg:hidden overflow-x-auto scrollbar-none pb-2">
+                  <div className="flex gap-2">
+                    {[
+                      { id: 'bio', label: 'Bio', icon: <User className="w-4 h-4" /> },
+                      { id: 'id_verification', label: 'ID', icon: <Shield className="w-4 h-4" /> },
+                      { id: 'background_check', label: 'Background', icon: <CheckCircle className="w-4 h-4" /> },
+                      { id: 'services', label: 'Rates & Areas', icon: <MapPin className="w-4 h-4" /> },
+                      { id: 'resumes', label: 'Resumes', icon: <Briefcase className="w-4 h-4" /> },
+                      { id: 'certifications', label: 'Certifications', icon: <Award className="w-4 h-4" /> },
+                      { id: 'security', label: 'Security', icon: <Settings className="w-4 h-4" /> },
+                      { id: 'notifications', label: 'Alerts', icon: <Bell className="w-4 h-4" /> }
+                    ].map(sub => (
+                      <button
+                        key={sub.id}
+                        onClick={() => setProfileSubTab(sub.id as any)}
+                        className={cn(
+                          "px-4 py-2.5 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 transition-colors border",
+                          profileSubTab === sub.id
+                            ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                            : "bg-white text-gray-600 border-gray-100"
+                        )}
+                      >
+                        {sub.icon}
+                        <span>{sub.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right Interactive Active Panel Container */}
+                <div className="flex-1 min-w-0 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                  
+                  {/* Panel 1: BIO & SPECIALTIES */}
+                  {profileSubTab === 'bio' && (
+                    <div className="space-y-5">
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-1">Bio & Specialties</h3>
+                        <p className="text-xs text-gray-500">Provide personal details and specify the types of care services you offer families.</p>
+                      </div>
+
+                      <div className="space-y-4 pt-2">
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-1">Professional Headline / Job Title</label>
+                          <input
+                            type="text"
+                            value={cgJobTitle}
+                            onChange={e => setCgJobTitle(e.target.value)}
+                            placeholder="e.g. Compassionate Child Care Provider & Tutor"
+                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none text-sm transition-all"
+                          />
+                        </div>
+
+                        <div className="grid sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Years of Experience</label>
+                            <input
+                              type="number"
+                              value={cgExperience}
+                              onChange={e => setCgExperience(Number(e.target.value))}
+                              min={0}
+                              max={50}
+                              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none text-sm transition-all"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Languages (Comma separated)</label>
+                            <input
+                              type="text"
+                              value={cgLanguages}
+                              onChange={e => setCgLanguages(e.target.value)}
+                              placeholder="English, Spanish"
+                              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none text-sm transition-all"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label className="block text-sm font-semibold text-gray-700">Detailed Bio</label>
+                            <span className="text-2xs text-gray-400">{cgBio.length}/600 characters</span>
+                          </div>
+                          <textarea
+                            value={cgBio}
+                            onChange={e => setCgBio(e.target.value.slice(0, 600))}
+                            rows={5}
+                            placeholder="Introduce yourself to prospective families! Detail your care philosophy, personality traits, and what makes you a trusted caregiver."
+                            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none transition-all leading-relaxed"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">My Care Specialties</label>
+                          <div className="flex flex-wrap gap-2">
+                            {['Child Care', 'Senior Care', 'Adult Care', 'Cleaning', 'Tutoring', 'Pet Care'].map(s => {
+                              const isSelected = cgSpecialties.includes(s);
+                              return (
+                                <button
+                                  key={s}
+                                  type="button"
+                                  onClick={() => {
+                                    if (isSelected) {
+                                      setCgSpecialties(prev => prev.filter(x => x !== s));
+                                    } else {
+                                      setCgSpecialties(prev => [...prev, s]);
+                                    }
+                                  }}
+                                  className={cn(
+                                    "px-3.5 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5",
+                                    isSelected
+                                      ? "border-emerald-500 bg-emerald-50 text-emerald-800 shadow-2xs font-black"
+                                      : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                                  )}
+                                >
+                                  {isSelected ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Plus className="w-3.5 h-3.5 text-gray-400" />}
+                                  {s}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-gray-50 flex justify-end">
+                          <Button
+                            variant="primary"
+                            disabled={cgSaving}
+                            onClick={async () => {
+                              setCgSaving(true);
+                              try {
+                                const dbSpecialties = cgSpecialties.map(s => DB_SPECIALTY_MAP[s] || s.toLowerCase().replace(' ', '-'));
+                                await put('/caregivers/profile', {
+                                  bio: cgBio,
+                                  specialties: dbSpecialties,
+                                  yearsExperience: cgExperience,
+                                  jobTitle: cgJobTitle,
+                                  languages: cgLanguages.split(',').map(x => x.trim()).filter(Boolean)
+                                });
+                                showToast('Profile details updated successfully!');
+                                fetchData();
+                              } catch {
+                                showToast('Failed to save profile details.');
+                              } finally {
+                                setCgSaving(false);
+                              }
+                            }}
+                            className="bg-emerald-600 hover:bg-emerald-700 font-bold px-6 shadow-sm rounded-full text-xs"
+                          >
+                            {cgSaving ? 'Saving…' : 'Save Profile Changes'}
+                          </Button>
+                        </div>
+
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Panel 2: GOVERNMENT ID VERIFICATION */}
+                  {profileSubTab === 'id_verification' && (
+                    <div className="space-y-5">
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-1">Government ID Verification</h3>
+                        <p className="text-xs text-gray-500">Provide an identification document to build premium trust badges and unlock client bookings.</p>
+                      </div>
+
+                      {/* Display Status Banner */}
+                      {idVerificationStatus === 'approved' ? (
+                        <div className="p-5 rounded-2xl bg-blue-50 border border-blue-100 flex items-start gap-3">
+                          <Shield className="w-6 h-6 text-blue-600 shrink-0" />
+                          <div>
+                            <h4 className="font-bold text-blue-900 text-sm">ID Card Verified</h4>
+                            <p className="text-xs text-blue-700 leading-relaxed mt-0.5">Your official government identification has been successfully verified by our administrative team. Your "ID Verified" safety badge is active on your public profile!</p>
+                          </div>
+                        </div>
+                      ) : idVerificationStatus === 'pending' ? (
+                        <div className="p-5 rounded-2xl bg-amber-50 border border-amber-100 flex items-start gap-3">
+                          <Clock className="w-6 h-6 text-amber-600 shrink-0 animate-pulse" />
+                          <div>
+                            <h4 className="font-bold text-amber-900 text-sm">Verification Under Review</h4>
+                            <p className="text-xs text-amber-700 leading-relaxed mt-0.5">Your ID documents have been uploaded and are queued for verification. The approval process usually takes 24–48 hours. We will email you once complete.</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-5 pt-2">
+                          
+                          {/* Multi-step ID verification wizard */}
+                          <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                            <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Step {idSubmitStep} of 3</span>
+                            <div className="flex gap-1">
+                              {[1, 2, 3].map(st => (
+                                <div key={st} className={cn("w-6 h-1 rounded-full", st <= idSubmitStep ? "bg-emerald-600" : "bg-gray-150")} />
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* ID STEP 1: ID Number Input */}
+                          {idSubmitStep === 1 && (
+                            <div className="space-y-4">
+                              <div>
+                                <h4 className="font-bold text-sm text-gray-900">Enter Identification Document Number</h4>
+                                <p className="text-2xs text-gray-400 mt-0.5">We support Driver's Licenses, Passports, National Identity Cards, or State IDs.</p>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-700 mb-1">ID Number</label>
+                                <input
+                                  type="text"
+                                  value={idCardNumber}
+                                  onChange={e => setIdCardNumber(e.target.value)}
+                                  placeholder="e.g. DL-48593859"
+                                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none text-sm transition-all"
+                                />
+                              </div>
+                              <div className="flex justify-end pt-2">
+                                <Button
+                                  variant="primary"
+                                  disabled={!idCardNumber.trim()}
+                                  onClick={() => setIdSubmitStep(2)}
+                                  className="bg-emerald-600 hover:bg-emerald-700 font-bold text-xs rounded-full px-6"
+                                >
+                                  Continue
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* ID STEP 2: Front and Back Uploads */}
+                          {idSubmitStep === 2 && (
+                            <div className="space-y-4">
+                              <div>
+                                <h4 className="font-bold text-sm text-gray-900">Upload Front & Back of Document</h4>
+                                <p className="text-2xs text-gray-400 mt-0.5">Scans should be readable, well-lit, and in JPG/PNG format under 4MB.</p>
+                              </div>
+                              
+                              <div className="grid sm:grid-cols-2 gap-4">
+                                {/* FRONT */}
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Front Scan</label>
+                                  {idCardFront ? (
+                                    <div className="relative border-2 border-dashed border-emerald-300 rounded-2xl overflow-hidden aspect-video bg-emerald-50 flex items-center justify-center">
+                                      <img src={idCardFront} alt="ID Front" className="w-full h-full object-contain" />
+                                      <button
+                                        type="button"
+                                        onClick={() => setIdCardFront('')}
+                                        className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white rounded-full p-1.5 shadow-md"
+                                      >
+                                        <X className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <label className="border-2 border-dashed border-gray-200 rounded-2xl aspect-video bg-gray-50 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-colors p-4 text-center">
+                                      <Upload className="w-5 h-5 text-gray-400 mb-1" />
+                                      <span className="text-xs font-bold text-emerald-700">Upload Front Side</span>
+                                      <span className="text-2xs text-gray-400 mt-0.5">JPG, PNG up to 4MB</span>
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={e => {
+                                          const file = e.target.files?.[0];
+                                          if (!file) return;
+                                          const reader = new FileReader();
+                                          reader.onload = () => setIdCardFront(reader.result as string);
+                                          reader.readAsDataURL(file);
+                                        }}
+                                      />
+                                    </label>
+                                  )}
+                                </div>
+
+                                {/* BACK */}
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Back Scan</label>
+                                  {idCardBack ? (
+                                    <div className="relative border-2 border-dashed border-emerald-300 rounded-2xl overflow-hidden aspect-video bg-emerald-50 flex items-center justify-center">
+                                      <img src={idCardBack} alt="ID Back" className="w-full h-full object-contain" />
+                                      <button
+                                        type="button"
+                                        onClick={() => setIdCardBack('')}
+                                        className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white rounded-full p-1.5 shadow-md"
+                                      >
+                                        <X className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <label className="border-2 border-dashed border-gray-200 rounded-2xl aspect-video bg-gray-50 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-colors p-4 text-center">
+                                      <Upload className="w-5 h-5 text-gray-400 mb-1" />
+                                      <span className="text-xs font-bold text-emerald-700">Upload Back Side</span>
+                                      <span className="text-2xs text-gray-400 mt-0.5">JPG, PNG up to 4MB</span>
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={e => {
+                                          const file = e.target.files?.[0];
+                                          if (!file) return;
+                                          const reader = new FileReader();
+                                          reader.onload = () => setIdCardBack(reader.result as string);
+                                          reader.readAsDataURL(file);
+                                        }}
+                                      />
+                                    </label>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex justify-between pt-2">
+                                <Button
+                                  variant="secondary"
+                                  onClick={() => setIdSubmitStep(1)}
+                                  className="text-xs font-bold rounded-full px-5"
+                                >
+                                  Back
+                                </Button>
+                                <Button
+                                  variant="primary"
+                                  disabled={!idCardFront || !idCardBack}
+                                  onClick={() => setIdSubmitStep(3)}
+                                  className="bg-emerald-600 hover:bg-emerald-700 font-bold text-xs rounded-full px-6"
+                                >
+                                  Continue
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* ID STEP 3: Selfie Verification */}
+                          {idSubmitStep === 3 && (
+                            <div className="space-y-4">
+                              <div>
+                                <h4 className="font-bold text-sm text-gray-900">Upload a Selfie Verification</h4>
+                                <p className="text-2xs text-gray-400 mt-0.5">Hold document or position your face clearly. This matches your portrait with your identification card.</p>
+                              </div>
+
+                              <div className="flex justify-center">
+                                {idSelfie ? (
+                                  <div className="relative border-2 border-dashed border-emerald-300 rounded-2xl overflow-hidden w-48 h-48 bg-emerald-50 flex items-center justify-center">
+                                    <img src={idSelfie} alt="Selfie" className="w-full h-full object-cover" />
+                                    <button
+                                      type="button"
+                                      onClick={() => setIdSelfie('')}
+                                      className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white rounded-full p-1.5 shadow-md"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <label className="border-2 border-dashed border-gray-200 rounded-2xl w-48 h-48 bg-gray-50 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-colors p-4 text-center">
+                                    <Camera className="w-6 h-6 text-gray-400 mb-1" />
+                                    <span className="text-xs font-bold text-emerald-700">Take/Upload Selfie</span>
+                                    <span className="text-2xs text-gray-400 mt-1">Portrait selfie showing your face clearly</span>
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      className="hidden"
+                                      onChange={e => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+                                        const reader = new FileReader();
+                                        reader.onload = () => setIdSelfie(reader.result as string);
+                                        reader.readAsDataURL(file);
+                                      }}
+                                    />
+                                  </label>
+                                )}
+                              </div>
+
+                              <div className="flex justify-between pt-2">
+                                <Button
+                                  variant="secondary"
+                                  onClick={() => setIdSubmitStep(2)}
+                                  className="text-xs font-bold rounded-full px-5"
+                                >
+                                  Back
+                                </Button>
+                                <Button
+                                  variant="primary"
+                                  disabled={!idSelfie || idVerifying}
+                                  onClick={async () => {
+                                    setIdVerifying(true);
+                                    try {
+                                      await post('/caregivers/verify-id', {
+                                        idCardNumber,
+                                        idCardFront,
+                                        idCardBack,
+                                        idSelfie
+                                      });
+                                      showToast('ID Verification request submitted to Admin!');
+                                      fetchData();
+                                    } catch {
+                                      showToast('Failed to submit ID details.');
+                                    } finally {
+                                      setIdVerifying(false);
+                                    }
+                                  }}
+                                  className="bg-emerald-600 hover:bg-emerald-700 font-bold text-xs rounded-full px-6 shadow-sm"
+                                >
+                                  {idVerifying ? 'Submitting…' : 'Submit for Verification'}
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Panel 3: BACKGROUND CHECK */}
+                  {profileSubTab === 'background_check' && (
+                    <div className="space-y-5">
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-1">Background Check Application</h3>
+                        <p className="text-xs text-gray-500">Increase premium booking opportunities by authenticating your criminal history background verification.</p>
+                      </div>
+
+                      {/* Display Status Banner */}
+                      {bgCheckStatus === 'approved' ? (
+                        <div className="p-5 rounded-2xl bg-green-50 border border-green-100 flex items-start gap-3">
+                          <CheckCircle className="w-6 h-6 text-green-600 shrink-0" />
+                          <div>
+                            <h4 className="font-bold text-green-900 text-sm">Background Check Approved</h4>
+                            <p className="text-xs text-green-700 leading-relaxed mt-0.5">✓ Congratulations! Your background screening is approved. The protective verification badge is fully integrated into your caregiver card details.</p>
+                          </div>
+                        </div>
+                      ) : bgCheckStatus === 'pending' ? (
+                        <div className="p-5 rounded-2xl bg-amber-50 border border-amber-100 flex items-start gap-3">
+                          <Clock className="w-6 h-6 text-amber-600 shrink-0 animate-pulse" />
+                          <div>
+                            <h4 className="font-bold text-amber-900 text-sm">Screening In Progress</h4>
+                            <p className="text-xs text-amber-700 leading-relaxed mt-0.5">Your consent form and information details have been dispatched to our screening partners. The processing period takes 2–4 business days. We will alert you immediately when complete.</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-5 pt-2">
+                          
+                          {/* BG STEP 0: Promotional Banner / Intro */}
+                          {bgApplyStep === 0 && (
+                            <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-50 to-emerald-50 border border-emerald-100 text-center space-y-4">
+                              <Shield className="w-12 h-12 text-emerald-600 mx-auto" />
+                              <div className="space-y-1">
+                                <h4 className="font-bold text-gray-900 text-base">Complete background check to increase trust and receive more bookings.</h4>
+                                <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed">Verified caregivers receive a shiny safety badge on their profiles and get up to 3x more matching requests from premium clients.</p>
+                              </div>
+                              <Button
+                                variant="primary"
+                                onClick={() => setBgApplyStep(1)}
+                                className="bg-emerald-600 hover:bg-emerald-700 font-bold rounded-full px-6 text-xs shadow-sm"
+                              >
+                                Start Background Check
+                              </Button>
+                            </div>
+                          )}
+
+                          {/* BG STEP 1: Consent Screen */}
+                          {bgApplyStep === 1 && (
+                            <div className="space-y-4 text-sm text-gray-600 leading-relaxed bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                              <h4 className="font-black text-gray-900 text-base mb-2">Consent & Disclosure Notice</h4>
+                              
+                              <div className="space-y-3 text-xs leading-relaxed">
+                                <p>1. **Permission to run background check**: I hereby authorize Trulicares and its third-party background screening agencies to conduct a check covering identity validation, criminal records, sex offender registry, and motor vehicle records (if driving care is offered).</p>
+                                <p>2. **Privacy Notice**: Your personal identifiers, including SSN and date of birth, will be encrypted and transmitted securely. They are stored strictly for reporting purposes and never shared with other caregivers or families.</p>
+                                <p>3. **What is checked**: We cross-reference municipal court registers, county records, federal crimes repositories, and state databases to confirm a clean and safe background history.</p>
+                              </div>
+
+                              <div className="flex items-start gap-2.5 pt-3 border-t border-slate-200">
+                                <input
+                                  type="checkbox"
+                                  id="bgConsentCheck"
+                                  checked={bgConsent}
+                                  onChange={e => setBgConsent(e.target.checked)}
+                                  className="w-4 h-4 rounded text-emerald-600 border-gray-300 focus:ring-emerald-500 mt-0.5"
+                                />
+                                <label htmlFor="bgConsentCheck" className="text-xs text-gray-800 font-bold select-none cursor-pointer">
+                                  I explicitly provide consent to Trulicares to initiate my background check process and agree to the privacy statement.
+                                </label>
+                              </div>
+
+                              <div className="flex justify-between pt-2">
+                                <Button
+                                  variant="secondary"
+                                  onClick={() => setBgApplyStep(0)}
+                                  className="text-xs font-bold rounded-full px-5"
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  variant="primary"
+                                  disabled={!bgConsent}
+                                  onClick={() => setBgApplyStep(2)}
+                                  className="bg-emerald-600 hover:bg-emerald-700 font-bold text-xs rounded-full px-6"
+                                >
+                                  Accept & Continue
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* BG STEP 2: Collect Details Form */}
+                          {bgApplyStep === 2 && (
+                            <div className="space-y-4">
+                              <h4 className="font-bold text-sm text-gray-900">Enter Your Personal Details</h4>
+                              
+                              <div className="grid sm:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-700 mb-1">Full Legal Name</label>
+                                  <input
+                                    type="text"
+                                    value={bgLegalName}
+                                    onChange={e => setBgLegalName(e.target.value)}
+                                    placeholder="Jane Doe"
+                                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none text-xs transition-all"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-700 mb-1">Date of Birth</label>
+                                  <input
+                                    type="date"
+                                    value={bgDob}
+                                    onChange={e => setBgDob(e.target.value)}
+                                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none text-xs transition-all"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="grid sm:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-700 mb-1">Social Security Number (SSN)</label>
+                                  <input
+                                    type="password"
+                                    value={bgSsn}
+                                    onChange={e => setBgSsn(e.target.value)}
+                                    placeholder="XXX-XX-XXXX"
+                                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none text-xs transition-all"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-700 mb-1">Current Address</label>
+                                  <input
+                                    type="text"
+                                    value={bgCurrentAddress}
+                                    onChange={e => setBgCurrentAddress(e.target.value)}
+                                    placeholder="123 Emerald Ave, Suite 10"
+                                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none text-xs transition-all"
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-700 mb-1">Previous Address (If lived at current for under 2 years)</label>
+                                <input
+                                  type="text"
+                                  value={bgPreviousAddress}
+                                  onChange={e => setBgPreviousAddress(e.target.value)}
+                                  placeholder="456 Ruby Street, Apt 3B"
+                                  className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none text-xs transition-all"
+                                />
+                              </div>
+
+                              {/* Offers driving care check */}
+                              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <h5 className="font-bold text-xs text-gray-900">Are you offering driving or transport care?</h5>
+                                    <p className="text-2xs text-gray-400">Enabling this requires a Driver's License verification check.</p>
+                                  </div>
+                                  <input
+                                    type="checkbox"
+                                    checked={bgOffersTransport}
+                                    onChange={e => setBgOffersTransport(e.target.checked)}
+                                    className="w-4 h-4 rounded text-emerald-600 border-gray-300 focus:ring-emerald-500"
+                                  />
+                                </div>
+
+                                {bgOffersTransport && (
+                                  <div>
+                                    <label className="block text-2xs font-bold text-gray-700 mb-1">Driver's License Number</label>
+                                    <input
+                                      type="text"
+                                      value={bgDriversLicense}
+                                      onChange={e => setBgDriversLicense(e.target.value)}
+                                      placeholder="e.g. DL-1234567"
+                                      className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none text-xs transition-all"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex justify-between pt-2">
+                                <Button
+                                  variant="secondary"
+                                  onClick={() => setBgApplyStep(1)}
+                                  className="text-xs font-bold rounded-full px-5"
+                                >
+                                  Back
+                                </Button>
+                                <Button
+                                  variant="primary"
+                                  disabled={bgSubmitLoading || !bgLegalName || !bgDob || !bgSsn || !bgCurrentAddress || (bgOffersTransport && !bgDriversLicense)}
+                                  onClick={async () => {
+                                    setBgSubmitLoading(true);
+                                    try {
+                                      await post('/caregivers/apply-background-check', {
+                                        details: {
+                                          legalName: bgLegalName,
+                                          dob: bgDob,
+                                          currentAddress: bgCurrentAddress,
+                                          previousAddress: bgPreviousAddress,
+                                          ssn: bgSsn,
+                                          offersTransport: bgOffersTransport,
+                                          driversLicense: bgOffersTransport ? bgDriversLicense : null
+                                        }
+                                      });
+                                      showToast('Background Check request submitted successfully!');
+                                      fetchData();
+                                    } catch {
+                                      showToast('Failed to submit background check details.');
+                                    } finally {
+                                      setBgSubmitLoading(false);
+                                    }
+                                  }}
+                                  className="bg-emerald-600 hover:bg-emerald-700 font-bold text-xs rounded-full px-6 shadow-sm"
+                                >
+                                  {bgSubmitLoading ? 'Submitting…' : 'Submit Background Check'}
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Panel 4: RATES & AREAS */}
+                  {profileSubTab === 'services' && (
+                    <div className="space-y-5">
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-1">Service Areas, Availability, & Hourly Rate</h3>
+                        <p className="text-xs text-gray-500">Configure your target work location zones, active scheduling layout, and pricing structures.</p>
+                      </div>
+
+                      <div className="space-y-4 pt-2">
+                        {/* Hourly Rate Slider / Fields */}
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
+                          <h4 className="font-bold text-xs text-gray-900">Hourly Rate Scale</h4>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-2xs text-gray-500 mb-0.5">Minimum Rate ($/hr)</label>
+                              <input
+                                type="number"
+                                value={cgRate.min}
+                                onChange={e => setCgRate(prev => ({ ...prev, min: Number(e.target.value) }))}
+                                className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 outline-none text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-2xs text-gray-500 mb-0.5">Maximum Rate ($/hr)</label>
+                              <input
+                                type="number"
+                                value={cgRate.max}
+                                onChange={e => setCgRate(prev => ({ ...prev, max: Number(e.target.value) }))}
+                                className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 outline-none text-xs"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Location Text */}
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 mb-1">Base Location / Neighborhood</label>
+                          <input
+                            type="text"
+                            value={cgLocation}
+                            onChange={e => setCgLocation(e.target.value)}
+                            placeholder="e.g. Brooklyn, NY"
+                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-emerald-500 outline-none text-sm"
+                          />
+                        </div>
+
+                        {/* Service Areas (Zip Codes) */}
+                        <div className="space-y-2">
+                          <label className="block text-xs font-semibold text-gray-700">Covered ZIP Codes ({cgServiceZips.length})</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={cgZipInput}
+                              onChange={e => setCgZipInput(e.target.value)}
+                              placeholder="e.g. 11201"
+                              className="px-4 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 outline-none text-xs flex-1"
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const val = cgZipInput.trim();
+                                  if (val && !cgServiceZips.includes(val)) {
+                                    setCgServiceZips(prev => [...prev, val]);
+                                    setCgZipInput('');
+                                  }
+                                }
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const val = cgZipInput.trim();
+                                if (val && !cgServiceZips.includes(val)) {
+                                  setCgServiceZips(prev => [...prev, val]);
+                                  setCgZipInput('');
+                                }
+                              }}
+                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold"
+                            >
+                              Add
+                            </button>
+                          </div>
+
+                          <div className="flex flex-wrap gap-1.5 pt-1.5">
+                            {cgServiceZips.length === 0 ? (
+                              <p className="text-2xs text-gray-400 italic">No zip codes added yet. Enter a zip code above and click Add.</p>
+                            ) : (
+                              cgServiceZips.map(zip => (
+                                <span key={zip} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-150 text-emerald-800 text-xs font-semibold">
+                                  <MapPin className="w-3.5 h-3.5 text-emerald-500" /> {zip}
+                                  <button
+                                    type="button"
+                                    onClick={() => setCgServiceZips(prev => prev.filter(z => z !== zip))}
+                                    className="hover:text-red-500 ml-0.5"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </span>
+                              ))
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Availability Type */}
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 mb-2">Availability Layout</label>
+                          <div className="grid grid-cols-3 gap-2">
+                            {['Full-time', 'Part-time', 'Flexible'].map(opt => (
+                              <button
+                                key={opt}
+                                type="button"
+                                onClick={() => setCgAvailType(opt)}
+                                className={cn(
+                                  "py-2.5 px-4 rounded-xl border text-xs font-bold transition-all",
+                                  cgAvailType === opt
+                                    ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
+                                    : "bg-white text-gray-600 border-gray-250 hover:border-gray-300"
+                                )}
+                              >
+                                {opt}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-gray-50 flex justify-end">
+                          <Button
+                            variant="primary"
+                            onClick={async () => {
+                              try {
+                                await put('/caregivers/profile', {
+                                  hourlyRateMin: cgRate.min,
+                                  hourlyRateMax: cgRate.max,
+                                  location: cgLocation,
+                                  serviceZips: cgServiceZips,
+                                  availability: cgAvailType
+                                });
+                                showToast('Rates, Areas, & Availability saved!');
+                                fetchData();
+                              } catch {
+                                showToast('Failed to save settings.');
+                              }
+                            }}
+                            className="bg-emerald-600 hover:bg-emerald-700 font-bold px-6 shadow-sm rounded-full text-xs"
+                          >
+                            Save Settings
+                          </Button>
+                        </div>
+
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Panel 5: RESUMES */}
+                  {profileSubTab === 'resumes' && (
+                    <div className="space-y-5">
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-1">Resumes</h3>
+                        <p className="text-xs text-gray-500">Upload your CV/resume PDF or photo files. Active resumes help families verify your professional history.</p>
+                      </div>
+
+                      <div className="space-y-4 pt-2">
+                        {/* Drag and drop / upload box */}
+                        <div className="border-2 border-dashed border-gray-200 rounded-2xl p-6 bg-gray-50 text-center hover:bg-gray-100 transition-colors relative cursor-pointer">
+                          <input
+                            type="file"
+                            accept=".pdf,image/*"
+                            className="absolute inset-0 opacity-0 cursor-pointer"
+                            onChange={e => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              if (file.size > 4_000_000) { showToast('File must be under 4MB'); return; }
+                              const reader = new FileReader();
+                              reader.onload = async () => {
+                                const base64 = reader.result as string;
+                                const newResumes = [...resumes, {
+                                  id: Math.random().toString(36).substr(2, 9),
+                                  name: file.name,
+                                  url: base64,
+                                  uploadedAt: new Date().toLocaleDateString()
+                                }];
+                                try {
+                                  await put('/caregivers/profile', { resumes: newResumes });
+                                  setResumes(newResumes);
+                                  showToast('Resume uploaded successfully!');
+                                } catch {
+                                  showToast('Failed to save resume.');
+                                }
+                              };
+                              reader.readAsDataURL(file);
+                            }}
+                          />
+                          <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                          <h4 className="font-bold text-xs text-emerald-800">Click or Drag to Upload CV / Resume</h4>
+                          <p className="text-3xs text-gray-400 mt-1">Supports PDF, PNG, JPG up to 4MB</p>
+                        </div>
+
+                        {/* Resume List */}
+                        <div className="space-y-2">
+                          <h4 className="font-bold text-xs text-gray-900">Uploaded Resumes ({resumes.length})</h4>
+                          {resumes.length === 0 ? (
+                            <div className="p-8 text-center bg-gray-25 rounded-xl border border-gray-100 text-xs text-gray-400 italic">
+                              No resumes uploaded yet. Upload one above!
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {resumes.map(res => (
+                                <div key={res.id} className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between gap-3 text-xs font-semibold">
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <Briefcase className="w-5 h-5 text-gray-400 shrink-0" />
+                                    <div className="min-w-0">
+                                      <p className="font-bold text-gray-800 truncate">{res.name}</p>
+                                      <p className="text-3xs text-gray-400 font-normal">Uploaded on {res.uploadedAt}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <a
+                                      href={res.url}
+                                      download={res.name}
+                                      className="p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg transition-colors"
+                                      title="Download resume file"
+                                    >
+                                      <CheckCircle className="w-4 h-4" />
+                                    </a>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        const newResumes = resumes.filter(r => r.id !== res.id);
+                                        try {
+                                          await put('/caregivers/profile', { resumes: newResumes });
+                                          setResumes(newResumes);
+                                          showToast('Resume removed successfully!');
+                                        } catch {
+                                          showToast('Failed to delete resume.');
+                                        }
+                                      }}
+                                      className="p-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded-lg transition-colors"
+                                      title="Remove resume"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Panel 6: CERTIFICATIONS & QUALIFICATIONS */}
+                  {profileSubTab === 'certifications' && (
+                    <div className="space-y-5">
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-1">Certifications & Qualifications</h3>
+                        <p className="text-xs text-gray-500">List your professional licenses, CPR certificates, First Aid credentials, or other care qualifiers.</p>
+                      </div>
+
+                      <div className="space-y-4 pt-2">
+                        {/* New Certification Form */}
+                        <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-3">
+                          <h4 className="font-bold text-xs text-emerald-800 flex items-center gap-1.5">
+                            <Plus className="w-4 h-4" /> Add New Qualification / Certificate
+                          </h4>
+                          
+                          <div className="grid sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-2xs text-gray-500 mb-0.5">Certificate / License Name</label>
+                              <input
+                                id="certNameInput"
+                                type="text"
+                                placeholder="e.g. CPR & First Aid"
+                                className="w-full px-3 py-2 border border-gray-200 focus:border-emerald-500 outline-none text-xs rounded-lg"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-2xs text-gray-500 mb-0.5">Issuing Authority</label>
+                              <input
+                                id="certAuthInput"
+                                type="text"
+                                placeholder="e.g. American Red Cross"
+                                className="w-full px-3 py-2 border border-gray-200 focus:border-emerald-500 outline-none text-xs rounded-lg"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-2xs text-gray-500 mb-0.5">Expiry Date</label>
+                              <input
+                                id="certExpiryInput"
+                                type="date"
+                                className="w-full px-3 py-2 border border-gray-200 focus:border-emerald-500 outline-none text-xs rounded-lg"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-2xs text-gray-500 mb-0.5">Upload scan / certificate document</label>
+                              <input
+                                id="certFileInput"
+                                type="file"
+                                accept="image/*,.pdf"
+                                className="w-full text-2xs file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer pt-1"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end pt-1">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const nameEl = document.getElementById('certNameInput') as HTMLInputElement;
+                                const authEl = document.getElementById('certAuthInput') as HTMLInputElement;
+                                const expEl = document.getElementById('certExpiryInput') as HTMLInputElement;
+                                const fileEl = document.getElementById('certFileInput') as HTMLInputElement;
+
+                                const certName = nameEl?.value.trim();
+                                const certAuth = authEl?.value.trim();
+                                const certExpiry = expEl?.value;
+                                const file = fileEl?.files?.[0];
+
+                                if (!certName) { showToast('Please enter certification name.'); return; }
+                                
+                                const saveCert = async (fileBase64?: string) => {
+                                  const newCerts = [...certifications, {
+                                    id: Math.random().toString(36).substr(2, 9),
+                                    name: certName,
+                                    authority: certAuth || 'N/A',
+                                    expiryDate: certExpiry || 'N/A',
+                                    fileUrl: fileBase64 || '#'
+                                  }];
+                                  try {
+                                    await put('/caregivers/profile', { certifications: newCerts });
+                                    setCertifications(newCerts);
+                                    showToast('Certification added successfully!');
+                                    
+                                    // Reset inputs
+                                    if (nameEl) nameEl.value = '';
+                                    if (authEl) authEl.value = '';
+                                    if (expEl) expEl.value = '';
+                                    if (fileEl) fileEl.value = '';
+                                  } catch {
+                                    showToast('Failed to add certification.');
+                                  }
+                                };
+
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onload = () => saveCert(reader.result as string);
+                                  reader.readAsDataURL(file);
+                                } else {
+                                  saveCert();
+                                }
+                              }}
+                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs"
+                            >
+                              Add Certificate
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Qualifications List */}
+                        <div className="space-y-2">
+                          <h4 className="font-bold text-xs text-gray-900">Active Qualifications ({certifications.length})</h4>
+                          
+                          {certifications.length === 0 ? (
+                            <div className="p-8 text-center bg-gray-25 rounded-xl border border-gray-100 text-xs text-gray-400 italic">
+                              No certifications uploaded yet. Use the form above to add certifications.
+                            </div>
+                          ) : (
+                            <div className="grid sm:grid-cols-2 gap-3">
+                              {certifications.map(cert => (
+                                <div key={cert.id} className="p-4 bg-white border border-gray-100 rounded-xl shadow-xs relative flex flex-col justify-between">
+                                  <div className="space-y-1">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <h5 className="font-bold text-xs text-gray-900 leading-snug">{cert.name}</h5>
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          const newCerts = certifications.filter(c => c.id !== cert.id);
+                                          try {
+                                            await put('/caregivers/profile', { certifications: newCerts });
+                                            setCertifications(newCerts);
+                                            showToast('Certification deleted!');
+                                          } catch {
+                                            showToast('Failed to delete certification.');
+                                          }
+                                        }}
+                                        className="text-red-500 hover:text-red-700 shrink-0"
+                                        title="Delete qualification"
+                                      >
+                                        <X className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                    <p className="text-3xs text-gray-400 font-semibold">{cert.authority}</p>
+                                  </div>
+
+                                  <div className="mt-4 pt-3 border-t border-gray-50 flex items-center justify-between text-3xs text-gray-500">
+                                    <span>Expires: {cert.expiryDate}</span>
+                                    {cert.fileUrl && cert.fileUrl !== '#' && (
+                                      <a
+                                        href={cert.fileUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-emerald-600 font-bold hover:underline"
+                                      >
+                                        View Document Scan
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Panel 7: ACCOUNT SECURITY */}
+                  {profileSubTab === 'security' && (
+                    <div className="space-y-5">
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-1">Account Security</h3>
+                        <p className="text-xs text-gray-500">Update your login password and review current security settings.</p>
+                      </div>
+
+                      <form
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          setCgPasswordError('');
+                          if (cgPasswordForm.next !== cgPasswordForm.confirm) {
+                            setCgPasswordError('New passwords do not match!');
+                            return;
+                          }
+                          if (cgPasswordForm.next.length < 6) {
+                            setCgPasswordError('Password must be at least 6 characters long.');
+                            return;
+                          }
+                          try {
+                            await put('/auth/password', {
+                              currentPassword: cgPasswordForm.current,
+                              newPassword: cgPasswordForm.next
+                            });
+                            showToast('Password updated successfully!');
+                            setCgPasswordForm({ current: '', next: '', confirm: '' });
+                          } catch (err: any) {
+                            setCgPasswordError(err.message || 'Failed to change password. Please check your current password.');
+                          }
+                        }}
+                        className="space-y-4 pt-2"
+                      >
+                        {cgPasswordError && (
+                          <div className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2 text-xs font-bold text-red-700">
+                            <AlertCircle className="w-4 h-4 shrink-0" />
+                            <span>{cgPasswordError}</span>
                           </div>
                         )}
-                      </div>
-                    ) : (
-                      <div className="w-20 h-20 rounded-2xl bg-emerald-600 flex items-center justify-center text-white text-2xl font-bold relative">
-                        {initials}
-                        {photoUploading && (
-                          <div className="absolute inset-0 bg-black/40 rounded-2xl flex items-center justify-center text-white">
-                            <Loader2 className="w-5 h-5 animate-spin" />
+
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 mb-1">Current Password</label>
+                          <input
+                            type="password"
+                            required
+                            value={cgPasswordForm.current}
+                            onChange={e => setCgPasswordForm(prev => ({ ...prev, current: e.target.value }))}
+                            className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 outline-none text-xs"
+                          />
+                        </div>
+
+                        <div className="grid sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 mb-1">New Password</label>
+                            <input
+                              type="password"
+                              required
+                              value={cgPasswordForm.next}
+                              onChange={e => setCgPasswordForm(prev => ({ ...prev, next: e.target.value }))}
+                              className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 outline-none text-xs"
+                            />
                           </div>
-                        )}
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 mb-1">Confirm New Password</label>
+                            <input
+                              type="password"
+                              required
+                              value={cgPasswordForm.confirm}
+                              onChange={e => setCgPasswordForm(prev => ({ ...prev, confirm: e.target.value }))}
+                              className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 outline-none text-xs"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="pt-2 flex justify-end">
+                          <button
+                            type="submit"
+                            className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full text-xs font-bold shadow-sm"
+                          >
+                            Update Password
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+
+                  {/* Panel 8: NOTIFICATION PREFERENCES */}
+                  {profileSubTab === 'notifications' && (
+                    <div className="space-y-5">
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-1">Notification Preferences</h3>
+                        <p className="text-xs text-gray-500">Customize what updates you receive via email, mobile SMS text, or desktop pushes.</p>
                       </div>
-                    )}
+
+                      <div className="space-y-4 pt-2">
+                        {[
+                          { key: 'email', label: 'Email Notifications', desc: 'Receive matching caregiver requests and client chat logs via email.' },
+                          { key: 'sms', label: 'SMS Text Messaging Alerts', desc: 'Get direct mobile notifications for urgent job allocations.' },
+                          { key: 'push', label: 'Browser Push Notifications', desc: 'Live alerts in your browser whenever a message is received.' },
+                          { key: 'marketing', label: 'Marketing & Promotional Updates', desc: 'Receive newsletters, community surveys, and caregiver rewards information.' }
+                        ].map(item => {
+                          const val = (cgNotifPrefs as any)[item.key];
+                          return (
+                            <div key={item.key} className="p-4 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between gap-4">
+                              <div className="space-y-0.5">
+                                <h5 className="font-bold text-xs text-gray-900">{item.label}</h5>
+                                <p className="text-3xs text-gray-400 font-normal leading-relaxed">{item.desc}</p>
+                              </div>
+                              <input
+                                type="checkbox"
+                                checked={val}
+                                onChange={async (e) => {
+                                  const nextPrefs = { ...cgNotifPrefs, [item.key]: e.target.checked };
+                                  setCgNotifPrefs(nextPrefs);
+                                  try {
+                                    await put('/auth/notifications', nextPrefs);
+                                    showToast('Preferences auto-saved!');
+                                  } catch {
+                                    showToast('Failed to auto-save preference.');
+                                  }
+                                }}
+                                className="w-4.5 h-4.5 rounded text-emerald-600 border-gray-300 focus:ring-emerald-500 shrink-0"
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Settings Page Log Out link */}
+                  <div className="mt-8 pt-5 border-t border-gray-100 flex items-center justify-between">
+                    <span className="text-2xs text-gray-400">Trulicares Safety & Security Framework</span>
                     <button
-                      onClick={() => photoInputRef.current?.click()}
-                      disabled={photoUploading}
-                      className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white shadow-md hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                      onClick={handleLogout}
+                      className="px-4 py-2 rounded-xl text-xs font-bold text-red-600 hover:bg-red-50 transition-colors flex items-center gap-1.5"
                     >
-                      <Camera className="w-4 h-4" />
-                    </button>
-                    <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-xl font-bold text-gray-900">{user?.name || 'Caregiver'}</h3>
-                    <p className="text-gray-500 text-sm">{user?.email}</p>
-                    <div className="flex gap-2 mt-2 flex-wrap">
-                      {bgCheckStatus === 'approved' && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-xs font-bold">
-                          <Check className="w-3 h-3" /> Background Checked
-                        </span>
-                      )}
-                      {bgCheckStatus === 'pending' && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">
-                          <Clock className="w-3 h-3" /> Check Pending
-                        </span>
-                      )}
-                      {bgCheckStatus === 'awaiting_payment' && (
-                        <button
-                          onClick={openBgCheckModal}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 hover:bg-orange-200 text-xs font-bold transition-all cursor-pointer shadow-sm border border-orange-200"
-                        >
-                          <CreditCard className="w-3 h-3" /> Complete Application
-                        </button>
-                      )}
-                      {bgCheckStatus === 'none' && (
-                        <button
-                          onClick={openBgCheckModal}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 text-xs font-bold transition-all cursor-pointer shadow-sm animate-pulse border border-blue-200"
-                        >
-                          <Shield className="w-3 h-3" /> Apply for Background
-                        </button>
-                      )}
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">
-                        <Shield className="w-3 h-3" /> Verified
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Background Check card */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <div className="flex items-start gap-4">
-                  <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center shrink-0',
-                    bgCheckStatus === 'approved' ? 'bg-green-50' : bgCheckStatus === 'pending' ? 'bg-amber-50' : 'bg-gray-50')}>
-                    <Shield className={cn('w-6 h-6',
-                      bgCheckStatus === 'approved' ? 'text-green-600' : bgCheckStatus === 'pending' ? 'text-amber-600' : 'text-gray-400')} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-gray-900 mb-0.5">Background Check</h4>
-                    {bgCheckStatus === 'none' && (
-                      <>
-                        <p className="text-sm text-gray-500 mb-3">Upload your verification documents and order a background check to get verified. Verified caregivers get 3x more matches.</p>
-                        <button
-                          onClick={openBgCheckModal}
-                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer transition-colors shadow-md"
-                        >
-                          <Shield className="w-4 h-4" />
-                          Apply for Background Check
-                        </button>
-                      </>
-                    )}
-                    {bgCheckStatus === 'awaiting_payment' && (
-                      <>
-                        <p className="text-sm text-orange-700 font-medium mb-3">Documents uploaded! Please complete the payment to submit your application to our team.</p>
-                        <button
-                          onClick={openBgCheckModal}
-                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold cursor-pointer transition-colors shadow-md"
-                        >
-                          <CreditCard className="w-4 h-4" />
-                          Complete Payment
-                        </button>
-                      </>
-                    )}
-                    {bgCheckStatus === 'pending' && (
-                      <p className="text-sm text-amber-700 font-medium">Your background check is under review. We'll notify you once it's complete (typically 2–3 business days).</p>
-                    )}
-                    {bgCheckStatus === 'approved' && (
-                      <p className="text-sm text-green-700 font-medium">✓ Your background check is approved. This badge is now visible to all families on your profile.</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Bio & Specialties */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-bold text-gray-900">Bio & Specialties</h4>
-                  <button onClick={() => setCgModal('bio')} className="text-sm text-emerald-600 font-semibold hover:underline flex items-center gap-1">
-                    <Edit3 className="w-3.5 h-3.5" /> Edit
-                  </button>
-                </div>
-                <div className="flex items-center gap-4 text-xs font-semibold text-emerald-800 bg-emerald-50 px-3.5 py-2 rounded-xl mb-3.5 w-fit border border-emerald-100">
-                  <span>Experience: {cgExperience} years</span>
-                </div>
-                {cgBio ? (
-                  <p className="text-sm text-gray-600 leading-relaxed mb-3">{cgBio}</p>
-                ) : (
-                  <p className="text-sm text-gray-400 italic mb-3">No bio added yet. Tell families about yourself!</p>
-                )}
-                {cgSpecialties.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {cgSpecialties.map(s => (
-                      <span key={s} className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">{s}</span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Rates & Availability */}
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-bold text-gray-900">Hourly Rate</h4>
-                    <button onClick={() => setCgModal('rates')} className="text-sm text-emerald-600 font-semibold hover:underline flex items-center gap-1">
-                      <Edit3 className="w-3.5 h-3.5" /> Edit
+                      <LogOut className="w-4 h-4" /> Sign Out of Account
                     </button>
                   </div>
-                  <p className="text-3xl font-bold text-emerald-700">${cgRate.min}<span className="text-lg text-emerald-500"> – ${cgRate.max}/hr</span></p>
-                  <p className="text-xs text-gray-400 mt-1">Your quoted range for families</p>
-                </div>
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-bold text-gray-900">Availability</h4>
-                    <button onClick={() => setCgModal('availability')} className="text-sm text-emerald-600 font-semibold hover:underline flex items-center gap-1">
-                      <Edit3 className="w-3.5 h-3.5" /> Edit
-                    </button>
-                  </div>
-                  <p className="text-lg font-semibold text-gray-800">{cgAvailType}</p>
-                  <p className="text-xs text-gray-400 mt-1">Arrange schedule with families</p>
-                </div>
-              </div>
 
-              {/* Service Area */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-bold text-gray-900">Service Area</h4>
-                  <button onClick={() => setCgModal('serviceArea')} className="text-sm text-emerald-600 font-semibold hover:underline flex items-center gap-1">
-                    <Plus className="w-3.5 h-3.5" /> Edit
-                  </button>
                 </div>
-                {cgLocation && (
-                  <p className="text-sm text-gray-600 mb-3 flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-emerald-500" /> {cgLocation}
-                  </p>
-                )}
-                {cgServiceZips.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {cgServiceZips.map(zip => (
-                      <span key={zip} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
-                        <MapPin className="w-3 h-3" /> {zip}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <button onClick={() => setCgModal('serviceArea')} className="text-sm text-emerald-600 font-medium hover:underline">
-                    + Add ZIP codes or neighborhoods you cover
-                  </button>
-                )}
-              </div>
 
-              {/* Settings links */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
-                {[
-                  { icon: <Bell className="w-5 h-5" />, label: 'Notification Preferences', sub: 'Alerts for requests & messages', action: () => setCgModal('notifications') },
-                  { icon: <Settings className="w-5 h-5" />, label: 'Account Settings', sub: 'Password & security', action: () => setCgModal('account') },
-                ].map((item, i) => (
-                  <button key={i} onClick={item.action} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors group">
-                    <div className="flex items-center gap-3">
-                      <span className="text-gray-400 group-hover:text-emerald-500 transition-colors">{item.icon}</span>
-                      <div className="text-left">
-                        <p className="font-medium text-gray-700 text-sm">{item.label}</p>
-                        <p className="text-xs text-gray-400">{item.sub}</p>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-emerald-400 transition-colors" />
-                  </button>
-                ))}
-                <button onClick={handleLogout} className="w-full flex items-center gap-3 p-4 hover:bg-red-50 transition-colors text-red-600">
-                  <LogOut className="w-5 h-5" />
-                  <div className="text-left">
-                    <p className="font-medium text-sm">Log Out</p>
-                    <p className="text-xs text-red-400">Sign out of your account</p>
-                  </div>
-                </button>
               </div>
             </div>
           )}

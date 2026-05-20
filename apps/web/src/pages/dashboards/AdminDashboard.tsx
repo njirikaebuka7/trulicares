@@ -66,6 +66,7 @@ export default function AdminDashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const [verificationActions, setVerificationActions] = useState<Record<string, 'approved' | 'rejected' | null>>({});
   const [reportActions, setReportActions] = useState<Record<string, 'resolved' | 'dismissed' | null>>({});
+  const [expandedVerificationId, setExpandedVerificationId] = useState<string | null>(null);
 
   // Live user state for CRUD
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -701,8 +702,9 @@ export default function AdminDashboard() {
               </div>
               {verificationQueue.map((item: any) => {
                 const action = verificationActions[item.id];
+                const isExpanded = expandedVerificationId === item.id;
                 return (
-                  <div key={item.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <div key={item.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 transition-all">
                     <div className="flex items-start gap-4">
                       <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center shrink-0">
                         <UserCheck className="w-6 h-6 text-amber-600" />
@@ -719,33 +721,138 @@ export default function AdminDashboard() {
                             const isObj = doc && typeof doc === 'object';
                             const name = isObj ? doc.name : doc;
                             const url = isObj ? doc.url : null;
-                            if (url) {
+                            if (url && url !== '#') {
                               return (
                                 <a
                                   key={idx}
                                   href={url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold transition-colors cursor-pointer"
+                                  className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold transition-colors cursor-pointer border border-emerald-150"
                                 >
-                                  <CheckCircle className="w-3 h-3" /> View: {name}
+                                  <CheckCircle className="w-3 h-3 text-emerald-600" /> View: {name}
                                 </a>
                               );
                             }
                             return (
-                              <span key={idx} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-green-100 text-green-700 font-medium">
-                                <CheckCircle className="w-3 h-3" /> {name}
+                              <span key={idx} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-green-50 text-green-700 font-bold border border-green-150">
+                                <CheckCircle className="w-3 h-3 text-green-600" /> {name}
                               </span>
                             );
                           })}
-                          <span className={cn('inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium',
-                            item.backgroundCheck === 'in_progress' ? 'bg-blue-100 text-blue-700' :
-                            item.backgroundCheck === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500')}>
-                            <Activity className="w-3 h-3" /> Background: {item.backgroundCheck.replace('_', ' ')}
+                          <span className={cn('inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-bold border',
+                            item.backgroundCheck ? 'bg-violet-50 text-violet-700 border-violet-150' : 'bg-blue-50 text-blue-700 border-blue-150')}>
+                            <Activity className="w-3 h-3" /> Type: {item.backgroundCheck ? 'Background Check' : 'Government ID'}
                           </span>
                         </div>
                       </div>
                     </div>
+
+                    {/* Inline Auditing / Detail Panel */}
+                    {isExpanded && (
+                      <div className="mt-4 pt-4 border-t border-gray-150 space-y-4 bg-slate-50 p-4 rounded-xl">
+                        {/* ID Verification Details */}
+                        {!item.backgroundCheck ? (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                <Shield className="w-4 h-4 text-emerald-600" /> Government ID Documents
+                              </h4>
+                              {item.idCardNumber && (
+                                <span className="text-2xs font-mono bg-white border border-gray-200 rounded px-2 py-0.5 text-gray-600 font-bold">
+                                  Doc ID: {item.idCardNumber}
+                                </span>
+                              )}
+                            </div>
+                            
+                            {/* Images Render grid */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+                              {item.documents.map((doc: any, docIdx: number) => {
+                                const isObj = doc && typeof doc === 'object';
+                                const name = isObj ? doc.name : doc;
+                                const url = isObj ? doc.url : null;
+                                if (!url || url === '#') return null;
+                                return (
+                                  <div key={docIdx} className="bg-white p-3 rounded-xl border border-gray-200 shadow-2xs space-y-2">
+                                    <span className="text-2xs font-extrabold uppercase text-slate-400 tracking-wider block">{name}</span>
+                                    <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center border">
+                                      <img 
+                                        src={url} 
+                                        alt={name} 
+                                        className="w-full h-full object-contain hover:scale-105 transition-transform duration-200" 
+                                      />
+                                    </div>
+                                    <a 
+                                      href={url} 
+                                      download={`Document_${name.replace(' ', '_')}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-3xs text-emerald-600 hover:text-emerald-700 hover:underline font-extrabold block text-center mt-1"
+                                    >
+                                      Open in New Tab
+                                    </a>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : (
+                          /* Background Check details */
+                          <div className="space-y-3">
+                            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                              <Activity className="w-4 h-4 text-violet-600" /> Background Screening Application
+                            </h4>
+                            
+                            {(() => {
+                              const detailsDoc = item.documents.find((d: any) => d && typeof d === 'object' && d.details);
+                              const details = detailsDoc?.details || item.backgroundCheckDetails;
+                              if (!details) {
+                                return <p className="text-xs text-gray-500 italic">No legal information submitted. Review required.</p>;
+                              }
+                              return (
+                                <div className="space-y-4">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 bg-white p-4 rounded-xl border border-gray-150">
+                                    <div className="text-2xs space-y-0.5">
+                                      <span className="font-bold text-gray-400">Legal Name</span>
+                                      <p className="font-bold text-gray-800 text-xs">{details.legalName || 'N/A'}</p>
+                                    </div>
+                                    <div className="text-2xs space-y-0.5">
+                                      <span className="font-bold text-gray-400">Date of Birth</span>
+                                      <p className="font-bold text-gray-800 text-xs">{details.dob || 'N/A'}</p>
+                                    </div>
+                                    <div className="text-2xs space-y-0.5">
+                                      <span className="font-bold text-gray-400">Social Security Number (SSN)</span>
+                                      <p className="font-mono font-bold text-gray-800 text-xs bg-slate-50 px-1.5 py-0.5 rounded border border-gray-100 w-fit">{details.ssn || 'N/A'}</p>
+                                    </div>
+                                    <div className="text-2xs space-y-0.5">
+                                      <span className="font-bold text-gray-400">Current Address</span>
+                                      <p className="font-bold text-gray-800 text-xs">{details.currentAddress || 'N/A'}</p>
+                                    </div>
+                                    <div className="text-2xs space-y-0.5">
+                                      <span className="font-bold text-gray-400">Previous Address</span>
+                                      <p className="font-bold text-gray-800 text-xs">{details.previousAddress || 'None Provided'}</p>
+                                    </div>
+                                    <div className="text-2xs space-y-0.5">
+                                      <span className="font-bold text-gray-400">Driver's License (Transportation Care)</span>
+                                      <p className="font-bold text-gray-800 text-xs">
+                                        {details.transportCare && details.driversLicense 
+                                          ? `Yes (DL: ${details.driversLicense})` 
+                                          : 'No (Not providing driving service)'}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-2xs font-extrabold text-slate-500 bg-white px-3 py-1.5 rounded-lg border w-fit">
+                                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    <span>Consent & Disclosure Notice Acknowledged</span>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <div className="mt-4 pt-4 border-t border-gray-50">
                       {action ? (
                         <div className={cn('flex items-center gap-2 text-sm font-semibold',
@@ -756,22 +863,29 @@ export default function AdminDashboard() {
                             className="ml-2 text-xs text-gray-400 hover:text-gray-600 underline font-normal">Undo</button>
                         </div>
                       ) : (
-                        <div className="flex gap-3 flex-wrap">
+                        <div className="flex gap-3 flex-wrap items-center">
                           <Button size="sm" onClick={async () => {
                             setVerificationActions(prev => ({...prev, [item.id]: 'approved'}));
                             try { await put(`/admin/verification/${item.id}`, { status: 'approved' }); } catch { }
                           }}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-sm">
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-sm text-xs">
                             <CheckCircle className="w-4 h-4" /> Approve
                           </Button>
                           <Button variant="ghost" size="sm" onClick={async () => {
                             setVerificationActions(prev => ({...prev, [item.id]: 'rejected'}));
                             try { await put(`/admin/verification/${item.id}`, { status: 'rejected' }); } catch { }
                           }}
-                            className="text-red-500 hover:bg-red-50">
+                            className="text-red-500 hover:bg-red-50 text-xs">
                             <XCircle className="w-4 h-4" /> Reject
                           </Button>
-                          <Button variant="secondary" size="sm">View Documents</Button>
+                          <Button 
+                            variant="secondary" 
+                            size="sm"
+                            onClick={() => setExpandedVerificationId(isExpanded ? null : item.id)}
+                            className="text-xs"
+                          >
+                            <Eye className="w-4 h-4" /> {isExpanded ? 'Hide Details' : 'Audit Details'}
+                          </Button>
                         </div>
                       )}
                     </div>

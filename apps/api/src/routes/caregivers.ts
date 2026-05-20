@@ -6,11 +6,11 @@ import { getCached, setCached, invalidateCache } from '../services/cache.js';
 const router = Router();
 
 function formatCaregiver(row: any) {
-  let bgStatus: 'none' | 'pending' | 'approved' | 'awaiting_payment' = 'none';
-  if (row.background_checked) {
+  let bgStatus = row.background_check_status || 'none';
+  if (row.background_checked && bgStatus === 'none') {
     bgStatus = 'approved';
-  } else if (row.pending_status) {
-    bgStatus = row.pending_status as any;
+  } else if (row.pending_status && bgStatus === 'none') {
+    bgStatus = row.pending_status;
   }
 
   return {
@@ -38,6 +38,15 @@ function formatCaregiver(row: any) {
     languages: row.languages || ['English'],
     education: row.education || '',
     certifications: row.certifications || [],
+    // New Profile Fields
+    idCardNumber: row.id_card_number || '',
+    idCardFront: row.id_card_front || '',
+    idCardBack: row.id_card_back || '',
+    idSelfie: row.id_selfie || '',
+    idVerificationStatus: row.id_verification_status || 'none',
+    backgroundCheckDetails: row.background_check_details || null,
+    resumeUrl: row.resume_url || '',
+    resumes: row.resumes || [],
   };
 }
 
@@ -92,6 +101,9 @@ router.get('/', async (req, res) => {
               cp.rating, cp.review_count, cp.location, cp.service_zips,
               cp.verified, cp.background_checked, cp.years_experience, cp.availability,
               cp.job_title, cp.languages, cp.education, cp.certifications,
+              cp.id_card_number, cp.id_card_front, cp.id_card_back, cp.id_selfie,
+              cp.id_verification_status, cp.background_check_status, cp.background_check_details,
+              cp.resume_url, cp.resumes,
               (SELECT status FROM verification_queue WHERE caregiver_id = u.id AND LOWER(COALESCE(background_check::text, 'false')) IN ('true', 't', '1', 'yes') AND status IN ('pending', 'awaiting_payment') LIMIT 1) as pending_status
        FROM users u
        JOIN caregiver_profiles cp ON cp.user_id = u.id
@@ -120,6 +132,9 @@ router.get('/profile/me', requireCaregiver, async (req: AuthRequest, res) => {
               cp.rating, cp.review_count, cp.location, cp.service_zips,
               cp.verified, cp.background_checked, cp.years_experience, cp.availability,
               cp.job_title, cp.languages, cp.education, cp.certifications,
+              cp.id_card_number, cp.id_card_front, cp.id_card_back, cp.id_selfie,
+              cp.id_verification_status, cp.background_check_status, cp.background_check_details,
+              cp.resume_url, cp.resumes,
               (SELECT status FROM verification_queue WHERE caregiver_id = u.id AND LOWER(COALESCE(background_check::text, 'false')) IN ('true', 't', '1', 'yes') AND status IN ('pending', 'awaiting_payment') LIMIT 1) as pending_status
        FROM users u
        JOIN caregiver_profiles cp ON cp.user_id = u.id
@@ -149,6 +164,9 @@ router.get('/:id', async (req, res) => {
               cp.rating, cp.review_count, cp.location, cp.service_zips,
               cp.verified, cp.background_checked, cp.years_experience, cp.availability,
               cp.job_title, cp.languages, cp.education, cp.certifications,
+              cp.id_card_number, cp.id_card_front, cp.id_card_back, cp.id_selfie,
+              cp.id_verification_status, cp.background_check_status, cp.background_check_details,
+              cp.resume_url, cp.resumes,
               (SELECT status FROM verification_queue WHERE caregiver_id = u.id AND LOWER(COALESCE(background_check::text, 'false')) IN ('true', 't', '1', 'yes') AND status IN ('pending', 'awaiting_payment') LIMIT 1) as pending_status
        FROM users u
        JOIN caregiver_profiles cp ON cp.user_id = u.id
@@ -194,6 +212,8 @@ router.put('/profile', requireCaregiver, async (req: AuthRequest, res) => {
     const {
       bio, specialties, hourlyRateMin, hourlyRateMax, yearsExperience,
       availability, location, serviceZips, jobTitle, languages, education, certifications,
+      idCardNumber, idCardFront, idCardBack, idSelfie, idVerificationStatus,
+      backgroundCheckStatus, backgroundCheckDetails, resumeUrl, resumes
     } = req.body;
 
     const updates: string[] = [];
@@ -212,6 +232,17 @@ router.put('/profile', requireCaregiver, async (req: AuthRequest, res) => {
     if (languages) { updates.push(`languages = $${idx++}`); params.push(languages); }
     if (education !== undefined) { updates.push(`education = $${idx++}`); params.push(education); }
     if (certifications) { updates.push(`certifications = $${idx++}`); params.push(certifications); }
+    
+    // New Profile Fields updates
+    if (idCardNumber !== undefined) { updates.push(`id_card_number = $${idx++}`); params.push(idCardNumber); }
+    if (idCardFront !== undefined) { updates.push(`id_card_front = $${idx++}`); params.push(idCardFront); }
+    if (idCardBack !== undefined) { updates.push(`id_card_back = $${idx++}`); params.push(idCardBack); }
+    if (idSelfie !== undefined) { updates.push(`id_selfie = $${idx++}`); params.push(idSelfie); }
+    if (idVerificationStatus !== undefined) { updates.push(`id_verification_status = $${idx++}`); params.push(idVerificationStatus); }
+    if (backgroundCheckStatus !== undefined) { updates.push(`background_check_status = $${idx++}`); params.push(backgroundCheckStatus); }
+    if (backgroundCheckDetails !== undefined) { updates.push(`background_check_details = $${idx++}`); params.push(JSON.stringify(backgroundCheckDetails)); }
+    if (resumeUrl !== undefined) { updates.push(`resume_url = $${idx++}`); params.push(resumeUrl); }
+    if (resumes !== undefined) { updates.push(`resumes = $${idx++}`); params.push(JSON.stringify(resumes)); }
 
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
     
@@ -227,6 +258,9 @@ router.put('/profile', requireCaregiver, async (req: AuthRequest, res) => {
               cp.rating, cp.review_count, cp.location, cp.service_zips,
               cp.verified, cp.background_checked, cp.years_experience, cp.availability,
               cp.job_title, cp.languages, cp.education, cp.certifications,
+              cp.id_card_number, cp.id_card_front, cp.id_card_back, cp.id_selfie,
+              cp.id_verification_status, cp.background_check_status, cp.background_check_details,
+              cp.resume_url, cp.resumes,
               (SELECT status FROM verification_queue WHERE caregiver_id = u.id AND LOWER(COALESCE(background_check::text, 'false')) IN ('true', 't', '1', 'yes') AND status IN ('pending', 'awaiting_payment') LIMIT 1) as pending_status
        FROM users u JOIN caregiver_profiles cp ON cp.user_id = u.id WHERE u.id = $1`,
       [req.user!.id]
@@ -237,6 +271,84 @@ router.put('/profile', requireCaregiver, async (req: AuthRequest, res) => {
   } catch (err) {
     console.error('Caregiver profile update error:', err);
     res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// POST /api/caregivers/verify-id
+router.post('/verify-id', requireCaregiver, async (req: AuthRequest, res) => {
+  try {
+    const { idCardNumber, idCardFront, idCardBack, idSelfie } = req.body;
+    if (!idCardNumber || !idCardFront || !idCardBack || !idSelfie) {
+      return res.status(400).json({ error: 'Please provide all ID details and documents.' });
+    }
+
+    // Ensure profile exists
+    await query(`INSERT INTO caregiver_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, [req.user!.id]);
+
+    // Save details on caregiver profile
+    await query(
+      `UPDATE caregiver_profiles
+       SET id_card_number = $1, id_card_front = $2, id_card_back = $3, id_selfie = $4, id_verification_status = 'pending'
+       WHERE user_id = $5`,
+      [idCardNumber, idCardFront, idCardBack, idSelfie, req.user!.id]
+    );
+
+    const documents = [
+      { name: 'ID Front', url: idCardFront },
+      { name: 'ID Back', url: idCardBack },
+      { name: 'Selfie', url: idSelfie }
+    ];
+
+    // Submit to verification queue
+    await query(
+      `INSERT INTO verification_queue (caregiver_id, specialty, experience, documents, background_check, status, submitted_at)
+       VALUES ($1, $2, $3, $4, false, 'pending', NOW())`,
+      [req.user!.id, 'Government ID Verification', 'N/A', JSON.stringify(documents)]
+    );
+
+    invalidateCache('caregivers:');
+    res.json({ success: true, message: 'ID verification request submitted successfully' });
+  } catch (err) {
+    console.error('Verify ID error:', err);
+    res.status(500).json({ error: 'Failed to submit ID verification' });
+  }
+});
+
+// POST /api/caregivers/apply-background-check
+router.post('/apply-background-check', requireCaregiver, async (req: AuthRequest, res) => {
+  try {
+    const { details } = req.body;
+    if (!details || !details.legalName || !details.dob || !details.ssn) {
+      return res.status(400).json({ error: 'Missing required background check details.' });
+    }
+
+    // Ensure profile exists
+    await query(`INSERT INTO caregiver_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, [req.user!.id]);
+
+    // Save details on caregiver profile
+    await query(
+      `UPDATE caregiver_profiles
+       SET background_check_status = 'pending', background_check_details = $1
+       WHERE user_id = $2`,
+      [JSON.stringify(details), req.user!.id]
+    );
+
+    const documents = [
+      { name: `Consent & Info for ${details.legalName}`, url: '#', details }
+    ];
+
+    // Submit to verification queue as background check
+    await query(
+      `INSERT INTO verification_queue (caregiver_id, specialty, experience, documents, background_check, status, submitted_at)
+       VALUES ($1, $2, $3, $4, true, 'pending', NOW())`,
+      [req.user!.id, 'Background Check', 'N/A', JSON.stringify(documents)]
+    );
+
+    invalidateCache('caregivers:');
+    res.json({ success: true, message: 'Background check application submitted successfully' });
+  } catch (err) {
+    console.error('Apply background check error:', err);
+    res.status(500).json({ error: 'Failed to submit background check' });
   }
 });
 

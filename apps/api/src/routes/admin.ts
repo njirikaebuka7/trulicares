@@ -250,7 +250,8 @@ router.get('/verification-queue', requireAdmin, async (_req, res) => {
       `SELECT vq.id, vq.caregiver_id, vq.specialty, vq.experience, vq.documents,
               vq.background_check, vq.status, vq.submitted_at,
               u.name, u.email, u.photo_url,
-              cp.location, cp.specialties, cp.years_experience
+              cp.location, cp.specialties, cp.years_experience,
+              cp.id_card_number, cp.background_check_details
        FROM verification_queue vq
        JOIN users u ON u.id = vq.caregiver_id
        LEFT JOIN caregiver_profiles cp ON cp.user_id = vq.caregiver_id
@@ -271,6 +272,8 @@ router.get('/verification-queue', requireAdmin, async (_req, res) => {
         documents: row.documents || [],
         backgroundCheck: row.background_check,
         status: row.status,
+        idCardNumber: row.id_card_number,
+        backgroundCheckDetails: row.background_check_details,
         submittedAt: new Date(row.submitted_at).toLocaleDateString('en-US', {
           month: 'short', day: 'numeric', year: 'numeric',
         }),
@@ -286,12 +289,12 @@ router.get('/verification-queue', requireAdmin, async (_req, res) => {
 router.put('/verification/:id', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { status } = req.body;
-    if (!['approved', 'rejected'].includes(status)) {
-      return res.status(400).json({ error: 'Status must be "approved" or "rejected"' });
+    if (!['approved', 'rejected', 'needs_review', 'expired'].includes(status)) {
+      return res.status(400).json({ error: 'Status must be approved, rejected, needs_review, or expired' });
     }
 
     const result = await query(
-      `UPDATE verification_queue SET status = $1 WHERE id = $2 RETURNING id, caregiver_id, status`,
+      `UPDATE verification_queue SET status = $1 WHERE id = $2 RETURNING id, caregiver_id, specialty, background_check, status`,
       [status, req.params.id]
     );
 
@@ -299,8 +302,35 @@ router.put('/verification/:id', requireAdmin, async (req: AuthRequest, res) => {
 
     const entry = result.rows[0];
 
-    if (status === 'approved') {
-      await query(`UPDATE caregiver_profiles SET verified = true, background_checked = true WHERE user_id = $1`, [entry.caregiver_id]);
+    // Determine type: is it ID Verification or Background Check?
+    const isIdVerification = entry.specialty === 'Government ID Verification';
+    const isBackgroundCheck = entry.specialty === 'Background Check' || entry.background_check;
+
+    if (isIdVerification) {
+      const isApproved = status === 'approved';
+      await query(
+        `UPDATE caregiver_profiles 
+         SET verified = $1, id_verification_status = $2 
+         WHERE user_id = $3`,
+        [isApproved, status, entry.caregiver_id]
+      );
+    } else if (isBackgroundCheck) {
+      const isApproved = status === 'approved';
+      await query(
+        `UPDATE caregiver_profiles 
+         SET background_checked = $1, background_check_status = $2 
+         WHERE user_id = $3`,
+        [isApproved, status, entry.caregiver_id]
+      );
+    } else {
+      // General caregiver approval
+      const isApproved = status === 'approved';
+      await query(
+        `UPDATE caregiver_profiles 
+         SET verified = $1, background_checked = $1 
+         WHERE user_id = $2`,
+        [isApproved, entry.caregiver_id]
+      );
     }
 
     const caregiverResult = await query('SELECT name, email FROM users WHERE id = $1', [entry.caregiver_id]);
