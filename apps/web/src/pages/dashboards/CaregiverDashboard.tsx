@@ -105,6 +105,8 @@ export default function CaregiverDashboard() {
   const [idVerificationStatus, setIdVerificationStatus] = useState('none');
   const [resumes, setResumes] = useState<any[]>([]);
   const [certifications, setCertifications] = useState<any[]>([]);
+  const [cgJobTitle, setCgJobTitle] = useState('Caregiver');
+  const [cgLanguages, setCgLanguages] = useState('English');
 
   // ID Verification Submission steps (1: Number, 2: ID Upload, 3: Selfie)
   const [idSubmitStep, setIdSubmitStep] = useState(1);
@@ -211,6 +213,8 @@ export default function CaregiverDashboard() {
           setIdVerificationStatus(cg.idVerificationStatus || 'none');
           setResumes(cg.resumes || []);
           setCertifications(cg.certifications || []);
+          setCgJobTitle(cg.jobTitle || 'Caregiver');
+          setCgLanguages(cg.languages ? cg.languages.join(', ') : 'English');
         }
       }).catch(() => {}),
     ]).catch(console.error)
