@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react';
-import { 
-  Calendar as CalendarIcon, ChevronLeft, ChevronRight, 
-  Clock, MapPin, Briefcase, Info, Plus, Search
-} from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight as ChevronRightIcon, Clock, MapPin, Briefcase } from 'lucide-react';
 import { shifts as shiftApi } from '@/lib/staffingApi';
 import { Shift } from '@/types/staffing';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
+import { cn } from '@/utils/cn';
+import { format } from 'date-fns';
 
 export default function FacilitySchedule() {
-  const [currentDate, setCurrentDate] = useState(new Date());
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDay, setSelectedDay] = useState<Date | null>(new Date());
+
+  // Calendar State
+  const [calMonth, setCalMonth] = useState(new Date().getMonth());
+  const [calYear, setCalYear] = useState(new Date().getFullYear());
+  const [calSelectedDay, setCalSelectedDay] = useState<number | null>(new Date().getDate());
 
   useEffect(() => {
     async function loadShifts() {
@@ -28,158 +29,145 @@ export default function FacilitySchedule() {
     loadShifts();
   }, []);
 
-  const nextMonth = () => setCurrentDate(addMonths(currentDate, 1));
-  const prevMonth = () => setCurrentDate(subMonths(currentDate, 1));
-
-  const monthStart = startOfMonth(currentDate);
-  const monthEnd = endOfMonth(monthStart);
-  const startDate = startOfWeek(monthStart);
-  const endDate = endOfWeek(monthEnd);
-
-  const calendarDays = eachDayOfInterval({ start: startDate, end: endDate });
-
-  const getShiftsForDay = (day: Date) => {
-    return shifts.filter(s => isSameDay(new Date(s.start_time), day));
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  
+  const prevMonth = () => { 
+    if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); } 
+    else setCalMonth(m => m - 1); 
+    setCalSelectedDay(null); 
+  };
+  
+  const nextMonth = () => { 
+    if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); } 
+    else setCalMonth(m => m + 1); 
+    setCalSelectedDay(null); 
   };
 
-  const selectedDayShifts = selectedDay ? getShiftsForDay(selectedDay) : [];
+  const sessionsByDay = new Map<number, Shift[]>();
+  shifts.forEach((s: Shift) => {
+    const d = new Date(s.start_time);
+    if (!isNaN(d.getTime()) && d.getFullYear() === calYear && d.getMonth() === calMonth) {
+      const day = d.getDate();
+      sessionsByDay.set(day, [...(sessionsByDay.get(day) || []), s]);
+    }
+  });
+
+  const sessionDays = new Set(sessionsByDay.keys());
+  const selectedSessions = calSelectedDay
+    ? (sessionsByDay.get(calSelectedDay) || [])
+    : shifts.filter((s: Shift) => {
+        const d = new Date(s.start_time);
+        return d.getFullYear() === calYear && d.getMonth() === calMonth;
+      });
+      
+  const today = new Date();
+
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-5 animate-fade-in flex flex-col items-center justify-center py-20">
+        <div className="w-10 h-10 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin mb-4" />
+        <p className="text-gray-500 font-medium">Loading schedule...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Shift Calendar</h2>
-          <p className="text-gray-500 text-sm font-medium mt-0.5">Manage and track all facility staffing schedules.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-gray-100 shadow-sm">
-            <button onClick={prevMonth} className="p-2 hover:bg-gray-50 rounded-lg transition-all">
-              <ChevronLeft className="w-4 h-4 text-gray-600" />
-            </button>
-            <span className="px-3 text-sm font-bold text-gray-900 min-w-[120px] text-center">
-              {format(currentDate, 'MMMM yyyy')}
-            </span>
-            <button onClick={nextMonth} className="p-2 hover:bg-gray-50 rounded-lg transition-all">
-              <ChevronRight className="w-4 h-4 text-gray-600" />
-            </button>
-          </div>
-          <button 
-            onClick={() => setCurrentDate(new Date())}
-            className="px-5 py-2 bg-gray-900 text-white font-semibold rounded-full hover:bg-brand-600 transition-all active:scale-95 text-sm shadow-sm"
-          >
-            Today
+    <div className="max-w-4xl mx-auto space-y-5 animate-fade-in">
+      <h2 className="text-xl font-bold text-gray-900">Schedule</h2>
+      
+      {/* Month calendar */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={prevMonth} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-800 transition-colors">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="font-bold text-gray-900">{monthNames[calMonth]} {calYear}</span>
+          <button onClick={nextMonth} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-800 transition-colors">
+            <ChevronRightIcon className="w-4 h-4" />
           </button>
         </div>
+        <div className="grid grid-cols-7 mb-2">
+          {dayNames.map(d => <div key={d} className="text-center text-xs font-semibold text-gray-400 py-1">{d}</div>)}
+        </div>
+        <div className="grid grid-cols-7 gap-y-1">
+          {Array.from({ length: firstDay }).map((_, i) => <div key={`e-${i}`} />)}
+          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+            const isToday = today.getFullYear() === calYear && today.getMonth() === calMonth && today.getDate() === day;
+            const hasSession = sessionDays.has(day);
+            const isSelected = calSelectedDay === day;
+            const daySessions = sessionsByDay.get(day) || [];
+            const tooltipText = daySessions.map((s: Shift) => `${s.role} (${format(new Date(s.start_time), 'h:mm a')})`).join('\n');
+            
+            return (
+              <button key={day} onClick={() => setCalSelectedDay(isSelected ? null : day)}
+                title={hasSession ? tooltipText : undefined}
+                className={cn(
+                  'relative flex flex-col items-center justify-center w-full aspect-square rounded-xl text-sm font-medium transition-all',
+                  isSelected ? 'bg-emerald-600 text-white' :
+                  isToday ? 'bg-emerald-50 text-emerald-700 font-bold' :
+                  hasSession ? 'hover:bg-emerald-50 text-gray-800' : 'hover:bg-gray-50 text-gray-500'
+                )}>
+                {day}
+                {hasSession && !isSelected && (
+                  <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+        {calSelectedDay && (
+          <p className="text-xs text-center text-emerald-600 font-medium mt-3">
+            Showing shifts for {monthNames[calMonth]} {calSelectedDay} · <button onClick={() => setCalSelectedDay(null)} className="underline">Clear</button>
+          </p>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Calendar Grid */}
-        <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="grid grid-cols-7 border-b border-gray-100 bg-gray-50/50 px-4 pt-3">
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-              <div key={d} className="py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                {d}
-              </div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7 p-4 gap-2">
-            {calendarDays.map((day, idx) => {
-              const dayShifts = getShiftsForDay(day);
-              const isSelected = selectedDay && isSameDay(day, selectedDay);
-              const isCurrentMonth = isSameMonth(day, monthStart);
-              const isToday = isSameDay(day, new Date());
-
-              return (
-                <button
-                  key={idx}
-                  onClick={() => setSelectedDay(day)}
-                  className={`
-                    min-h-[100px] p-2.5 rounded-xl transition-all text-left flex flex-col gap-2 relative border
-                    ${isSelected ? 'border-brand-500 bg-brand-50/20 ring-2 ring-brand-100' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50/50'}
-                    ${!isCurrentMonth ? 'opacity-25 grayscale' : ''}
-                  `}
-                >
-                  <span className={`
-                    text-xs font-bold w-6 h-6 flex items-center justify-center rounded-lg
-                    ${isToday ? 'bg-brand-600 text-white shadow-sm' : 'text-gray-900'}
-                  `}>
-                    {format(day, 'd')}
-                  </span>
-                  
-                  <div className="flex-1 space-y-1.5 overflow-hidden">
-                    {dayShifts.slice(0, 2).map((s, i) => (
-                      <div key={i} className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-white border border-gray-100 text-gray-600 truncate flex items-center gap-1">
-                        <div className={`w-1 h-1 rounded-full ${s.status === 'open' ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-                        {s.role}
-                      </div>
-                    ))}
-                    {dayShifts.length > 2 && (
-                      <div className="text-[9px] font-bold text-brand-600 pl-1">
-                        + {dayShifts.length - 2} more
-                      </div>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+      {/* Session list */}
+      {selectedSessions.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-10 text-center">
+          <CalendarIcon className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500 font-medium">{calSelectedDay ? 'No shifts on this day' : 'No upcoming shifts this month'}</p>
         </div>
-
-        {/* Day Summary Sidebar */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <CalendarIcon className="w-5 h-5 text-brand-600" />
-              {selectedDay ? format(selectedDay, 'MMM d, yyyy') : 'Select a date'}
-            </h3>
-
-            {selectedDayShifts.length === 0 ? (
-              <div className="py-8 text-center space-y-3">
-                <div className="w-14 h-14 bg-gray-50 rounded-full flex items-center justify-center mx-auto text-gray-300 border border-gray-100">
-                  <Search className="w-6 h-6" />
+      ) : (
+        <div className="space-y-3">
+          {selectedSessions.map((session: Shift) => {
+            const isCompleted = session.status === 'completed';
+            const isFilled = session.status === 'filled';
+            
+            return (
+              <div key={session.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className={cn('w-1.5 h-16 rounded-full shrink-0 hidden sm:block', 
+                  isCompleted ? 'bg-teal-400' : isFilled ? 'bg-emerald-400' : 'bg-blue-400'
+                )} />
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+                  <Briefcase className="w-5 h-5 text-emerald-500" />
                 </div>
-                <p className="text-sm font-semibold text-gray-400">No shifts scheduled.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {selectedDayShifts.map((s, i) => (
-                  <div key={i} className="p-3.5 rounded-xl bg-gray-50 border border-gray-100 group hover:border-brand-200 transition-all">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-brand-600 uppercase tracking-wider">{s.role}</span>
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase ${
-                        s.status === 'open' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
-                      }`}>
-                        {s.status}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs font-bold text-gray-900 mb-1">
-                      <Clock className="w-3.5 h-3.5 text-gray-400" />
-                      {format(new Date(s.start_time), 'h:mm a')} - {format(new Date(s.end_time), 'h:mm a')}
-                    </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-gray-900">{session.role} Shift</p>
+                  <p className="text-sm text-gray-500">{session.location}</p>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-400 flex-wrap">
+                    <span className="flex items-center gap-1"><CalendarIcon className="w-3 h-3" /> {format(new Date(session.start_time), 'MMM d, yyyy')}</span>
+                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {format(new Date(session.start_time), 'h:mm a')}</span>
+                    <span className="flex items-center gap-1 font-semibold text-gray-500">${session.pay_rate}/hr</span>
                   </div>
-                ))}
+                </div>
+                <div className="flex items-center justify-end shrink-0">
+                  <span className={cn('text-xs px-3 py-1 rounded-full font-semibold uppercase tracking-wider',
+                    isCompleted ? 'bg-teal-100 text-teal-700' : 
+                    isFilled ? 'bg-emerald-100 text-emerald-700' : 
+                    'bg-blue-100 text-blue-700'
+                  )}>
+                    {session.status}
+                  </span>
+                </div>
               </div>
-            )}
-
-            <button className="w-full mt-6 py-2.5 bg-brand-50 text-brand-600 font-semibold rounded-full hover:bg-brand-600 hover:text-white transition-all flex items-center justify-center gap-1.5 border border-brand-100 text-sm active:scale-95">
-              <Plus className="w-4 h-4" />
-              Post Shift
-            </button>
-          </div>
-
-          <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl p-6 text-white shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl -mr-16 -mt-16" />
-            <h4 className="text-base font-bold mb-2">Schedule Insights</h4>
-            <p className="text-xs text-emerald-100 font-medium leading-relaxed mb-4 opacity-90">
-              You have {shifts.filter(s => s.status === 'open').length} open shifts this month. Consider boosting them to reach more professionals.
-            </p>
-            <div className="p-3 bg-white/10 rounded-xl border border-white/10 flex items-center gap-3">
-              <Info className="w-4 h-4 text-emerald-300" />
-              <p className="text-[10px] font-bold">Matching rate: 85%</p>
-            </div>
-          </div>
+            );
+          })}
         </div>
-      </div>
+      )}
     </div>
   );
 }

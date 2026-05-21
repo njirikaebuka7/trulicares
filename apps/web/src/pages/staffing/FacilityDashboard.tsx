@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { facility as facApi, shifts as shiftApi } from '@/lib/staffingApi';
+import { notifications as notificationsApi } from '@/lib/api';
 import { FacilityProfile } from '@/types/staffing';
 import logoImg from '@/assets/logo.png';
 import { supabase } from '@/lib/supabase';
@@ -38,6 +39,27 @@ function FacilityDashboardInner() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false);
+  const [apiNotifications, setApiNotifications] = useState<any[]>([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notificationsRead, setNotificationsRead] = useState(false);
+
+  useEffect(() => {
+    notificationsApi.list()
+      .then((data: any) => setApiNotifications(data.notifications || []))
+      .catch(() => {});
+  }, []);
+
+  const unreadApiCount = apiNotifications.filter((n: any) => !(n.read ?? n.isRead ?? false)).length;
+  const unread = notificationsRead ? 0 : unreadApiCount;
+
+  const openNotifications = () => {
+    setNotifOpen(true);
+    setNotificationsRead(true);
+    if (unreadApiCount > 0) {
+      notificationsApi.markAllRead().catch(() => {});
+      setApiNotifications(prev => prev.map((n: any) => ({ ...n, read: true, isRead: true })));
+    }
+  };
 
   // Global Realtime Listeners
   useEffect(() => {
@@ -189,9 +211,41 @@ function FacilityDashboardInner() {
               </div>
               <span className="text-xs font-bold text-gray-900 truncate max-w-[120px]">{profile?.name || user?.name}</span>
             </div>
-            <button className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors">
-              <Bell className="w-5 h-5 text-gray-500" />
-            </button>
+            <div className="relative">
+              <button
+                onClick={openNotifications}
+                className="relative w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors"
+              >
+                <Bell className="w-5 h-5 text-gray-500" />
+                {unread > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-emerald-500 rounded-full text-white text-[10px] flex items-center justify-center font-bold">
+                    {unread > 9 ? '9+' : unread}
+                  </span>
+                )}
+              </button>
+              {notifOpen && (
+                <>
+                  <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setNotifOpen(false)} />
+                  <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                      <span className="font-bold text-gray-900 text-sm">Notifications</span>
+                      <button onClick={() => setNotifOpen(false)}><X className="w-4 h-4 text-gray-400" /></button>
+                    </div>
+                    {apiNotifications.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-sm text-gray-400">No notifications yet.</div>
+                    ) : apiNotifications.slice(0, 8).map((n: any) => {
+                      const isRead = n.read ?? n.isRead ?? false;
+                      return (
+                        <div key={n.id} className="px-4 py-3 border-b border-gray-50 last:border-0">
+                          <p className={cn('text-sm font-medium', isRead ? 'text-gray-600' : 'text-gray-900')}>{n.content || n.message || n.text}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{n.createdAt ? new Date(n.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : n.time}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* Mobile User Menu Dropdown */}
             <div className="relative lg:hidden">

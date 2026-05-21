@@ -213,9 +213,9 @@ export default function FacilityProfileView() {
           <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
         </div>
         <div className="px-4 sm:px-6 pb-5">
-          <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4 -mt-10 mb-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4 mb-4">
             {/* Logo / Avatar Upload */}
-            <div className="relative shrink-0">
+            <div className="relative shrink-0 -mt-10">
               <div
                 className="w-20 h-20 rounded-full bg-white border-4 border-white shadow-lg overflow-hidden cursor-pointer group"
                 onClick={() => logoInputRef.current?.click()}
