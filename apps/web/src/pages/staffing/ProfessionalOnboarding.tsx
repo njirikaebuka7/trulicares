@@ -659,6 +659,10 @@ export default function ProfessionalOnboarding() {
                           setLocatingZip(false);
                           alert('Geolocation is not supported by your browser.');
                         }
+                      } catch (err) {
+                        console.error(err);
+                        setLocatingZip(false);
+                      }
                     }}
                     className="mt-3 flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl bg-emerald-50 text-emerald-700 font-bold text-sm hover:bg-emerald-100 transition-all disabled:opacity-50"
                     disabled={locatingZip}
