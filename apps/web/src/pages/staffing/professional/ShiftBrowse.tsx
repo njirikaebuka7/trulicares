@@ -123,70 +123,88 @@ export default function ShiftBrowse() {
         <div className="grid grid-cols-1 gap-4">
           {shifts
             .filter(s => !filters.matchesOnly || s.is_match)
-            .map((shift) => (
-            <div 
-              key={shift.id} 
-              className="group bg-white border border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-brand-100 transition-all duration-300 relative overflow-hidden"
-            >
-              {/* Status Badge */}
-              <div className="absolute top-0 right-0 px-4 py-1.5 bg-brand-50 text-brand-600 text-[10px] font-semibold uppercase tracking-wider rounded-bl-xl">
-                Open for Application
-              </div>
+            .map((shift) => {
+              // Calculate countdown
+              const startTime = new Date(shift.start_time);
+              const now = new Date();
+              const hoursUntil = Math.max(0, Math.floor((startTime.getTime() - now.getTime()) / (1000 * 60 * 60)));
+              const daysUntil = Math.floor(hoursUntil / 24);
+              const countdownText = daysUntil > 0 
+                ? `Starts in ${daysUntil} day${daysUntil === 1 ? '' : 's'}`
+                : hoursUntil > 0 ? `Starts in ${hoursUntil} hour${hoursUntil === 1 ? '' : 's'}` 
+                : 'Starting soon';
 
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                {/* Main Info */}
-                <div className="flex items-start gap-6">
-                  <div className="w-16 h-16 rounded-xl bg-brand-50 flex flex-col items-center justify-center text-brand-600 flex-shrink-0">
-                    <span className="text-[10px] font-bold uppercase">{new Date(shift.start_time).toLocaleString('default', { month: 'short' })}</span>
-                    <span className="text-xl font-bold">{new Date(shift.start_time).getDate()}</span>
+              return (
+              <div 
+                key={shift.id} 
+                className="group bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-brand-200 transition-all duration-300 relative"
+              >
+                {/* Status Badge */}
+                {shift.status === 'open' && (
+                  <div className="absolute top-0 right-0 px-3 py-1 bg-brand-50 text-brand-700 text-[10px] font-bold uppercase tracking-wider rounded-bl-xl rounded-tr-2xl">
+                    Open for Application
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="px-2 py-0.5 rounded-md bg-brand-600 text-white text-[10px] font-bold">{shift.role}</span>
-                      {shift.specialty && <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-[10px] font-bold">{shift.specialty}</span>}
-                      {shift.is_match && (
-                        <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 text-[10px] font-bold">
-                          <CheckCircle className="w-3 h-3" /> Best Match
-                        </span>
-                      )}
+                )}
+
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 mt-2 md:mt-0">
+                  {/* Main Info */}
+                  <div className="flex items-start gap-4">
+                    {/* Date Block */}
+                    <div className="w-14 h-14 rounded-2xl bg-brand-50 border border-brand-100 flex flex-col items-center justify-center text-brand-700 flex-shrink-0">
+                      <span className="text-[10px] font-extrabold uppercase">{startTime.toLocaleString('default', { month: 'short' })}</span>
+                      <span className="text-xl font-black leading-none">{startTime.getDate()}</span>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-1 group-hover:text-brand-600 transition-colors">{shift.facility_name}</h3>
-                    <div className="flex flex-wrap items-center gap-y-2 gap-x-4 text-sm text-gray-500">
-                      <div className="flex items-center gap-1.5 font-medium">
-                        <Clock className="w-4 h-4 text-gray-400" />
-                        {new Date(shift.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(shift.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        <span className="text-gray-300 ml-1">({shift.duration_hours}h)</span>
+
+                    <div>
+                      <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                        <span className="px-2 py-0.5 rounded bg-brand-600 text-white text-[10px] font-bold tracking-wide">{shift.role}</span>
+                        {shift.specialty && <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-600 text-[10px] font-bold">{shift.specialty}</span>}
+                        {shift.is_match && (
+                          <span className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px] font-bold tracking-wide">
+                            <CheckCircle className="w-3 h-3" /> Best Match
+                          </span>
+                        )}
                       </div>
-                      <div className="flex items-center gap-1.5 font-medium">
-                        <MapPin className="w-4 h-4 text-gray-400" />
-                        {shift.city}, {shift.state}
+                      
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-lg font-black text-gray-900 group-hover:text-brand-600 transition-colors line-clamp-1">{shift.facility_name}</h3>
+                      </div>
+                      
+                      <div className="flex flex-col gap-1 mt-2 text-sm text-gray-500 font-medium">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-gray-400 shrink-0" />
+                          <span className="text-gray-900">{startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(shift.end_time || new Date(startTime.getTime() + shift.duration_hours*60*60*1000)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span className="text-gray-400">({shift.duration_hours}h)</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
+                          <span>{shift.city}, {shift.state}</span>
+                        </div>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Pay & Actions */}
+                  <div className="flex items-center justify-between md:flex-col md:items-end gap-3 mt-4 md:mt-0 pt-4 md:pt-0 border-t md:border-t-0 border-gray-100 w-full md:w-auto">
+                    <div className="text-left md:text-right">
+                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-0.5">Total Pay</p>
+                      <p className="text-2xl font-black text-emerald-600 leading-none mb-1">${Number(shift.total_pay || (shift.pay_rate * shift.duration_hours)).toFixed(2)}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500 font-bold">${shift.pay_rate}/hr</span>
+                        <span className="text-[10px] text-brand-600 bg-brand-50 px-1.5 py-0.5 rounded-full font-bold">{countdownText}</span>
+                      </div>
+                    </div>
+                    
+                    <Link 
+                      to={`/professional-dashboard/shifts/${shift.id}`}
+                      className="flex items-center justify-center gap-1.5 px-6 py-2.5 bg-gray-900 text-white rounded-full font-bold text-sm hover:bg-brand-600 transition-all active:scale-95 shadow-sm whitespace-nowrap"
+                    >
+                      View Details <ArrowRight className="w-4 h-4" />
+                    </Link>
                   </div>
                 </div>
-
-                {/* Pay & Actions */}
-                <div className="flex items-center justify-between md:flex-col md:items-end gap-4 border-t md:border-t-0 pt-4 md:pt-0">
-                  <div className="text-right">
-                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Total Pay</p>
-                    <p className="text-2xl font-bold text-emerald-600">${Number(shift.total_pay || 0).toFixed(2)}</p>
-                    <p className="text-xs text-gray-500 font-bold">${shift.pay_rate}/hr</p>
-                  </div>
-                  <button 
-                    onClick={() => handleApply(shift.id)}
-                    disabled={applyingId === shift.id}
-                    className="flex items-center justify-center gap-2 px-6 py-2.5 bg-gray-900 text-white rounded-full font-semibold text-sm hover:bg-brand-600 transition-all active:scale-95 disabled:bg-gray-400 shadow-sm"
-                  >
-                    {applyingId === shift.id ? (
-                      <><Loader2 className="w-4 h-4 animate-spin" /> Applying...</>
-                    ) : (
-                      <>Apply Now <ChevronRight className="w-4 h-4" /></>
-                    )}
-                  </button>
-                </div>
               </div>
-            </div>
-          ))}
+            )})}
         </div>
       )}
 

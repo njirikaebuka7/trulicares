@@ -21,6 +21,7 @@ import ProfessionalCalendar from './professional/ProfessionalCalendar';
 import WalletView from './professional/WalletView';
 import ProfessionalProfileView from './professional/ProfessionalProfileView';
 import ResumeGenerator from './professional/ResumeGenerator';
+import ShiftDetails from './professional/ShiftDetails';
 import { DashboardProvider, useDashboard } from './professional/DashboardContext';
 
 export default function ProfessionalDashboard() {
@@ -319,6 +320,7 @@ function ProfessionalDashboardInner() {
           <Routes>
             <Route index element={<Overview profile={profile} summary={summary} activeShift={activeShift} />} />
             <Route path="browse" element={<ShiftBrowse />} />
+            <Route path="shifts/:id" element={<ShiftDetails />} />
             <Route path="schedule" element={<ProfessionalCalendar />} />
             <Route path="wallet" element={<WalletView />} />
             <Route path="profile" element={<ProfessionalProfileView />} />

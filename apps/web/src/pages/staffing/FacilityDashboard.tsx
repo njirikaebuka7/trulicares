@@ -20,6 +20,7 @@ import PostShift from './facility/PostShift';
 import FacilityShifts from './facility/ShiftManagement';
 import FacilitySchedule from './facility/FacilitySchedule';
 import FacilityProfileView from './facility/FacilityProfileView';
+import FacilityApplicants from './facility/FacilityApplicants';
 import { FacilityDashboardProvider, useFacilityDashboard } from './facility/FacilityDashboardContext';
 
 export default function FacilityDashboard() {
@@ -292,6 +293,7 @@ function FacilityDashboardInner() {
             <Route index element={<FacilityOverview profile={profile} summary={summary} />} />
             <Route path="post" element={<PostShift />} />
             <Route path="shifts" element={<FacilityShifts />} />
+            <Route path="applicants" element={<FacilityApplicants />} />
             <Route path="schedule" element={<FacilitySchedule />} />
             <Route path="profile" element={<FacilityProfileView />} />
           </Routes>
