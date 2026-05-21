@@ -184,6 +184,7 @@ export default function ProfessionalProfileView() {
       specialties: editForm.specialties,
       yearsExperience: editForm.yearsExperience,
       preferredRadiusMiles: editForm.preferredRadiusMiles,
+      roles: editForm.roles,
     });
     setEditing(false);
   };
@@ -457,16 +458,41 @@ export default function ProfessionalProfileView() {
                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                   <Stethoscope className="w-4 h-4" /> Roles
                 </h4>
-                <div className="flex flex-wrap gap-2">
-                  {(profile?.licenses?.map((l: any) => l.license_type) || (profile?.license_type ? [profile.license_type] : [])).map((r: string, i: number) => (
-                    <span key={i} className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-100">
-                      {r}
-                    </span>
-                  ))}
-                  {(!profile?.licenses || profile.licenses.length === 0) && !profile?.license_type && (
-                    <span className="text-gray-400 text-sm italic">No roles set</span>
-                  )}
-                </div>
+                {editing ? (
+                  <div className="flex flex-wrap gap-2">
+                    {ROLE_OPTIONS.map(r => (
+                      <button
+                        key={r}
+                        onClick={() => {
+                          const cur = editForm.roles || [];
+                          setEditForm({
+                            ...editForm,
+                            roles: cur.includes(r) ? cur.filter((x: string) => x !== r) : [...cur, r]
+                          });
+                        }}
+                        className={cn(
+                          'px-3 py-1.5 rounded-full border-2 text-xs font-bold transition-all',
+                          (editForm.roles || []).includes(r)
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                            : 'border-gray-100 text-gray-500 hover:border-emerald-200'
+                        )}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {(profile?.licenses?.map((l: any) => l.license_type) || (profile?.license_type ? [profile.license_type] : [])).map((r: string, i: number) => (
+                      <span key={i} className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-100">
+                        {r}
+                      </span>
+                    ))}
+                    {(!profile?.licenses || profile.licenses.length === 0) && !profile?.license_type && (
+                      <span className="text-gray-400 text-sm italic">No roles set</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Specialties */}

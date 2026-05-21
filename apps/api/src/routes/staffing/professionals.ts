@@ -133,6 +133,7 @@ router.put('/profile', requireAuth, async (req: AuthRequest, res) => {
       licenseDocUrl, certDocUrls,
       // New extended fields
       workExperience, certifications, govtIdDocs, govtIdNumber, backgroundCheckDetails,
+      roles,
     } = req.body;
 
     // Build dynamic update with only provided fields
@@ -192,6 +193,21 @@ router.put('/profile', requireAuth, async (req: AuthRequest, res) => {
       `UPDATE professional_profiles SET ${setClauses.join(', ')} WHERE user_id = $${idx} RETURNING *`,
       values
     );
+
+    const proId = result.rows[0]?.id;
+
+    if (proId && Array.isArray(roles)) {
+      await query(`DELETE FROM professional_licenses WHERE professional_id = $1`, [proId]);
+      for (const role of roles) {
+        const roleType = typeof role === 'string' ? role : role.type;
+        if (!roleType) continue;
+        await query(
+          `INSERT INTO professional_licenses (professional_id, license_type, license_number, license_state, license_expiry, license_doc_url)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [proId, roleType, role.number || '', role.state || '', role.expiry || null, role.docUrl || null]
+        );
+      }
+    }
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Profile not found' });
