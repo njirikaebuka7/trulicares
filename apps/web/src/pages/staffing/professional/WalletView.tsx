@@ -90,6 +90,11 @@ export default function WalletView() {
               </button>
               <div className="flex gap-4 ml-auto text-emerald-100">
                 <div className="text-right">
+                  <p className="text-[10px] opacity-75 font-semibold uppercase tracking-wider">Escrow</p>
+                  <p className="text-lg font-bold text-white">${((data as any)?.escrow ?? 0).toFixed(2)}</p>
+                </div>
+                <div className="w-px h-10 bg-white/25 mx-2" />
+                <div className="text-right">
                   <p className="text-[10px] opacity-75 font-semibold uppercase tracking-wider">Total Earned</p>
                   <p className="text-lg font-bold text-white">${(data?.totalEarned ?? 0).toFixed(2)}</p>
                 </div>
