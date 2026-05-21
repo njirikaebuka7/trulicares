@@ -34,6 +34,13 @@ export default function ResumeGenerator() {
   const specialties = (profile as any)?.specialties || [];
   const licenses = (profile as any)?.licenses || [];
   const yearsExp = (profile as any)?.years_experience ?? 0;
+  const photoUrl = (profile as any)?.photo_url || user?.photoUrl || null;
+  // Parse work experience from profile
+  let workExpEntries: any[] = [];
+  try {
+    const raw = (profile as any)?.work_experience;
+    workExpEntries = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : [];
+  } catch {}
 
   if (loading) {
     return (
@@ -91,8 +98,8 @@ export default function ResumeGenerator() {
             <div className="flex items-start justify-between gap-6">
               <div className="flex items-center gap-6">
                 <div className="w-20 h-20 rounded-xl bg-white/10 border-2 border-white/20 flex items-center justify-center text-3xl font-bold text-white overflow-hidden flex-shrink-0">
-                  {user?.photoUrl
-                    ? <img src={user.photoUrl} alt={user.name} className="w-full h-full object-cover" />
+                  {photoUrl
+                    ? <img src={photoUrl} alt={user?.name} className="w-full h-full object-cover" />
                     : (user?.name?.charAt(0) || 'P')
                   }
                 </div>
@@ -123,10 +130,17 @@ export default function ResumeGenerator() {
 
         {resumeStyle === 'modern' && (
           <div className="bg-gray-900 px-10 py-8 text-white flex items-center justify-between gap-6">
-            <div>
-              <p className="text-gray-400 text-sm font-semibold uppercase tracking-wider mb-1">Healthcare Professional</p>
-              <h1 className="text-3xl font-bold text-white">{user?.name || 'Professional'}</h1>
-              <p className="text-emerald-400 font-bold mt-1 text-lg">{profile?.license_type}</p>
+            <div className="flex items-center gap-4">
+              {photoUrl && (
+                <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-white/20 flex-shrink-0">
+                  <img src={photoUrl} alt={user?.name} className="w-full h-full object-cover" />
+                </div>
+              )}
+              <div>
+                <p className="text-gray-400 text-sm font-semibold uppercase tracking-wider mb-1">Healthcare Professional</p>
+                <h1 className="text-3xl font-bold text-white">{user?.name || 'Professional'}</h1>
+                <p className="text-emerald-400 font-bold mt-1 text-lg">{profile?.license_type}</p>
+              </div>
             </div>
             <div className="text-right text-gray-400 text-sm space-y-1 font-medium">
               {user?.email && <p className="flex items-center justify-end gap-2"><Mail className="w-3.5 h-3.5" /> {user.email}</p>}
@@ -189,22 +203,37 @@ export default function ResumeGenerator() {
             <section>
               <SectionTitle style={resumeStyle} icon={<Briefcase className="w-4 h-4" />} title="Work Experience" />
               <div className="mt-3 space-y-4">
-                <div className="border-l-2 border-brand-200 pl-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <h4 className="font-bold text-gray-900">{profile?.license_type || 'Healthcare Professional'}</h4>
-                    <span className="text-xs text-gray-400 font-medium">
-                      {yearsExp > 0 ? `${yearsExp}+ years` : 'Entry Level'}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-500 font-medium">TruliCares Staffing Network</p>
-                  <ul className="mt-2 space-y-1 text-sm text-gray-600 font-medium">
-                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0 mt-0.5" /> Providing patient-centered care in multiple healthcare settings</li>
-                    <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0 mt-0.5" /> Maintaining accurate patient documentation and care records</li>
-                    {specialties.length > 0 && (
-                      <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0 mt-0.5" /> Specialized in: {specialties.slice(0, 3).join(', ')}</li>
+                {workExpEntries.length > 0 ? workExpEntries.map((w: any, i: number) => (
+                  <div key={i} className="border-l-2 border-brand-200 pl-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <h4 className="font-bold text-gray-900">{w.title}</h4>
+                      <span className="text-xs text-gray-400 font-medium">
+                        {w.startDate} — {w.current ? 'Present' : (w.endDate || '')}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-500 font-medium">{w.employer}</p>
+                    {w.description && (
+                      <p className="mt-1.5 text-sm text-gray-600 font-medium leading-relaxed">{w.description}</p>
                     )}
-                  </ul>
-                </div>
+                  </div>
+                )) : (
+                  <div className="border-l-2 border-brand-200 pl-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <h4 className="font-bold text-gray-900">{profile?.license_type || 'Healthcare Professional'}</h4>
+                      <span className="text-xs text-gray-400 font-medium">
+                        {yearsExp > 0 ? `${yearsExp}+ years` : 'Entry Level'}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-500 font-medium">TruliCares Staffing Network</p>
+                    <ul className="mt-2 space-y-1 text-sm text-gray-600 font-medium">
+                      <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0 mt-0.5" /> Providing patient-centered care in multiple healthcare settings</li>
+                      <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0 mt-0.5" /> Maintaining accurate patient documentation and care records</li>
+                      {specialties.length > 0 && (
+                        <li className="flex items-start gap-2"><CheckCircle className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0 mt-0.5" /> Specialized in: {specialties.slice(0, 3).join(', ')}</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
               </div>
             </section>
           </div>

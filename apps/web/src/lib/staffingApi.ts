@@ -11,6 +11,10 @@ export const professional = {
   register: (data: any) => post('/staffing/professionals/register', data),
   updateProfile: (data: any) => put('/staffing/professionals/profile', data),
   getById: (id: string) => get(`/staffing/professionals/${id}`),
+  submitGovtId: (data: { idFrontUrl?: string; idBackUrl?: string; selfieUrl?: string; idNumber?: string }) =>
+    post('/staffing/professionals/govt-id', data),
+  submitBackgroundCheck: (details: any) =>
+    post('/staffing/professionals/background-check', { details }),
 };
 
 // ── Facility ───────────────────────────────────────────────────
