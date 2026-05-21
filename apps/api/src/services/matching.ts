@@ -58,9 +58,20 @@ function locationsTally(
   const normReq = normalize(reqLocation);
   const normCg = normalize(cgLocation);
 
-  // 1. Check exact ZIP code match if request zip is present
-  if (reqZip && cgServiceZips && cgServiceZips.includes(reqZip)) {
-    return true;
+  // 1. Check exact ZIP code match or close ZIP code match (fuzzy matching)
+  if (reqZip && cgServiceZips && cgServiceZips.length > 0) {
+    if (cgServiceZips.includes(reqZip)) return true;
+    
+    // Fuzzy matching for close zip codes (e.g. 100265 and 100266)
+    const reqZipNum = parseInt(reqZip, 10);
+    if (!isNaN(reqZipNum)) {
+      for (const cgZip of cgServiceZips) {
+        const cgZipNum = parseInt(cgZip, 10);
+        if (!isNaN(cgZipNum) && Math.abs(reqZipNum - cgZipNum) <= 10) {
+          return true;
+        }
+      }
+    }
   }
 
   // 2. Check exact location name match (case-insensitive)
@@ -129,10 +140,27 @@ export async function findMatches(
 
   // Strictly filter candidates whose location tallies (exact ZIP, exact name, or geographic proximity)
   const candidates: MatchCandidate[] = result.rows
-    .map((row: any) => ({
-      ...row,
-      near_you: zip ? (row.service_zips || []).includes(zip) : false,
-    }))
+    .map((row: any) => {
+      let isNear = false;
+      const zips = row.service_zips || [];
+      if (zip && zips.length > 0) {
+        if (zips.includes(zip)) {
+          isNear = true;
+        } else {
+          const reqZipNum = parseInt(zip, 10);
+          if (!isNaN(reqZipNum)) {
+            isNear = zips.some((z: string) => {
+              const cgZipNum = parseInt(z, 10);
+              return !isNaN(cgZipNum) && Math.abs(reqZipNum - cgZipNum) <= 10;
+            });
+          }
+        }
+      }
+      return {
+        ...row,
+        near_you: isNear,
+      };
+    })
     .filter((row: any) => {
       return locationsTally(familyLocation, zip || undefined, row.location, row.service_zips || []);
     });
