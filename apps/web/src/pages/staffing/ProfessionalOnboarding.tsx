@@ -625,24 +625,40 @@ export default function ProfessionalOnboarding() {
                       setLocatingZip(true);
                       try {
                         if (navigator.geolocation) {
-                          navigator.geolocation.getCurrentPosition(async pos => {
-                            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
-                            const data = await res.json();
-                            const addr = data.address || {};
-                            const city = addr.city || addr.town || addr.village || addr.suburb || '';
-                            const state = addr.state || '';
-                            const zip = addr.postcode || '';
-                            const road = addr.road || addr.pedestrian || addr.highway || '';
-                            const houseNumber = addr.house_number || '';
-                            
-                            const streetAddress = `${houseNumber ? houseNumber + ' ' : ''}${road}`.trim();
-                            const fullAddress = [streetAddress, city, state, zip].filter(Boolean).join(', ');
-                            
-                            set('location', fullAddress || data.display_name || 'Current Location');
-                            setLocatingZip(false);
-                          });
+                          navigator.geolocation.getCurrentPosition(
+                            async pos => {
+                              try {
+                                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
+                                const data = await res.json();
+                                const addr = data.address || {};
+                                const city = addr.city || addr.town || addr.village || addr.suburb || '';
+                                const state = addr.state || '';
+                                const zip = addr.postcode || '';
+                                const road = addr.road || addr.pedestrian || addr.highway || '';
+                                const houseNumber = addr.house_number || '';
+                                
+                                const streetAddress = `${houseNumber ? houseNumber + ' ' : ''}${road}`.trim();
+                                const fullAddress = [streetAddress, city, state, zip].filter(Boolean).join(', ');
+                                
+                                set('location', fullAddress || data.display_name || 'Current Location');
+                              } catch (err) {
+                                console.error(err);
+                                alert('Failed to resolve location.');
+                              } finally {
+                                setLocatingZip(false);
+                              }
+                            },
+                            err => {
+                              console.error(err);
+                              setLocatingZip(false);
+                              alert('Location access denied or timed out. Please ensure permissions are granted in your device settings.');
+                            },
+                            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+                          );
+                        } else {
+                          setLocatingZip(false);
+                          alert('Geolocation is not supported by your browser.');
                         }
-                      } catch { setLocatingZip(false); }
                     }}
                     className="mt-3 flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl bg-emerald-50 text-emerald-700 font-bold text-sm hover:bg-emerald-100 transition-all disabled:opacity-50"
                     disabled={locatingZip}

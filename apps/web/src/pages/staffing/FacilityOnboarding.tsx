@@ -302,30 +302,44 @@ export default function FacilityOnboarding() {
                     onClick={() => {
                       setLocating(true);
                       if (navigator.geolocation) {
-                        navigator.geolocation.getCurrentPosition(async (pos) => {
-                          try {
-                            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
-                            const data = await res.json();
-                            const addr = data.address || {};
-                            const road = addr.road || addr.pedestrian || addr.highway || '';
-                            const houseNumber = addr.house_number || '';
-                            let streetAddress = `${houseNumber ? houseNumber + ' ' : ''}${road}`.trim();
-                            
-                            if (!streetAddress && data.display_name) {
-                              streetAddress = data.display_name.split(',').slice(0, 2).join(',').trim();
+                        navigator.geolocation.getCurrentPosition(
+                          async (pos) => {
+                            try {
+                              const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
+                              const data = await res.json();
+                              const addr = data.address || {};
+                              const road = addr.road || addr.pedestrian || addr.highway || '';
+                              const houseNumber = addr.house_number || '';
+                              let streetAddress = `${houseNumber ? houseNumber + ' ' : ''}${road}`.trim();
+                              
+                              if (!streetAddress && data.display_name) {
+                                streetAddress = data.display_name.split(',').slice(0, 2).join(',').trim();
+                              }
+                              
+                              setForm(prev => ({
+                                ...prev,
+                                address: streetAddress || 'Current Location',
+                                city: addr.city || addr.town || addr.village || addr.county || addr.suburb || '',
+                                state: addr.state || '',
+                                zip: addr.postcode || ''
+                              }));
+                            } catch (err) {
+                              console.error(err);
+                              alert('Failed to resolve location.');
+                            } finally {
+                              setLocating(false);
                             }
-                            
-                            setForm(prev => ({
-                              ...prev,
-                              address: streetAddress || 'Current Location',
-                              city: addr.city || addr.town || addr.village || addr.county || addr.suburb || '',
-                              state: addr.state || '',
-                              zip: addr.postcode || ''
-                            }));
-                          } finally {
+                          },
+                          err => {
+                            console.error(err);
                             setLocating(false);
-                          }
-                        });
+                            alert('Location access denied or timed out. Please ensure permissions are granted in your device settings.');
+                          },
+                          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+                        );
+                      } else {
+                        setLocating(false);
+                        alert('Geolocation is not supported by your browser.');
                       }
                     }}
                     className="mt-3 flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl bg-brand-50 text-brand-700 font-bold text-sm hover:bg-brand-100 transition-all disabled:opacity-50"
