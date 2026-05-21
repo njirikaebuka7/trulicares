@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import {
   Star, Shield, Check, MapPin, Clock, DollarSign,
   Briefcase, CheckCircle, MessageCircle, Award, Calendar, ArrowLeft, X, LockKeyhole
@@ -34,6 +34,7 @@ const categoryIcons: Record<string, string> = {
 export default function CaregiverProfile() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated, user } = useAuth();
   const [caregiver, setCaregiver] = useState<CGProfile | null>(null);
   const [reviews, setReviews] = useState<any[]>([]);
@@ -66,6 +67,22 @@ export default function CaregiverProfile() {
 
   const handleRequestCare = () => {
     if (!caregiver) return;
+
+    const locState = location.state as any;
+    const matchId = locState?.matchId || (existingMatch?.status === 'matched' ? existingMatch.id : null);
+    const reqId = locState?.requestId || (existingMatch?.status === 'matched' ? existingMatch.careRequestId : null);
+
+    if (matchId) {
+      navigate('/find-care', {
+        state: {
+          resumeRequestId: reqId,
+          autoSelectMatchId: matchId,
+          caregiverId: caregiver.id
+        }
+      });
+      return;
+    }
+
     if (caregiver.specialties.length === 1) {
       navigate('/find-care', {
         state: {

@@ -34,26 +34,31 @@ export default function FindCare() {
   const navigate = useNavigate();
   const { isAuthenticated, isLoading } = useAuth();
 
-  const state = (location.state as LocationState) || {};
+  const state = (location.state as LocationState & { autoSelectMatchId?: string, resumeRequestId?: string }) || {};
   const preselected = state.preselectedCategory;
   const isDirectRequest = state.directRequest === true;
   const directCaregiverId = state.caregiverId;
+  const autoSelectMatchId = state.autoSelectMatchId;
+  const resumeRequestId = state.resumeRequestId;
 
   const [phase, setPhase] = useState<FlowPhase>('care-type');
   const [careCategory, setCareCategory] = useState<CareCategory | null>(null);
   const [careData, setCareData] = useState<Record<string, unknown>>({});
-  const [currentRequestId, setCurrentRequestId] = useState<string | null>(null);
+  const [currentRequestId, setCurrentRequestId] = useState<string | null>(resumeRequestId || null);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [selectedCaregiverId, setSelectedCaregiverId] = useState<string | null>(directCaregiverId || null);
 
   const cancelDestination = isAuthenticated ? '/dashboard' : '/';
 
   useEffect(() => {
-    if (preselected) {
+    if (autoSelectMatchId) {
+      if (resumeRequestId) setCurrentRequestId(resumeRequestId);
+      handleSelectMatch(autoSelectMatchId, directCaregiverId || undefined);
+    } else if (preselected) {
       setCareCategory(preselected as CareCategory);
       setPhase('care-details');
     }
-  }, [preselected]);
+  }, [autoSelectMatchId, preselected]);
 
   const handleCareTypeSelect = (type: CareCategory) => {
     setCareCategory(type);

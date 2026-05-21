@@ -195,7 +195,7 @@ export default function MatchesListStep({ requestId, onSelectMatch, onBack, fami
                     </div>
                   )}
                   <div className="mt-4 flex items-center gap-2">
-                    <Link to={`/caregivers/${cg.id}`} onClick={(e) => e.stopPropagation()}>
+                    <Link to={`/caregivers/${cg.id}`} state={{ matchId: m.id, requestId }} onClick={(e) => e.stopPropagation()}>
                       <Button variant="secondary" size="sm">View Profile</Button>
                     </Link>
                     {isSelected && <span className="text-xs font-semibold text-brand-600">Selected caregiver</span>}
