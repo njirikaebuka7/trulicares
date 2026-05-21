@@ -5,7 +5,6 @@ import {
 } from 'lucide-react';
 import { professional as proApi } from '@/lib/staffingApi';
 import { ProfessionalProfile } from '@/types/staffing';
-import html2pdf from 'html2pdf.js';
 import { useAuth } from '@/context/AuthContext';
 import logoImg from '@/assets/logo.png';
 
@@ -14,7 +13,6 @@ export default function ResumeGenerator() {
   const [profile, setProfile] = useState<ProfessionalProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [printing, setPrinting] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const [resumeStyle, setResumeStyle] = useState<'professional' | 'modern' | 'minimal'>('professional');
   const resumeRef = useRef<HTMLDivElement>(null);
 
@@ -31,28 +29,6 @@ export default function ResumeGenerator() {
       window.print();
       setPrinting(false);
     }, 500);
-  };
-
-  const handleDownloadPdf = async () => {
-    setDownloading(true);
-    try {
-      const element = document.getElementById('resume-printable');
-      if (element) {
-        const opt = {
-          margin: [0.5, 0.5, 0.5, 0.5],
-          filename: `${(profile?.name || user?.name || 'professional').replace(/\s+/g, '_')}_resume.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true },
-          jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
-        };
-        await html2pdf().set(opt).from(element).save();
-      }
-    } catch (err: any) {
-      console.error('Failed to generate PDF', err);
-      alert(`Failed to generate PDF: ${err?.message || 'Please try again.'}`);
-    } finally {
-      setDownloading(false);
-    }
   };
 
   const specialties = (profile as any)?.specialties || [];
@@ -100,7 +76,7 @@ export default function ResumeGenerator() {
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
-              disabled={printing || downloading}
+              disabled={printing}
               className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 font-semibold rounded-full hover:bg-gray-200 transition-all active:scale-95 shadow-sm text-sm"
               title="Print"
             >
@@ -108,12 +84,12 @@ export default function ResumeGenerator() {
               <span className="hidden sm:inline">Print</span>
             </button>
             <button
-              onClick={handleDownloadPdf}
-              disabled={printing || downloading}
+              onClick={handlePrint}
+              disabled={printing}
               className="flex items-center justify-center gap-2 px-4 py-2 bg-brand-600 text-white font-semibold rounded-full hover:bg-brand-700 transition-all active:scale-95 shadow-sm text-sm"
               title="Save PDF"
             >
-              {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {printing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               <span className="hidden sm:inline">Save PDF</span>
             </button>
           </div>
