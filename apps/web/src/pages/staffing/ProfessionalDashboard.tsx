@@ -10,6 +10,7 @@ import { useAuth } from '@/context/AuthContext';
 import { professional as proApi, shifts as shiftApi, applications as appApi, wallet as walletApi } from '@/lib/staffingApi';
 import { ProfessionalProfile, Shift } from '@/types/staffing';
 import logoImg from '@/assets/logo.png';
+import { get, post } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/utils/cn';
 import { format } from 'date-fns';
@@ -40,6 +41,40 @@ function ProfessionalDashboardInner() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false);
+
+  // Notifications
+  const [dbNotifications, setDbNotifications] = useState<any[]>([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    get('/notifications').then((d: any) => setDbNotifications(d.notifications || [])).catch(console.error);
+    
+    const notifChannel = supabase
+      .channel(`notifications:${user.id}`)
+      .on('broadcast', { event: 'new_notification' }, (payload) => {
+        setDbNotifications(prev => [payload.payload, ...prev]);
+      })
+      .subscribe();
+      
+    return () => {
+      supabase.removeChannel(notifChannel);
+    };
+  }, [user]);
+
+  const unread = dbNotifications.filter(n => !(n.read ?? n.isRead)).length;
+
+  const openNotifications = async () => {
+    setNotifOpen(!notifOpen);
+    if (!notifOpen && unread > 0) {
+      setDbNotifications(prev => prev.map(n => ({ ...n, read: true, isRead: true })));
+      try {
+        await post('/notifications/read', {});
+      } catch (err) {
+        console.error('Failed to mark notifications read', err);
+      }
+    }
+  };
 
   // Global Staffing Listeners (Realtime updates)
   useEffect(() => {
@@ -209,9 +244,36 @@ function ProfessionalDashboardInner() {
               </div>
               <span className="text-xs font-bold text-gray-900 truncate max-w-[120px]">{profile?.name || user?.name}</span>
             </div>
-            <button className="w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors">
-              <Bell className="w-5 h-5 text-gray-500" />
-            </button>
+            <div className="relative">
+              <button 
+                onClick={openNotifications}
+                className="relative w-10 h-10 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors"
+              >
+                <Bell className="w-5 h-5 text-gray-500" />
+                {unread > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-coral-500 rounded-full text-white text-[10px] flex items-center justify-center font-bold">{unread}</span>
+                )}
+              </button>
+              {notifOpen && (
+                <div className="hidden lg:block absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                    <span className="font-bold text-gray-900 text-sm">Notifications</span>
+                    <button onClick={() => setNotifOpen(false)}><X className="w-4 h-4 text-gray-400" /></button>
+                  </div>
+                  {dbNotifications.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-sm text-gray-400">No notifications yet.</div>
+                  ) : dbNotifications.slice(0, 8).map((n: any) => {
+                    const isRead = n.read ?? n.isRead ?? false;
+                    return (
+                      <div key={n.id} className="px-4 py-3 border-b border-gray-50 last:border-0">
+                        <p className={cn('text-sm font-medium', isRead ? 'text-gray-600' : 'text-gray-900')}>{n.content || n.title}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{n.createdAt ? new Date(n.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : n.timeAgo}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             {/* Mobile User Menu Dropdown */}
             <div className="relative lg:hidden">
