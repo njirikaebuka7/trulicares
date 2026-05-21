@@ -431,57 +431,30 @@ function Overview({ profile, summary, activeShift }: { profile: ProfessionalProf
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Verification Status */}
-        <div className="lg:col-span-2 bg-slate-900 rounded-2xl p-6 text-white relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-[60px] -mr-16 -mt-16 transition-transform duration-1000 group-hover:scale-125" />
-          <div className="relative flex flex-col sm:flex-row items-center gap-6">
-            <div className="w-16 h-16 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/10 shrink-0">
-              <Shield className="w-8 h-8 text-brand-400" />
-            </div>
-            <div>
-              <h4 className="text-lg font-bold mb-1">Professional Credentials</h4>
-              <p className="text-gray-300 text-sm leading-relaxed max-w-lg">
-                Your profile is active and verified by TruliCares Admin. You have priority access to high-pay shifts at top facilities in {profile?.location || 'your area'}.
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <div className="flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 px-3 py-1.5 rounded-lg text-xs font-semibold border border-emerald-500/30">
-                  <CheckCircle className="w-3.5 h-3.5" /> License Verified
-                </div>
-                <div className="flex items-center gap-1.5 bg-blue-500/20 text-blue-300 px-3 py-1.5 rounded-lg text-xs font-semibold border border-blue-500/30">
-                  <CheckCircle className="w-3.5 h-3.5" /> Background Clear
-                </div>
+      <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm relative overflow-hidden">
+        <h3 className="font-bold text-gray-900 mb-4 text-sm">Quick Actions</h3>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 relative">
+          {[
+            { label: 'View My Wallet', path: '/professional-dashboard/wallet', icon: Wallet, color: 'bg-amber-50 text-amber-600', border: 'hover:border-amber-200' },
+            { label: 'Update Profile', path: '/professional-dashboard/profile', icon: UserCircle, color: 'bg-brand-50 text-brand-600', border: 'hover:border-brand-200' },
+            { label: 'Browse Shifts', path: '/professional-dashboard/browse', icon: Search, color: 'bg-blue-50 text-blue-600', border: 'hover:border-blue-200' },
+            { label: 'My Schedule', path: '/professional-dashboard/schedule', icon: Calendar, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
+          ].map((link, i) => (
+            <Link 
+              key={i} 
+              to={link.path}
+              className={cn(
+                "flex items-center gap-3 p-3.5 rounded-xl bg-gray-50/50 border border-transparent transition-all duration-300 group/item",
+                link.border
+              )}
+            >
+              <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-500", link.color)}>
+                <link.icon className="w-5 h-5" />
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm relative overflow-hidden">
-          <h3 className="font-bold text-gray-900 mb-4 text-sm">Quick Actions</h3>
-          <div className="space-y-3 relative">
-            {[
-              { label: 'View My Wallet', path: '/professional-dashboard/wallet', icon: Wallet, color: 'bg-amber-50 text-amber-600', border: 'hover:border-amber-200' },
-              { label: 'Update Profile', path: '/professional-dashboard/profile', icon: UserCircle, color: 'bg-brand-50 text-brand-600', border: 'hover:border-brand-200' },
-              { label: 'Browse Shifts', path: '/professional-dashboard/browse', icon: Search, color: 'bg-blue-50 text-blue-600', border: 'hover:border-blue-200' },
-              { label: 'My Schedule', path: '/professional-dashboard/schedule', icon: Calendar, color: 'bg-emerald-50 text-emerald-600', border: 'hover:border-emerald-200' },
-            ].map((link, i) => (
-              <Link 
-                key={i} 
-                to={link.path}
-                className={cn(
-                  "flex items-center gap-3 p-3.5 rounded-xl bg-gray-50/50 border border-transparent transition-all duration-300 group/item",
-                  link.border
-                )}
-              >
-                <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-500", link.color)}>
-                  <link.icon className="w-5 h-5" />
-                </div>
-                <span className="font-semibold text-gray-700 text-sm">{link.label}</span>
-                <ChevronRight className="ml-auto w-4 h-4 text-gray-400 group-hover/item:text-gray-900 group-hover/item:translate-x-0.5 transition-all" />
-              </Link>
-            ))}
-          </div>
+              <span className="font-semibold text-gray-700 text-sm">{link.label}</span>
+              <ChevronRight className="ml-auto w-4 h-4 text-gray-400 group-hover/item:text-gray-900 group-hover/item:translate-x-0.5 transition-all" />
+            </Link>
+          ))}
         </div>
       </div>
     </div>
