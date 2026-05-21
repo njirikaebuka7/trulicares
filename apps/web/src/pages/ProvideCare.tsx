@@ -23,6 +23,8 @@ const specialtyOptions: { id: CareCategory; label: string; icon: string }[] = [
   { id: 'cleaning', label: 'Cleaning Services', icon: '✨' },
 ];
 
+const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+
 export default function ProvideCare() {
   const navigate = useNavigate();
   const { isAuthenticated, isLoading, signup } = useAuth();
@@ -185,7 +187,7 @@ export default function ProvideCare() {
 
   const isNextDisabled = () => {
     switch (step) {
-      case 0: return !name || !email || !password || password.length < 8 || !photoBase64;
+      case 0: return !name || !email || !password || !STRONG_PASSWORD_REGEX.test(password) || !photoBase64;
       case 1: return !isPhoneVerified;
       case 2: return specialties.length === 0;
       case 3: return serviceZips.length === 0;
@@ -259,11 +261,16 @@ export default function ProvideCare() {
           <div className="relative">
             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Create a password"
-              className="w-full pl-12 pr-12 py-3.5 rounded-2xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none" />
+              className="w-full pl-12 pr-12 py-3.5 rounded-2xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm transition-all" />
             <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
+          {password && !STRONG_PASSWORD_REGEX.test(password) && (
+            <p className="text-xs text-red-500 mt-1.5 font-medium leading-tight">
+              Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.
+            </p>
+          )}
         </div>
         {error && (
           <div className="bg-red-50 text-red-600 text-sm p-3 rounded-xl">{error}</div>

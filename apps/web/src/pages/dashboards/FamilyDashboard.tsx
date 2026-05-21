@@ -5,7 +5,7 @@ import {
   Star, Shield, Check, ChevronRight, Calendar, Clock, CreditCard,
   FileText, X, Home, LayoutDashboard, ChevronLeft, ChevronRight as ChevronRightIcon,
   Edit3, Camera, MoreHorizontal, Send, Phone, Trash2, CheckCircle, AlertCircle,
-  Loader2, Flag, AlertTriangle, Ban, Upload, ImagePlus, Scale
+  Loader2, Flag, AlertTriangle, Ban, Upload, ImagePlus, Scale, Lock, Eye, EyeOff
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import StripeCardModal from '@/components/ui/StripeCardModal';
@@ -15,6 +15,8 @@ import { get, post, put, auth as authApi, payments as paymentsApi, notifications
 import { cn } from '@/utils/cn';
 import { supabase } from '@/lib/supabase';
 import logoImg from '@/assets/logo.png';
+
+const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
 
 type Tab = 'Overview' | 'My Requests' | 'Matches' | 'Schedule' | 'Messages' | 'Payments' | 'Profile';
@@ -149,6 +151,9 @@ export default function FamilyDashboard() {
   const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
   const [pwSaving, setPwSaving] = useState(false);
   const [pwError, setPwError] = useState('');
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNextPw, setShowNextPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
 
   // ── Account deletion ───────────────────────────────────────────────────────
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -423,12 +428,18 @@ export default function FamilyDashboard() {
   const handleChangePassword = async () => {
     setPwError('');
     if (!pwForm.current || !pwForm.next || !pwForm.confirm) { setPwError('All fields are required'); return; }
-    if (pwForm.next.length < 8) { setPwError('New password must be at least 8 characters'); return; }
+    if (!STRONG_PASSWORD_REGEX.test(pwForm.next)) {
+      setPwError('Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.');
+      return;
+    }
     if (pwForm.next !== pwForm.confirm) { setPwError('Passwords do not match'); return; }
     setPwSaving(true);
     try {
       await authApi.changePassword(pwForm.current, pwForm.next);
       setPwForm({ current: '', next: '', confirm: '' });
+      setShowCurrentPw(false);
+      setShowNextPw(false);
+      setShowConfirmPw(false);
       setProfileModal(null);
       showToast('Password changed successfully!');
     } catch (err: any) {
@@ -2103,30 +2114,53 @@ export default function FamilyDashboard() {
       {/* ── ACCOUNT SETTINGS MODAL ── */}
       {profileModal === 'account' && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setProfileModal(null); setPwForm({ current: '', next: '', confirm: '' }); setPwError(''); }} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setProfileModal(null); setPwForm({ current: '', next: '', confirm: '' }); setPwError(''); setShowCurrentPw(false); setShowNextPw(false); setShowConfirmPw(false); }} />
           <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h3 className="font-bold text-gray-900 text-lg">Change Password</h3>
-              <button onClick={() => { setProfileModal(null); setPwForm({ current: '', next: '', confirm: '' }); setPwError(''); }} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><X className="w-4 h-4 text-gray-500" /></button>
+              <button onClick={() => { setProfileModal(null); setPwForm({ current: '', next: '', confirm: '' }); setPwError(''); setShowCurrentPw(false); setShowNextPw(false); setShowConfirmPw(false); }} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><X className="w-4 h-4 text-gray-500" /></button>
             </div>
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Current Password</label>
-                <input type="password" value={pwForm.current} placeholder="Enter current password"
-                  onChange={e => setPwForm(p => ({ ...p, current: e.target.value }))}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input type={showCurrentPw ? 'text' : 'password'} value={pwForm.current} placeholder="Enter current password"
+                    onChange={e => setPwForm(p => ({ ...p, current: e.target.value }))}
+                    className="w-full pl-10 pr-10 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+                  <button type="button" onClick={() => setShowCurrentPw(!showCurrentPw)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    {showCurrentPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">New Password</label>
-                <input type="password" value={pwForm.next} placeholder="At least 8 characters"
-                  onChange={e => setPwForm(p => ({ ...p, next: e.target.value }))}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input type={showNextPw ? 'text' : 'password'} value={pwForm.next} placeholder="At least 8 characters"
+                    onChange={e => setPwForm(p => ({ ...p, next: e.target.value }))}
+                    className="w-full pl-10 pr-10 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+                  <button type="button" onClick={() => setShowNextPw(!showNextPw)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    {showNextPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {pwForm.next && !STRONG_PASSWORD_REGEX.test(pwForm.next) && (
+                  <p className="text-[11px] text-red-500 mt-1 font-medium leading-tight">
+                    Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirm New Password</label>
-                <input type="password" value={pwForm.confirm} placeholder="Re-enter new password"
-                  onChange={e => setPwForm(p => ({ ...p, confirm: e.target.value }))}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input type={showConfirmPw ? 'text' : 'password'} value={pwForm.confirm} placeholder="Re-enter new password"
+                    onChange={e => setPwForm(p => ({ ...p, confirm: e.target.value }))}
+                    className="w-full pl-10 pr-10 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+                  <button type="button" onClick={() => setShowConfirmPw(!showConfirmPw)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    {showConfirmPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
               {pwError && (
                 <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 text-red-600 text-sm">
@@ -2134,7 +2168,7 @@ export default function FamilyDashboard() {
                 </div>
               )}
               <div className="flex gap-3 pt-2">
-                <Button variant="secondary" fullWidth onClick={() => { setProfileModal(null); setPwForm({ current: '', next: '', confirm: '' }); setPwError(''); }}>Cancel</Button>
+                <Button variant="secondary" fullWidth onClick={() => { setProfileModal(null); setPwForm({ current: '', next: '', confirm: '' }); setPwError(''); setShowCurrentPw(false); setShowNextPw(false); setShowConfirmPw(false); }}>Cancel</Button>
                 <Button variant="primary" fullWidth onClick={handleChangePassword} disabled={pwSaving}>
                   {pwSaving ? 'Saving…' : 'Change Password'}
                 </Button>

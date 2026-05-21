@@ -166,3 +166,22 @@ input[type="range"]::-moz-range-thumb {
   border: 3px solid white;
   box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
+
+/* Custom Double Range Slider styling */
+.double-range-slider-input {
+  pointer-events: none;
+  background: transparent !important;
+}
+
+.double-range-slider-input::-webkit-slider-thumb {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 10;
+}
+
+.double-range-slider-input::-moz-range-thumb {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 10;
+}
+

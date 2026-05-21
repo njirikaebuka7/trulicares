@@ -8,6 +8,9 @@ import { uploadBase64Image } from '../services/storage.js';
 
 const router = Router();
 
+const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+
+
 function detectRole(email: string, explicitRole?: string): 'family' | 'caregiver' | 'admin' | 'professional' | 'facility' {
   if (explicitRole === 'admin' || email.includes('admin')) return 'admin';
   if (explicitRole === 'professional') return 'professional';
@@ -25,8 +28,8 @@ router.post('/register', async (req, res) => {
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Name, email and password are required' });
     }
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    if (!STRONG_PASSWORD_REGEX.test(password)) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters and contain at least one uppercase letter, one lowercase letter, one number, and one special character.' });
     }
 
     const existing = await query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
@@ -198,8 +201,8 @@ router.put('/password', requireAuth, async (req: AuthRequest, res) => {
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ error: 'Both current and new passwords are required' });
     }
-    if (newPassword.length < 8) {
-      return res.status(400).json({ error: 'New password must be at least 8 characters' });
+    if (!STRONG_PASSWORD_REGEX.test(newPassword)) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters and contain at least one uppercase letter, one lowercase letter, one number, and one special character.' });
     }
     const result = await query('SELECT password_hash FROM users WHERE id = $1', [req.user!.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
@@ -391,7 +394,9 @@ router.post('/reset-password', async (req, res) => {
   try {
     const { token, password } = req.body;
     if (!token || !password) return res.status(400).json({ error: 'Token and password are required' });
-    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    if (!STRONG_PASSWORD_REGEX.test(password)) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters and contain at least one uppercase letter, one lowercase letter, one number, and one special character.' });
+    }
 
     const result = await query(
       `SELECT id, name, email, role FROM users

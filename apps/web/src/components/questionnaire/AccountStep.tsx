@@ -11,6 +11,8 @@ interface Props {
   cancelLabel?: string;
 }
 
+const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+
 export default function AccountStep({ onComplete, onBack, onCancel, cancelLabel }: Props) {
   const { isAuthenticated, signup } = useAuth();
   const navigate = useNavigate();
@@ -31,8 +33,8 @@ export default function AccountStep({ onComplete, onBack, onCancel, cancelLabel 
       setError('Please fill in all fields');
       return;
     }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
+    if (!STRONG_PASSWORD_REGEX.test(password)) {
+      setError('Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.');
       return;
     }
 
@@ -114,6 +116,11 @@ export default function AccountStep({ onComplete, onBack, onCancel, cancelLabel 
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
+            {password && !STRONG_PASSWORD_REGEX.test(password) && (
+              <p className="text-xs text-red-500 mt-1.5 font-medium leading-tight">
+                Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.
+              </p>
+            )}
           </div>
 
           {error && (

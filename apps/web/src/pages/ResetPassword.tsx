@@ -5,6 +5,8 @@ import Button from '@/components/ui/Button';
 import { post } from '@/lib/api';
 import logoImg from '@/assets/logo.png';
 
+const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+
 export default function ResetPassword() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -13,6 +15,7 @@ export default function ResetPassword() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPw, setShowPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
@@ -24,7 +27,10 @@ export default function ResetPassword() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
+    if (!STRONG_PASSWORD_REGEX.test(password)) {
+      setError('Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.');
+      return;
+    }
     if (password !== confirm) { setError('Passwords do not match'); return; }
     setLoading(true);
     try {
@@ -86,6 +92,11 @@ export default function ResetPassword() {
                     {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+                {password && !STRONG_PASSWORD_REGEX.test(password) && (
+                  <p className="text-xs text-red-500 mt-1.5 font-medium leading-tight">
+                    Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -93,13 +104,20 @@ export default function ResetPassword() {
                 <div className="relative">
                   <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
-                    type={showPw ? 'text' : 'password'}
+                    type={showConfirmPw ? 'text' : 'password'}
                     value={confirm}
                     onChange={e => setConfirm(e.target.value)}
                     placeholder="Repeat your password"
                     required
                     className="w-full border border-gray-200 rounded-xl pl-10 pr-10 py-3 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPw(v => !v)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showConfirmPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
 

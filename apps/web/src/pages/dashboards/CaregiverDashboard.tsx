@@ -4,7 +4,8 @@ import {
   Bell, MessageCircle, User, Settings, LogOut, MapPin, DollarSign,
   Star, Shield, Check, ChevronRight, Calendar, Clock, TrendingUp,
   Briefcase, X, CheckCircle, XCircle, Edit3, LayoutDashboard,
-  ChevronLeft, ChevronRight as ChevronRightIcon, Camera, Send, MoreHorizontal, Loader2, Plus, AlertCircle, Phone, Trash2, Upload, Zap, CreditCard, Flag, AlertTriangle, Ban, Award
+  ChevronLeft, ChevronRight as ChevronRightIcon, Camera, Send, MoreHorizontal, Loader2, Plus, AlertCircle, Phone, Trash2, Upload, Zap, CreditCard, Flag, AlertTriangle, Ban, Award,
+  Eye, EyeOff
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import ReportModal from '@/components/ReportModal';
@@ -52,6 +53,8 @@ const DB_SPECIALTY_MAP: Record<string, string> = {
   'Pet Care': 'pet-care',
 };
 
+const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+
 export default function CaregiverDashboard() {
   const navigate = useNavigate();
   const { user, logout, updateUser } = useAuth();
@@ -95,9 +98,21 @@ export default function CaregiverDashboard() {
   const [cgPasswordError, setCgPasswordError] = useState('');
   const [bgCheckModalOpen, setBgCheckModalOpen] = useState(false);
   const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [hasLoadedProfile, setHasLoadedProfile] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraActive, setCameraActive] = useState(false);
 
   // Rebuilt Profile Builder States
   const [profileSubTab, setProfileSubTab] = useState<'bio' | 'id_verification' | 'background_check' | 'services' | 'resumes' | 'certifications' | 'security' | 'notifications'>('bio');
+  const [mobileShowMenu, setMobileShowMenu] = useState(true);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showModalCurrent, setShowModalCurrent] = useState(false);
+  const [showModalNew, setShowModalNew] = useState(false);
+  const [showModalConfirm, setShowModalConfirm] = useState(false);
   const [idCardNumber, setIdCardNumber] = useState('');
   const [idCardFront, setIdCardFront] = useState('');
   const [idCardBack, setIdCardBack] = useState('');
@@ -182,7 +197,7 @@ export default function CaregiverDashboard() {
     return () => clearInterval(timer);
   }, [cgSelectedMsg]);
 
-  const fetchData = useCallback(() => {
+  const fetchData = useCallback((forceRefresh = false) => {
     if (!user?.id) return;
     Promise.all([
       get('/matches').then((d: any) => setJobRequests(d.matches || [])).catch(() => {}),
@@ -195,31 +210,36 @@ export default function CaregiverDashboard() {
         if (d?.caregiver) {
           const cg = d.caregiver;
           if (cg.id) setCaregiverId(cg.id);
-          setCgBio(cg.bio || '');
-          if (cg.hourlyRate) setCgRate({ min: cg.hourlyRate[0], max: cg.hourlyRate[1] });
-          setCgLocation(cg.location || '');
-          setCgServiceZips(cg.serviceZips || []);
-          setCgSpecialties((cg.specialties || []).map((s: string) => SPECIALTY_MAP[s] || s));
-          setCgExperience(cg.yearsExperience || 0);
-          setPhotoUrl(cg.photoUrl || null);
           setBgCheckStatus((cg.backgroundCheckStatus || 'none') as any);
-          setCgAvailType(cg.availability || 'Flexible');
-
-          // Populating built-profile fields
-          setIdCardNumber(cg.idCardNumber || '');
-          setIdCardFront(cg.idCardFront || '');
-          setIdCardBack(cg.idCardBack || '');
-          setIdSelfie(cg.idSelfie || '');
           setIdVerificationStatus(cg.idVerificationStatus || 'none');
-          setResumes(cg.resumes || []);
-          setCertifications(cg.certifications || []);
-          setCgJobTitle(cg.jobTitle || 'Caregiver');
-          setCgLanguages(cg.languages ? cg.languages.join(', ') : 'English');
+
+          if (forceRefresh || !hasLoadedProfile) {
+            setCgBio(cg.bio || '');
+            if (cg.hourlyRate) setCgRate({ min: cg.hourlyRate[0], max: cg.hourlyRate[1] });
+            setCgLocation(cg.location || '');
+            setCgServiceZips(cg.serviceZips || []);
+            setCgSpecialties((cg.specialties || []).map((s: string) => SPECIALTY_MAP[s] || s));
+            setCgExperience(cg.yearsExperience || 0);
+            setPhotoUrl(cg.photoUrl || null);
+            setCgAvailType(cg.availability || 'Flexible');
+
+            // Populating built-profile fields
+            setIdCardNumber(cg.idCardNumber || '');
+            setIdCardFront(cg.idCardFront || '');
+            setIdCardBack(cg.idCardBack || '');
+            setIdSelfie(cg.idSelfie || '');
+            setResumes(cg.resumes || []);
+            setCertifications(cg.certifications || []);
+            setCgJobTitle(cg.jobTitle || 'Caregiver');
+            setCgLanguages(cg.languages ? cg.languages.join(', ') : 'English');
+            
+            setHasLoadedProfile(true);
+          }
         }
       }).catch(() => {}),
     ]).catch(console.error)
       .finally(() => setDashboardLoading(false));
-  }, [user?.id]);
+  }, [user?.id, hasLoadedProfile]);
 
   // Real-time subscription for new matches/job requests
   useEffect(() => {
@@ -272,6 +292,76 @@ export default function CaregiverDashboard() {
       supabase.removeChannel(channel);
     };
   }, [user?.id, fetchData]);
+
+  const startCamera = async () => {
+    setCameraError(null);
+    setCameraActive(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 640 } }
+      });
+      setCameraStream(stream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(err => console.error('Video play error:', err));
+      }
+    } catch (err: any) {
+      console.error('Camera access error:', err);
+      setCameraError('Could not access camera. Please check permissions or select fallback file upload.');
+      setCameraActive(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    setCameraActive(false);
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current) {
+      const video = videoRef.current;
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 640;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        // Horizontal flip for mirror effect (common in selfie cams)
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        // Reset transform
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        setIdSelfie(dataUrl);
+        stopCamera();
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (profileSubTab !== 'id_verification' || idSubmitStep !== 3) {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        setCameraStream(null);
+      }
+      setCameraActive(false);
+    }
+  }, [profileSubTab, idSubmitStep]);
+
+  useEffect(() => {
+    if (profileSubTab === 'id_verification' && idSubmitStep === 3 && !idSelfie && !cameraActive && !cameraError) {
+      startCamera();
+    }
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [profileSubTab, idSubmitStep]);
 
   useEffect(() => {
     fetchData();
@@ -1419,38 +1509,72 @@ export default function CaregiverDashboard() {
 
                 </div>
 
-                {/* Mobile Selector / Slider Menu */}
-                <div className="w-full block lg:hidden overflow-x-auto scrollbar-none pb-2">
-                  <div className="flex gap-2">
-                    {[
-                      { id: 'bio', label: 'Bio', icon: <User className="w-4 h-4" /> },
-                      { id: 'id_verification', label: 'ID', icon: <Shield className="w-4 h-4" /> },
-                      { id: 'background_check', label: 'Background', icon: <CheckCircle className="w-4 h-4" /> },
-                      { id: 'services', label: 'Rates & Areas', icon: <MapPin className="w-4 h-4" /> },
-                      { id: 'resumes', label: 'Resumes', icon: <Briefcase className="w-4 h-4" /> },
-                      { id: 'certifications', label: 'Certifications', icon: <Award className="w-4 h-4" /> },
-                      { id: 'security', label: 'Security', icon: <Settings className="w-4 h-4" /> },
-                      { id: 'notifications', label: 'Alerts', icon: <Bell className="w-4 h-4" /> }
-                    ].map(sub => (
-                      <button
-                        key={sub.id}
-                        onClick={() => setProfileSubTab(sub.id as any)}
-                        className={cn(
-                          "px-4 py-2.5 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 transition-colors border",
-                          profileSubTab === sub.id
-                            ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
-                            : "bg-white text-gray-600 border-gray-100"
-                        )}
-                      >
-                        {sub.icon}
-                        <span>{sub.label}</span>
-                      </button>
-                    ))}
+                {/* Mobile iOS-style Settings Grid Menu */}
+                {mobileShowMenu && (
+                  <div className="block lg:hidden w-full space-y-4">
+                    <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                      <h4 className="font-bold text-xs text-gray-400 uppercase tracking-wider mb-3">Profile Settings</h4>
+                      <div className="divide-y divide-gray-100 bg-white rounded-xl border border-gray-150 overflow-hidden shadow-2xs">
+                        {[
+                          { id: 'bio', label: 'Bio & Specialties', desc: 'Personal details & care types', icon: <User className="w-4.5 h-4.5" />, color: 'bg-emerald-50 text-emerald-600', status: null },
+                          { id: 'id_verification', label: 'Government ID', desc: 'Verify passport or license', icon: <Shield className="w-4.5 h-4.5" />, color: 'bg-blue-50 text-blue-600', status: idVerificationStatus === 'approved' ? 'Approved' : idVerificationStatus === 'pending' ? 'Pending' : 'Incomplete' },
+                          { id: 'background_check', label: 'Background Check', desc: 'Safety screening credentials', icon: <CheckCircle className="w-4.5 h-4.5" />, color: 'bg-purple-50 text-purple-600', status: bgCheckStatus === 'approved' ? 'Approved' : bgCheckStatus === 'pending' ? 'Pending' : 'Incomplete' },
+                          { id: 'services', label: 'Rates & Areas', desc: 'Hourly pricing & ZIP codes', icon: <MapPin className="w-4.5 h-4.5" />, color: 'bg-amber-50 text-amber-600', status: null },
+                          { id: 'resumes', label: 'Resumes', desc: 'Upload professional CV files', icon: <Briefcase className="w-4.5 h-4.5" />, color: 'bg-sky-50 text-sky-600', status: resumes.length > 0 ? `${resumes.length} uploaded` : 'None' },
+                          { id: 'certifications', label: 'Certifications', desc: 'Add credentials & skills', icon: <Award className="w-4.5 h-4.5" />, color: 'bg-rose-50 text-rose-600', status: certifications.length > 0 ? `${certifications.length} added` : 'None' },
+                          { id: 'security', label: 'Account Security', desc: 'Change password & toggles', icon: <Settings className="w-4.5 h-4.5" />, color: 'bg-slate-100 text-slate-600', status: null },
+                          { id: 'notifications', label: 'Alert Preferences', desc: 'Manage SMS & email alerts', icon: <Bell className="w-4.5 h-4.5" />, color: 'bg-indigo-50 text-indigo-600', status: null }
+                        ].map(sub => (
+                          <button
+                            key={sub.id}
+                            onClick={() => {
+                              setProfileSubTab(sub.id as any);
+                              setMobileShowMenu(false);
+                            }}
+                            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/85 transition-colors active:bg-slate-100"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={cn("w-9 h-9 rounded-full flex items-center justify-center shrink-0 shadow-2xs", sub.color)}>
+                                {sub.icon}
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-gray-800 leading-tight">{sub.label}</p>
+                                <p className="text-3xs text-gray-400 font-medium mt-0.5 leading-none">{sub.desc}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              {sub.status && (
+                                <span className={cn(
+                                  "text-3xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider",
+                                  sub.status === 'Approved' ? 'bg-green-50 text-green-700' :
+                                  sub.status === 'Pending' ? 'bg-amber-50 text-amber-700 animate-pulse' :
+                                  sub.status === 'None' || sub.status === 'Incomplete' ? 'bg-gray-50 text-gray-400' : 'bg-emerald-50 text-emerald-700'
+                                )}>
+                                  {sub.status}
+                                </span>
+                              )}
+                              <ChevronRight className="w-4 h-4 text-gray-300" />
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Right Interactive Active Panel Container */}
-                <div className="flex-1 min-w-0 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                <div className={cn("flex-1 min-w-0 bg-white rounded-2xl border border-gray-100 shadow-sm p-6", mobileShowMenu ? "hidden lg:block" : "block")}>
+                  {/* Sticky back bar for mobile details views */}
+                  {!mobileShowMenu && (
+                    <button
+                      type="button"
+                      onClick={() => setMobileShowMenu(true)}
+                      className="lg:hidden mb-6 flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700 active:scale-98 transition-all px-3 py-2 bg-emerald-50 rounded-xl"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      Back to Settings
+                    </button>
+                  )}
                   
                   {/* Panel 1: BIO & SPECIALTIES */}
                   {profileSubTab === 'bio' && (
@@ -1462,51 +1586,51 @@ export default function CaregiverDashboard() {
 
                       <div className="space-y-4 pt-2">
                         <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-1">Professional Headline / Job Title</label>
+                          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Professional Headline / Job Title</label>
                           <input
                             type="text"
                             value={cgJobTitle}
                             onChange={e => setCgJobTitle(e.target.value)}
                             placeholder="e.g. Compassionate Child Care Provider & Tutor"
-                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none text-sm transition-all"
+                            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm transition-all shadow-2xs outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                           />
                         </div>
 
                         <div className="grid sm:grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Years of Experience</label>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Years of Experience</label>
                             <input
                               type="number"
                               value={cgExperience}
                               onChange={e => setCgExperience(Number(e.target.value))}
                               min={0}
                               max={50}
-                              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none text-sm transition-all"
+                              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm transition-all shadow-2xs outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                             />
                           </div>
                           <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Languages (Comma separated)</label>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Languages (Comma separated)</label>
                             <input
                               type="text"
                               value={cgLanguages}
                               onChange={e => setCgLanguages(e.target.value)}
                               placeholder="English, Spanish"
-                              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none text-sm transition-all"
+                              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm transition-all shadow-2xs outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                             />
                           </div>
                         </div>
 
                         <div>
-                          <div className="flex justify-between items-center mb-1">
+                          <div className="flex justify-between items-center mb-1.5">
                             <label className="block text-sm font-semibold text-gray-700">Detailed Bio</label>
-                            <span className="text-2xs text-gray-400">{cgBio.length}/600 characters</span>
+                            <span className="text-2xs text-gray-400 font-medium">{cgBio.length}/600 characters</span>
                           </div>
                           <textarea
                             value={cgBio}
                             onChange={e => setCgBio(e.target.value.slice(0, 600))}
                             rows={5}
                             placeholder="Introduce yourself to prospective families! Detail your care philosophy, personality traits, and what makes you a trusted caregiver."
-                            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none text-sm resize-none transition-all leading-relaxed"
+                            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm transition-all shadow-2xs outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 resize-none leading-relaxed"
                           />
                         </div>
 
@@ -1557,7 +1681,7 @@ export default function CaregiverDashboard() {
                                   languages: cgLanguages.split(',').map(x => x.trim()).filter(Boolean)
                                 });
                                 showToast('Profile details updated successfully!');
-                                fetchData();
+                                fetchData(true);
                               } catch {
                                 showToast('Failed to save profile details.');
                               } finally {
@@ -1746,47 +1870,111 @@ export default function CaregiverDashboard() {
                           {idSubmitStep === 3 && (
                             <div className="space-y-4">
                               <div>
-                                <h4 className="font-bold text-sm text-gray-900">Upload a Selfie Verification</h4>
-                                <p className="text-2xs text-gray-400 mt-0.5">Hold document or position your face clearly. This matches your portrait with your identification card.</p>
+                                <h4 className="font-bold text-sm text-gray-900">Selfie Verification</h4>
+                                <p className="text-2xs text-gray-400 mt-0.5">Please capture a live selfie. This matches your face with your identification card.</p>
                               </div>
 
-                              <div className="flex justify-center">
+                              <div className="flex flex-col items-center justify-center space-y-4">
                                 {idSelfie ? (
-                                  <div className="relative border-2 border-dashed border-emerald-300 rounded-2xl overflow-hidden w-48 h-48 bg-emerald-50 flex items-center justify-center">
-                                    <img src={idSelfie} alt="Selfie" className="w-full h-full object-cover" />
+                                  <div className="flex flex-col items-center space-y-3">
+                                    <div className="relative border-2 border-emerald-500 rounded-3xl overflow-hidden w-64 h-64 bg-emerald-50 flex items-center justify-center shadow-lg">
+                                      <img src={idSelfie} alt="Selfie" className="w-full h-full object-cover" />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setIdSelfie('');
+                                          startCamera();
+                                        }}
+                                        className="absolute top-3 right-3 bg-red-600 hover:bg-red-700 text-white rounded-full p-2 shadow-lg transition-transform hover:scale-105 active:scale-95"
+                                        title="Retake Selfie"
+                                      >
+                                        <X className="w-5 h-5" />
+                                      </button>
+                                    </div>
                                     <button
                                       type="button"
-                                      onClick={() => setIdSelfie('')}
-                                      className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white rounded-full p-1.5 shadow-md"
+                                      onClick={() => {
+                                        setIdSelfie('');
+                                        startCamera();
+                                      }}
+                                      className="text-xs font-semibold text-emerald-600 hover:underline flex items-center gap-1"
                                     >
-                                      <X className="w-4 h-4" />
+                                      <Camera className="w-4 h-4" /> Retake Photo
+                                    </button>
+                                  </div>
+                                ) : cameraActive ? (
+                                  <div className="flex flex-col items-center space-y-3 w-full max-w-sm">
+                                    <div className="relative border border-gray-200 rounded-3xl overflow-hidden w-64 h-64 bg-black shadow-inner flex items-center justify-center">
+                                      <video
+                                        ref={videoRef}
+                                        className="w-full h-full object-cover"
+                                        style={{ transform: 'scaleX(-1)' }}
+                                        playsInline
+                                        muted
+                                      />
+                                      <div className="absolute inset-x-0 bottom-4 flex justify-center">
+                                        <button
+                                          type="button"
+                                          onClick={capturePhoto}
+                                          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95 flex items-center gap-1.5"
+                                        >
+                                          <Camera className="w-4 h-4" /> Snap Photo
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        stopCamera();
+                                        setCameraError('fallback');
+                                      }}
+                                      className="text-2xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
+                                    >
+                                      Or upload a photo instead
                                     </button>
                                   </div>
                                 ) : (
-                                  <label className="border-2 border-dashed border-gray-200 rounded-2xl w-48 h-48 bg-gray-50 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-colors p-4 text-center">
-                                    <Camera className="w-6 h-6 text-gray-400 mb-1" />
-                                    <span className="text-xs font-bold text-emerald-700">Take/Upload Selfie</span>
-                                    <span className="text-2xs text-gray-400 mt-1">Portrait selfie showing your face clearly</span>
-                                    <input
-                                      type="file"
-                                      accept="image/*"
-                                      className="hidden"
-                                      onChange={e => {
-                                        const file = e.target.files?.[0];
-                                        if (!file) return;
-                                        const reader = new FileReader();
-                                        reader.onload = () => setIdSelfie(reader.result as string);
-                                        reader.readAsDataURL(file);
-                                      }}
-                                    />
-                                  </label>
+                                  <div className="flex flex-col items-center space-y-3 w-full max-w-sm">
+                                    {cameraError && cameraError !== 'fallback' && (
+                                      <div className="p-3 bg-amber-50 border border-amber-100 rounded-2xl text-2xs text-amber-700 text-center font-medium leading-relaxed">
+                                        {cameraError}
+                                      </div>
+                                    )}
+                                    <label className="border-2 border-dashed border-gray-200 rounded-3xl w-64 h-64 bg-gray-50 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-all p-4 text-center group shadow-2xs">
+                                      <Upload className="w-8 h-8 text-gray-400 group-hover:text-emerald-500 mb-2 transition-colors" />
+                                      <span className="text-xs font-bold text-gray-700 group-hover:text-emerald-700">Upload Selfie File</span>
+                                      <span className="text-2xs text-gray-400 mt-1.5 leading-relaxed">Select a standard portrait photo showing your face clearly</span>
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={e => {
+                                          const file = e.target.files?.[0];
+                                          if (!file) return;
+                                          const reader = new FileReader();
+                                          reader.onload = () => setIdSelfie(reader.result as string);
+                                          reader.readAsDataURL(file);
+                                        }}
+                                      />
+                                    </label>
+                                    <button
+                                      type="button"
+                                      onClick={startCamera}
+                                      className="text-xs font-semibold text-emerald-600 hover:underline flex items-center gap-1 mt-1"
+                                    >
+                                      <Camera className="w-4 h-4" /> Use camera live capture
+                                    </button>
+                                  </div>
                                 )}
                               </div>
 
                               <div className="flex justify-between pt-2">
                                 <Button
                                   variant="secondary"
-                                  onClick={() => setIdSubmitStep(2)}
+                                  onClick={() => {
+                                    stopCamera();
+                                    setIdSubmitStep(2);
+                                  }}
                                   className="text-xs font-bold rounded-full px-5"
                                 >
                                   Back
@@ -1804,7 +1992,7 @@ export default function CaregiverDashboard() {
                                         idSelfie
                                       });
                                       showToast('ID Verification request submitted to Admin!');
-                                      fetchData();
+                                      fetchData(true);
                                     } catch {
                                       showToast('Failed to submit ID details.');
                                     } finally {
@@ -1813,7 +2001,7 @@ export default function CaregiverDashboard() {
                                   }}
                                   className="bg-emerald-600 hover:bg-emerald-700 font-bold text-xs rounded-full px-6 shadow-sm"
                                 >
-                                  {idVerifying ? 'Submitting…' : 'Submit for Verification'}
+                                  {idVerifying ? 'Submitting...' : 'Submit for Verification'}
                                 </Button>
                               </div>
                             </div>
@@ -2030,7 +2218,7 @@ export default function CaregiverDashboard() {
                                         }
                                       });
                                       showToast('Background Check request submitted successfully!');
-                                      fetchData();
+                                      fetchData(true);
                                     } catch {
                                       showToast('Failed to submit background check details.');
                                     } finally {
@@ -2059,53 +2247,86 @@ export default function CaregiverDashboard() {
                       </div>
 
                       <div className="space-y-4 pt-2">
-                        {/* Hourly Rate Slider / Fields */}
-                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
-                          <h4 className="font-bold text-xs text-gray-900">Hourly Rate Scale</h4>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-2xs text-gray-500 mb-0.5">Minimum Rate ($/hr)</label>
-                              <input
-                                type="number"
-                                value={cgRate.min}
-                                onChange={e => setCgRate(prev => ({ ...prev, min: Number(e.target.value) }))}
-                                className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 outline-none text-xs"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-2xs text-gray-500 mb-0.5">Maximum Rate ($/hr)</label>
-                              <input
-                                type="number"
-                                value={cgRate.max}
-                                onChange={e => setCgRate(prev => ({ ...prev, max: Number(e.target.value) }))}
-                                className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 outline-none text-xs"
-                              />
-                            </div>
+                        {/* Hourly Rate Slider */}
+                        <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4">
+                          <div className="flex justify-between items-center">
+                            <h4 className="font-bold text-xs text-gray-900">Hourly Rate Scale</h4>
+                            <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full font-bold text-xs shadow-3xs">
+                              ${cgRate.min} – ${cgRate.max} / hr
+                            </span>
+                          </div>
+                          
+                          <div className="relative pt-4 pb-4 select-none">
+                            {/* The track rail */}
+                            <div className="absolute top-1/2 left-0 right-0 h-2 bg-gray-200 -translate-y-1/2 rounded-full" />
+                            {/* The active range bar */}
+                            <div
+                              className="absolute top-1/2 h-2 bg-emerald-500 -translate-y-1/2 rounded-full"
+                              style={{
+                                left: `${((cgRate.min - 10) / (100 - 10)) * 100}%`,
+                                right: `${100 - ((cgRate.max - 10) / (100 - 10)) * 100}%`
+                              }}
+                            />
+                            {/* Min Input Slider */}
+                            <input
+                              type="range"
+                              min={10}
+                              max={100}
+                              value={cgRate.min}
+                              onChange={e => {
+                                const val = Number(e.target.value);
+                                if (val < cgRate.max) {
+                                  setCgRate(prev => ({ ...prev, min: val }));
+                                }
+                              }}
+                              className="absolute top-1/2 -translate-y-1/2 left-0 w-full h-2 pointer-events-none appearance-none bg-transparent outline-none double-range-slider-input"
+                              style={{ zIndex: cgRate.min > 90 ? 5 : 3 }}
+                            />
+                            {/* Max Input Slider */}
+                            <input
+                              type="range"
+                              min={10}
+                              max={100}
+                              value={cgRate.max}
+                              onChange={e => {
+                                const val = Number(e.target.value);
+                                if (val > cgRate.min) {
+                                  setCgRate(prev => ({ ...prev, max: val }));
+                                }
+                              }}
+                              className="absolute top-1/2 -translate-y-1/2 left-0 w-full h-2 pointer-events-none appearance-none bg-transparent outline-none double-range-slider-input"
+                              style={{ zIndex: 4 }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-2xs text-gray-400 font-medium px-0.5">
+                            <span>$10/hr</span>
+                            <span>$55/hr</span>
+                            <span>$100/hr</span>
                           </div>
                         </div>
 
                         {/* Location Text */}
                         <div>
-                          <label className="block text-xs font-semibold text-gray-700 mb-1">Base Location / Neighborhood</label>
+                          <label className="block text-xs font-semibold text-gray-700 mb-1.5">Base Location / Neighborhood</label>
                           <input
                             type="text"
                             value={cgLocation}
                             onChange={e => setCgLocation(e.target.value)}
                             placeholder="e.g. Brooklyn, NY"
-                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-emerald-500 outline-none text-sm"
+                            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm transition-all shadow-2xs outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                           />
                         </div>
 
                         {/* Service Areas (Zip Codes) */}
                         <div className="space-y-2">
-                          <label className="block text-xs font-semibold text-gray-700">Covered ZIP Codes ({cgServiceZips.length})</label>
+                          <label className="block text-xs font-semibold text-gray-700 mb-1.5">Covered ZIP Codes ({cgServiceZips.length})</label>
                           <div className="flex gap-2">
                             <input
                               type="text"
                               value={cgZipInput}
                               onChange={e => setCgZipInput(e.target.value)}
                               placeholder="e.g. 11201"
-                              className="px-4 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 outline-none text-xs flex-1"
+                              className="px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm transition-all shadow-2xs outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 flex-1"
                               onKeyDown={e => {
                                 if (e.key === 'Enter') {
                                   e.preventDefault();
@@ -2126,7 +2347,7 @@ export default function CaregiverDashboard() {
                                   setCgZipInput('');
                                 }
                               }}
-                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold"
+                              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold transition-all shadow-sm shrink-0"
                             >
                               Add
                             </button>
@@ -2187,7 +2408,7 @@ export default function CaregiverDashboard() {
                                   availability: cgAvailType
                                 });
                                 showToast('Rates, Areas, & Availability saved!');
-                                fetchData();
+                                fetchData(true);
                               } catch {
                                 showToast('Failed to save settings.');
                               }
@@ -2318,41 +2539,41 @@ export default function CaregiverDashboard() {
                           
                           <div className="grid sm:grid-cols-2 gap-3">
                             <div>
-                              <label className="block text-2xs text-gray-500 mb-0.5">Certificate / License Name</label>
+                              <label className="block text-2xs text-gray-500 mb-1">Certificate / License Name</label>
                               <input
                                 id="certNameInput"
                                 type="text"
                                 placeholder="e.g. CPR & First Aid"
-                                className="w-full px-3 py-2 border border-gray-200 focus:border-emerald-500 outline-none text-xs rounded-lg"
+                                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm transition-all shadow-2xs outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                               />
                             </div>
                             <div>
-                              <label className="block text-2xs text-gray-500 mb-0.5">Issuing Authority</label>
+                              <label className="block text-2xs text-gray-500 mb-1">Issuing Authority</label>
                               <input
                                 id="certAuthInput"
                                 type="text"
                                 placeholder="e.g. American Red Cross"
-                                className="w-full px-3 py-2 border border-gray-200 focus:border-emerald-500 outline-none text-xs rounded-lg"
+                                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm transition-all shadow-2xs outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                               />
                             </div>
                           </div>
 
                           <div className="grid sm:grid-cols-2 gap-3">
                             <div>
-                              <label className="block text-2xs text-gray-500 mb-0.5">Expiry Date</label>
+                              <label className="block text-2xs text-gray-500 mb-1">Expiry Date</label>
                               <input
                                 id="certExpiryInput"
                                 type="date"
-                                className="w-full px-3 py-2 border border-gray-200 focus:border-emerald-500 outline-none text-xs rounded-lg"
+                                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm transition-all shadow-2xs outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                               />
                             </div>
                             <div>
-                              <label className="block text-2xs text-gray-500 mb-0.5">Upload scan / certificate document</label>
+                              <label className="block text-2xs text-gray-500 mb-1">Upload scan / certificate document</label>
                               <input
                                 id="certFileInput"
                                 type="file"
                                 accept="image/*,.pdf"
-                                className="w-full text-2xs file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer pt-1"
+                                className="w-full text-2xs file:mr-2 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer pt-1"
                               />
                             </div>
                           </div>
@@ -2486,8 +2707,8 @@ export default function CaregiverDashboard() {
                             setCgPasswordError('New passwords do not match!');
                             return;
                           }
-                          if (cgPasswordForm.next.length < 6) {
-                            setCgPasswordError('Password must be at least 6 characters long.');
+                          if (!STRONG_PASSWORD_REGEX.test(cgPasswordForm.next)) {
+                            setCgPasswordError('Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.');
                             return;
                           }
                           try {
@@ -2504,50 +2725,82 @@ export default function CaregiverDashboard() {
                         className="space-y-4 pt-2"
                       >
                         {cgPasswordError && (
-                          <div className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2 text-xs font-bold text-red-700">
-                            <AlertCircle className="w-4 h-4 shrink-0" />
+                          <div className="p-3.5 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-2.5 text-xs font-semibold text-red-700 shadow-2xs">
+                            <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
                             <span>{cgPasswordError}</span>
                           </div>
                         )}
 
                         <div>
-                          <label className="block text-xs font-semibold text-gray-700 mb-1">Current Password</label>
-                          <input
-                            type="password"
-                            required
-                            value={cgPasswordForm.current}
-                            onChange={e => setCgPasswordForm(prev => ({ ...prev, current: e.target.value }))}
-                            className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 outline-none text-xs"
-                          />
+                          <label className="block text-xs font-semibold text-gray-700 mb-1.5">Current Password</label>
+                          <div className="relative">
+                            <input
+                              type={showCurrentPassword ? 'text' : 'password'}
+                              required
+                              value={cgPasswordForm.current}
+                              onChange={e => setCgPasswordForm(prev => ({ ...prev, current: e.target.value }))}
+                              className="w-full px-4 py-3 pr-10 bg-white border border-gray-200 rounded-2xl text-sm transition-all shadow-2xs outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
+                            >
+                              {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
                         </div>
 
                         <div className="grid sm:grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-xs font-semibold text-gray-700 mb-1">New Password</label>
-                            <input
-                              type="password"
-                              required
-                              value={cgPasswordForm.next}
-                              onChange={e => setCgPasswordForm(prev => ({ ...prev, next: e.target.value }))}
-                              className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 outline-none text-xs"
-                            />
+                            <label className="block text-xs font-semibold text-gray-700 mb-1.5">New Password</label>
+                            <div className="relative">
+                              <input
+                                type={showNewPassword ? 'text' : 'password'}
+                                required
+                                value={cgPasswordForm.next}
+                                onChange={e => setCgPasswordForm(prev => ({ ...prev, next: e.target.value }))}
+                                className="w-full px-4 py-3 pr-10 bg-white border border-gray-200 rounded-2xl text-sm transition-all shadow-2xs outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowNewPassword(!showNewPassword)}
+                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
+                              >
+                                {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
+                            {cgPasswordForm.next && !STRONG_PASSWORD_REGEX.test(cgPasswordForm.next) && (
+                              <p className="text-2xs text-red-500 mt-1.5 font-medium leading-tight">
+                                Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.
+                              </p>
+                            )}
                           </div>
                           <div>
-                            <label className="block text-xs font-semibold text-gray-700 mb-1">Confirm New Password</label>
-                            <input
-                              type="password"
-                              required
-                              value={cgPasswordForm.confirm}
-                              onChange={e => setCgPasswordForm(prev => ({ ...prev, confirm: e.target.value }))}
-                              className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 outline-none text-xs"
-                            />
+                            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Confirm New Password</label>
+                            <div className="relative">
+                              <input
+                                type={showConfirmPassword ? 'text' : 'password'}
+                                required
+                                value={cgPasswordForm.confirm}
+                                onChange={e => setCgPasswordForm(prev => ({ ...prev, confirm: e.target.value }))}
+                                className="w-full px-4 py-3 pr-10 bg-white border border-gray-200 rounded-2xl text-sm transition-all shadow-2xs outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
+                              >
+                                {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
                           </div>
                         </div>
 
                         <div className="pt-2 flex justify-end">
                           <button
                             type="submit"
-                            className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full text-xs font-bold shadow-sm"
+                            className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full text-xs font-bold shadow-sm transition-all"
                           >
                             Update Password
                           </button>
@@ -2690,7 +2943,7 @@ export default function CaregiverDashboard() {
                     });
                     showToast('Profile updated!');
                     setCgModal(null);
-                    fetchData(); // Refresh local state to ensure sync
+                    fetchData(true); // Refresh local state to ensure sync
                   } catch {
                     showToast('Failed to save.');
                   } finally {
@@ -2738,7 +2991,7 @@ export default function CaregiverDashboard() {
                     await put('/caregivers/profile', { hourlyRateMin: cgRate.min, hourlyRateMax: cgRate.max }); 
                     showToast('Rates saved!'); 
                     setCgModal(null); 
-                    fetchData();
+                    fetchData(true);
                   } catch { showToast('Failed to save.'); }
                   finally { setCgSaving(false); }
                 }} className="bg-emerald-600 hover:bg-emerald-700">{cgSaving ? 'Saving…' : 'Save Rates'}</Button>
@@ -2858,33 +3111,65 @@ export default function CaregiverDashboard() {
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Current Password</label>
-                <input
-                  type="password"
-                  value={cgPasswordForm.current}
-                  onChange={e => setCgPasswordForm(prev => ({ ...prev, current: e.target.value }))}
-                  placeholder="Enter current password"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
-                />
+                <div className="relative">
+                  <input
+                    type={showModalCurrent ? 'text' : 'password'}
+                    value={cgPasswordForm.current}
+                    onChange={e => setCgPasswordForm(prev => ({ ...prev, current: e.target.value }))}
+                    placeholder="Enter current password"
+                    className="w-full px-4 py-3 pr-10 rounded-2xl border border-gray-200 bg-white shadow-2xs text-sm transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowModalCurrent(!showModalCurrent)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
+                  >
+                    {showModalCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">New Password</label>
-                <input
-                  type="password"
-                  value={cgPasswordForm.next}
-                  onChange={e => setCgPasswordForm(prev => ({ ...prev, next: e.target.value }))}
-                  placeholder="Enter new password"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
-                />
+                <div className="relative">
+                  <input
+                    type={showModalNew ? 'text' : 'password'}
+                    value={cgPasswordForm.next}
+                    onChange={e => setCgPasswordForm(prev => ({ ...prev, next: e.target.value }))}
+                    placeholder="Enter new password"
+                    className="w-full px-4 py-3 pr-10 rounded-2xl border border-gray-200 bg-white shadow-2xs text-sm transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowModalNew(!showModalNew)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
+                  >
+                    {showModalNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {cgPasswordForm.next && !STRONG_PASSWORD_REGEX.test(cgPasswordForm.next) && (
+                  <p className="text-2xs text-red-500 mt-1.5 font-medium leading-tight">
+                    Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirm Password</label>
-                <input
-                  type="password"
-                  value={cgPasswordForm.confirm}
-                  onChange={e => setCgPasswordForm(prev => ({ ...prev, confirm: e.target.value }))}
-                  placeholder="Confirm new password"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
-                />
+                <div className="relative">
+                  <input
+                    type={showModalConfirm ? 'text' : 'password'}
+                    value={cgPasswordForm.confirm}
+                    onChange={e => setCgPasswordForm(prev => ({ ...prev, confirm: e.target.value }))}
+                    placeholder="Confirm new password"
+                    className="w-full px-4 py-3 pr-10 rounded-2xl border border-gray-200 bg-white shadow-2xs text-sm transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowModalConfirm(!showModalConfirm)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
+                  >
+                    {showModalConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
               {cgPasswordError && <p className="text-sm text-red-500">{cgPasswordError}</p>}
               <div className="flex gap-3 pt-2">
@@ -2899,8 +3184,8 @@ export default function CaregiverDashboard() {
                       setCgPasswordError('All password fields are required.');
                       return;
                     }
-                    if (cgPasswordForm.next.length < 8) {
-                      setCgPasswordError('New password must be at least 8 characters.');
+                    if (!STRONG_PASSWORD_REGEX.test(cgPasswordForm.next)) {
+                      setCgPasswordError('New password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.');
                       return;
                     }
                     if (cgPasswordForm.next !== cgPasswordForm.confirm) {
@@ -3027,7 +3312,7 @@ export default function CaregiverDashboard() {
                 <Button variant="secondary" fullWidth onClick={() => setCgModal(null)}>Cancel</Button>
                 <Button variant="primary" fullWidth disabled={cgSaving} onClick={async () => {
                   setCgSaving(true);
-                  try { await put('/caregivers/profile', { location: cgLocation, serviceZips: cgServiceZips }); showToast('Service area saved!'); setCgModal(null); fetchData(); } catch { showToast('Failed to save.'); }
+                  try { await put('/caregivers/profile', { location: cgLocation, serviceZips: cgServiceZips }); showToast('Service area saved!'); setCgModal(null); fetchData(true); } catch { showToast('Failed to save.'); }
                   finally { setCgSaving(false); }
                 }} className="bg-emerald-600 hover:bg-emerald-700">{cgSaving ? 'Saving…' : 'Save Area'}</Button>
               </div>
