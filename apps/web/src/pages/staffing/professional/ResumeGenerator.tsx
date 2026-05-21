@@ -73,14 +73,26 @@ export default function ResumeGenerator() {
               </button>
             ))}
           </div>
-          <button
-            onClick={handlePrint}
-            disabled={printing}
-            className="flex items-center gap-2 px-5 py-2 bg-brand-600 text-white font-semibold rounded-full hover:bg-brand-700 transition-all active:scale-95 shadow-sm text-sm"
-          >
-            {printing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-            Print / Save PDF
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handlePrint}
+              disabled={printing}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 font-semibold rounded-full hover:bg-gray-200 transition-all active:scale-95 shadow-sm text-sm"
+              title="Print"
+            >
+              <Printer className="w-4 h-4" />
+              <span className="hidden sm:inline">Print</span>
+            </button>
+            <button
+              onClick={handlePrint}
+              disabled={printing}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-brand-600 text-white font-semibold rounded-full hover:bg-brand-700 transition-all active:scale-95 shadow-sm text-sm"
+              title="Save PDF"
+            >
+              {printing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              <span className="hidden sm:inline">Save PDF</span>
+            </button>
+          </div>
         </div>
       </div>
 
