@@ -248,7 +248,7 @@ router.get('/verification-queue', requireAdmin, async (_req, res) => {
   try {
     const result = await query(
       `SELECT vq.id, vq.caregiver_id, vq.specialty, vq.experience, vq.documents,
-              vq.background_check, vq.status, vq.submitted_at,
+              vq.background_check, vq.status, vq.created_at,
               u.name, u.email, u.photo_url,
               cp.location, cp.specialties, cp.years_experience,
               cp.id_card_number, cp.background_check_details
@@ -256,7 +256,7 @@ router.get('/verification-queue', requireAdmin, async (_req, res) => {
        JOIN users u ON u.id = vq.caregiver_id
        LEFT JOIN caregiver_profiles cp ON cp.user_id = vq.caregiver_id
        WHERE vq.status != 'awaiting_payment'
-       ORDER BY vq.submitted_at DESC`
+       ORDER BY vq.created_at DESC`
     );
 
     res.json({
@@ -274,7 +274,7 @@ router.get('/verification-queue', requireAdmin, async (_req, res) => {
         status: row.status,
         idCardNumber: row.id_card_number,
         backgroundCheckDetails: row.background_check_details,
-        submittedAt: new Date(row.submitted_at).toLocaleDateString('en-US', {
+        submittedAt: new Date(row.created_at).toLocaleDateString('en-US', {
           month: 'short', day: 'numeric', year: 'numeric',
         }),
       })),

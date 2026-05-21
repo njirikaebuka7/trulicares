@@ -293,17 +293,22 @@ router.post('/verify-id', requireCaregiver, async (req: AuthRequest, res) => {
       [idCardNumber, idCardFront, idCardBack, idSelfie, req.user!.id]
     );
 
+    // documents column is text[] — store each document as a readable string
     const documents = [
-      { name: 'ID Front', url: idCardFront },
-      { name: 'ID Back', url: idCardBack },
-      { name: 'Selfie', url: idSelfie }
+      `ID Front: ${idCardFront}`,
+      `ID Back: ${idCardBack}`,
+      `Selfie: ${idSelfie}`
     ];
 
-    // Submit to verification queue
+    // Remove any previous pending entry for this caregiver + specialty, then insert fresh
     await query(
-      `INSERT INTO verification_queue (caregiver_id, specialty, experience, documents, background_check, status, submitted_at)
-       VALUES ($1, $2, $3, $4, false, 'pending', NOW())`,
-      [req.user!.id, 'Government ID Verification', 'N/A', JSON.stringify(documents)]
+      `DELETE FROM verification_queue WHERE caregiver_id = $1 AND specialty = $2`,
+      [req.user!.id, 'Government ID Verification']
+    );
+    await query(
+      `INSERT INTO verification_queue (caregiver_id, specialty, experience, documents, background_check, status)
+       VALUES ($1, $2, $3, $4, 'false', 'pending')`,
+      [req.user!.id, 'Government ID Verification', 'N/A', documents]
     );
 
     invalidateCache('caregivers:');
@@ -333,15 +338,25 @@ router.post('/apply-background-check', requireCaregiver, async (req: AuthRequest
       [JSON.stringify(details), req.user!.id]
     );
 
+    // documents column is text[] — store each piece of info as a readable string
     const documents = [
-      { name: `Consent & Info for ${details.legalName}`, url: '#', details }
+      `Legal Name: ${details.legalName}`,
+      `Date of Birth: ${details.dob}`,
+      `Current Address: ${details.currentAddress}`,
+      ...(details.previousAddress ? [`Previous Address: ${details.previousAddress}`] : []),
+      `Offers Transport: ${details.offersTransport ? 'Yes' : 'No'}`,
+      ...(details.driversLicense ? [`Driver's License: ${details.driversLicense}`] : [])
     ];
 
-    // Submit to verification queue as background check
+    // Remove any previous pending entry for this caregiver + specialty, then insert fresh
     await query(
-      `INSERT INTO verification_queue (caregiver_id, specialty, experience, documents, background_check, status, submitted_at)
-       VALUES ($1, $2, $3, $4, true, 'pending', NOW())`,
-      [req.user!.id, 'Background Check', 'N/A', JSON.stringify(documents)]
+      `DELETE FROM verification_queue WHERE caregiver_id = $1 AND specialty = $2`,
+      [req.user!.id, 'Background Check']
+    );
+    await query(
+      `INSERT INTO verification_queue (caregiver_id, specialty, experience, documents, background_check, status)
+       VALUES ($1, $2, $3, $4, 'true', 'pending')`,
+      [req.user!.id, 'Background Check', 'N/A', documents]
     );
 
     invalidateCache('caregivers:');

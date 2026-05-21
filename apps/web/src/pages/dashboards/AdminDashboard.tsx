@@ -718,31 +718,42 @@ export default function AdminDashboard() {
                         <p className="text-sm text-gray-500">{item.experience} experience · Submitted {item.submittedAt}</p>
                         <div className="flex flex-wrap gap-2 mt-3">
                           {item.documents.map((doc: any, idx: number) => {
+                            // Documents are stored as "Label: URL" strings (text[] in DB)
                             const isObj = doc && typeof doc === 'object';
-                            const name = isObj ? doc.name : doc;
-                            const url = isObj ? doc.url : null;
-                            if (url && url !== '#') {
+                            let docLabel: string;
+                            let docUrl: string | null;
+                            if (isObj) {
+                              docLabel = doc.name || String(doc);
+                              docUrl = doc.url && doc.url !== '#' ? doc.url : null;
+                            } else {
+                              const str = String(doc);
+                              const colonIdx = str.indexOf(': ');
+                              docLabel = colonIdx !== -1 ? str.slice(0, colonIdx) : str;
+                              const possibleUrl = colonIdx !== -1 ? str.slice(colonIdx + 2) : '';
+                              docUrl = possibleUrl.startsWith('http') ? possibleUrl : null;
+                            }
+                            if (docUrl) {
                               return (
                                 <a
                                   key={idx}
-                                  href={url}
+                                  href={docUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold transition-colors cursor-pointer border border-emerald-150"
                                 >
-                                  <CheckCircle className="w-3 h-3 text-emerald-600" /> View: {name}
+                                  <CheckCircle className="w-3 h-3 text-emerald-600" /> View: {docLabel}
                                 </a>
                               );
                             }
                             return (
                               <span key={idx} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-green-50 text-green-700 font-bold border border-green-150">
-                                <CheckCircle className="w-3 h-3 text-green-600" /> {name}
+                                <CheckCircle className="w-3 h-3 text-green-600" /> {docLabel}
                               </span>
                             );
                           })}
                           <span className={cn('inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-bold border',
-                            item.backgroundCheck ? 'bg-violet-50 text-violet-700 border-violet-150' : 'bg-blue-50 text-blue-700 border-blue-150')}>
-                            <Activity className="w-3 h-3" /> Type: {item.backgroundCheck ? 'Background Check' : 'Government ID'}
+                            (item.backgroundCheck === true || item.backgroundCheck === 'true') ? 'bg-violet-50 text-violet-700 border-violet-150' : 'bg-blue-50 text-blue-700 border-blue-150')}>
+                            <Activity className="w-3 h-3" /> Type: {(item.backgroundCheck === true || item.backgroundCheck === 'true') ? 'Background Check' : 'Government ID'}
                           </span>
                         </div>
                       </div>
@@ -752,7 +763,7 @@ export default function AdminDashboard() {
                     {isExpanded && (
                       <div className="mt-4 pt-4 border-t border-gray-150 space-y-4 bg-slate-50 p-4 rounded-xl">
                         {/* ID Verification Details */}
-                        {!item.backgroundCheck ? (
+                        {!(item.backgroundCheck === true || item.backgroundCheck === 'true') ? (
                           <div className="space-y-3">
                             <div className="flex items-center justify-between">
                               <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
@@ -768,23 +779,34 @@ export default function AdminDashboard() {
                             {/* Images Render grid */}
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
                               {item.documents.map((doc: any, docIdx: number) => {
+                                // Parse "Label: URL" strings from text[] column
                                 const isObj = doc && typeof doc === 'object';
-                                const name = isObj ? doc.name : doc;
-                                const url = isObj ? doc.url : null;
-                                if (!url || url === '#') return null;
+                                let docLabel: string;
+                                let docUrl: string | null;
+                                if (isObj) {
+                                  docLabel = doc.name || String(doc);
+                                  docUrl = doc.url && doc.url !== '#' ? doc.url : null;
+                                } else {
+                                  const str = String(doc);
+                                  const colonIdx = str.indexOf(': ');
+                                  docLabel = colonIdx !== -1 ? str.slice(0, colonIdx) : str;
+                                  const possibleUrl = colonIdx !== -1 ? str.slice(colonIdx + 2) : '';
+                                  docUrl = possibleUrl.startsWith('http') ? possibleUrl : null;
+                                }
+                                if (!docUrl) return null;
                                 return (
                                   <div key={docIdx} className="bg-white p-3 rounded-xl border border-gray-200 shadow-2xs space-y-2">
-                                    <span className="text-2xs font-extrabold uppercase text-slate-400 tracking-wider block">{name}</span>
+                                    <span className="text-2xs font-extrabold uppercase text-slate-400 tracking-wider block">{docLabel}</span>
                                     <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center border">
                                       <img 
-                                        src={url} 
-                                        alt={name} 
+                                        src={docUrl} 
+                                        alt={docLabel} 
                                         className="w-full h-full object-contain hover:scale-105 transition-transform duration-200" 
                                       />
                                     </div>
                                     <a 
-                                      href={url} 
-                                      download={`Document_${name.replace(' ', '_')}`}
+                                      href={docUrl} 
+                                      download={`Document_${docLabel.replace(' ', '_')}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="text-3xs text-emerald-600 hover:text-emerald-700 hover:underline font-extrabold block text-center mt-1"
@@ -804,9 +826,39 @@ export default function AdminDashboard() {
                             </h4>
                             
                             {(() => {
-                              const detailsDoc = item.documents.find((d: any) => d && typeof d === 'object' && d.details);
-                              const details = detailsDoc?.details || item.backgroundCheckDetails;
+                              // Background check details come from caregiver_profiles.background_check_details (JSON)
+                              let details = item.backgroundCheckDetails;
+                              if (typeof details === 'string') {
+                                try { details = JSON.parse(details); } catch { details = null; }
+                              }
+                              // Also check documents array for any legacy object format
                               if (!details) {
+                                const detailsDoc = item.documents.find((d: any) => d && typeof d === 'object' && d.details);
+                                details = detailsDoc?.details;
+                              }
+                              if (!details) {
+                                // Parse human-readable strings from text[] documents column
+                                const parsed: Record<string, string> = {};
+                                item.documents.forEach((d: any) => {
+                                  if (typeof d === 'string') {
+                                    const colonIdx = d.indexOf(': ');
+                                    if (colonIdx !== -1) {
+                                      parsed[d.slice(0, colonIdx).trim()] = d.slice(colonIdx + 2).trim();
+                                    }
+                                  }
+                                });
+                                if (Object.keys(parsed).length > 0) {
+                                  return (
+                                    <div className="space-y-2 bg-white p-4 rounded-xl border border-gray-150">
+                                      {Object.entries(parsed).map(([key, val]) => (
+                                        <div key={key} className="text-2xs space-y-0.5">
+                                          <span className="font-bold text-gray-400">{key}</span>
+                                          <p className="font-bold text-gray-800 text-xs">{val}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                }
                                 return <p className="text-xs text-gray-500 italic">No legal information submitted. Review required.</p>;
                               }
                               return (
@@ -835,7 +887,7 @@ export default function AdminDashboard() {
                                     <div className="text-2xs space-y-0.5">
                                       <span className="font-bold text-gray-400">Driver's License (Transportation Care)</span>
                                       <p className="font-bold text-gray-800 text-xs">
-                                        {details.transportCare && details.driversLicense 
+                                        {details.offersTransport && details.driversLicense 
                                           ? `Yes (DL: ${details.driversLicense})` 
                                           : 'No (Not providing driving service)'}
                                       </p>
