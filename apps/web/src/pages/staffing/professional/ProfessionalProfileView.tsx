@@ -330,9 +330,9 @@ export default function ProfessionalProfileView() {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.15),transparent)]" />
         </div>
         <div className="px-5 sm:px-6 pb-6">
-          <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-14 mb-5">
+          <div className="flex flex-col sm:flex-row sm:items-end gap-4 mb-5">
             {/* Avatar */}
-            <div className="relative shrink-0">
+            <div className="relative shrink-0 -mt-14 sm:-mt-14">
               <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-white p-1 shadow-lg border border-gray-100">
                 <div className="w-full h-full rounded-xl bg-emerald-50 flex items-center justify-center overflow-hidden">
                   {profile?.photo_url ? (
