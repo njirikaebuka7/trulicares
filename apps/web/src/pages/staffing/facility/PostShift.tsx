@@ -398,9 +398,6 @@ export default function PostShift() {
                       'w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all',
                       form.role === w.value ? 'border-emerald-500 bg-emerald-50' : 'border-gray-100 hover:border-emerald-200 hover:bg-gray-50',
                     )}>
-                    <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs border-2 shrink-0', w.color)}>
-                      {w.label}
-                    </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-gray-900">{w.label === '...' ? 'Other' : w.label}</p>
                       <p className="text-xs text-gray-500">{w.desc}</p>
@@ -756,7 +753,7 @@ export default function PostShift() {
       </div>
 
       {/* ── Sticky Footer Navigation ── */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-lg border-t border-gray-100 z-20"
+      <div className="sticky bottom-0 w-full bg-white/95 backdrop-blur-lg border-t border-gray-100 z-20 mt-auto"
         style={{ padding: '0.75rem 1rem', paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
         <div className="max-w-xl mx-auto flex items-center gap-3">
           {step > 1 && (

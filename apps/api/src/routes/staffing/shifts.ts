@@ -20,9 +20,9 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Facility profile not found. Please complete onboarding.' });
     }
     const facility = facilityRes.rows[0];
-    if (facility.verification_status !== 'approved') {
-      return res.status(403).json({ error: 'Your facility must be verified before posting shifts.' });
-    }
+    // if (facility.verification_status !== 'approved') {
+    //   return res.status(403).json({ error: 'Your facility must be verified before posting shifts.' });
+    // }
 
     const {
       role, specialty, description, payRate, durationHours,
