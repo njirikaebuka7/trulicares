@@ -306,17 +306,19 @@ export default function FacilityOnboarding() {
                           try {
                             const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
                             const data = await res.json();
-                            const addr = data.address;
-                            const road = addr.road || addr.pedestrian || addr.highway || addr.suburb || '';
+                            const addr = data.address || {};
+                            const road = addr.road || addr.pedestrian || addr.highway || '';
                             const houseNumber = addr.house_number || '';
                             let streetAddress = `${houseNumber ? houseNumber + ' ' : ''}${road}`.trim();
+                            
                             if (!streetAddress && data.display_name) {
                               streetAddress = data.display_name.split(',').slice(0, 2).join(',').trim();
                             }
+                            
                             setForm(prev => ({
                               ...prev,
                               address: streetAddress || 'Current Location',
-                              city: addr.city || addr.town || addr.village || '',
+                              city: addr.city || addr.town || addr.village || addr.county || addr.suburb || '',
                               state: addr.state || '',
                               zip: addr.postcode || ''
                             }));

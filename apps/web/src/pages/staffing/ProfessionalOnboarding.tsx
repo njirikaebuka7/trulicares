@@ -628,9 +628,17 @@ export default function ProfessionalOnboarding() {
                           navigator.geolocation.getCurrentPosition(async pos => {
                             const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
                             const data = await res.json();
-                            const city = data.address.city || data.address.town || data.address.village || '';
-                            const state = data.address.state || '';
-                            set('location', `${city}${city && state ? ', ' : ''}${state}`);
+                            const addr = data.address || {};
+                            const city = addr.city || addr.town || addr.village || addr.suburb || '';
+                            const state = addr.state || '';
+                            const zip = addr.postcode || '';
+                            const road = addr.road || addr.pedestrian || addr.highway || '';
+                            const houseNumber = addr.house_number || '';
+                            
+                            const streetAddress = `${houseNumber ? houseNumber + ' ' : ''}${road}`.trim();
+                            const fullAddress = [streetAddress, city, state, zip].filter(Boolean).join(', ');
+                            
+                            set('location', fullAddress || data.display_name || 'Current Location');
                             setLocatingZip(false);
                           });
                         }
