@@ -121,7 +121,7 @@ export default function ShiftManagement() {
                 <div className="flex items-center justify-between md:justify-end gap-3 border-t md:border-t-0 pt-4 md:pt-0 border-gray-100">
                   <div className="text-left md:text-right mr-4">
                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Budget</p>
-                    <p className="text-base font-bold text-gray-900">${shift.total_pay.toFixed(2)}</p>
+                    <p className="text-base font-bold text-gray-900">${Number(shift.total_pay || 0).toFixed(2)}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Link 

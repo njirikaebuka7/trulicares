@@ -169,7 +169,7 @@ export default function ShiftBrowse() {
                 <div className="flex items-center justify-between md:flex-col md:items-end gap-4 border-t md:border-t-0 pt-4 md:pt-0">
                   <div className="text-right">
                     <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Total Pay</p>
-                    <p className="text-2xl font-bold text-emerald-600">${shift.total_pay.toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-emerald-600">${Number(shift.total_pay || 0).toFixed(2)}</p>
                     <p className="text-xs text-gray-500 font-bold">${shift.pay_rate}/hr</p>
                   </div>
                   <button 
