@@ -23,9 +23,9 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Professional profile not found. Please complete onboarding.' });
     }
     const pro = proRes.rows[0];
-    if (pro.verification_status !== 'approved') {
-      return res.status(403).json({ error: 'Your credentials must be verified before applying to shifts.' });
-    }
+    // if (pro.verification_status !== 'approved') {
+    //   return res.status(403).json({ error: 'Your credentials must be verified before applying to shifts.' });
+    // }
 
     const { shiftId, coverNote } = req.body;
     if (!shiftId) {
