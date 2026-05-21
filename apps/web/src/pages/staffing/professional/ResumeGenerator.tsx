@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { professional as proApi } from '@/lib/staffingApi';
 import { ProfessionalProfile } from '@/types/staffing';
+import html2pdf from 'html2pdf.js';
 import { useAuth } from '@/context/AuthContext';
 import logoImg from '@/assets/logo.png';
 
@@ -35,8 +36,6 @@ export default function ResumeGenerator() {
   const handleDownloadPdf = async () => {
     setDownloading(true);
     try {
-      // @ts-ignore
-      const html2pdf = (await import('html2pdf.js')).default;
       const element = document.getElementById('resume-printable');
       if (element) {
         const opt = {
@@ -48,9 +47,9 @@ export default function ResumeGenerator() {
         };
         await html2pdf().set(opt).from(element).save();
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to generate PDF', err);
-      alert('Failed to generate PDF. Please try again.');
+      alert(`Failed to generate PDF: ${err?.message || 'Please try again.'}`);
     } finally {
       setDownloading(false);
     }
