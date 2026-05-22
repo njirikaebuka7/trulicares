@@ -224,12 +224,34 @@ router.put('/:id/accept', requireAuth, async (req: AuthRequest, res) => {
       [req.params.id]
     );
 
-    // Reject all other pending applications for this shift
-    await client.query(
-      `UPDATE shift_applications SET status = 'rejected', reviewed_at = NOW()
-       WHERE shift_id = $1 AND id != $2 AND status = 'pending'`,
+    // Reject all other pending applications for this shift and notify them
+    const rejectedApps = await client.query(
+      `UPDATE shift_applications sa
+       SET status = 'rejected', reviewed_at = NOW()
+       FROM professional_profiles pp
+       WHERE sa.shift_id = $1 AND sa.id != $2 AND sa.status = 'pending' AND pp.id = sa.professional_id
+       RETURNING sa.id, pp.user_id`,
       [app.shift_id, req.params.id]
     );
+
+    for (const rej of rejectedApps.rows) {
+      const rejNotifRes = await client.query(
+        `INSERT INTO notifications (user_id, type, title, content)
+         VALUES ($1, 'shift_application_rejected', 'Application Not Selected', 'The facility has chosen another candidate for the shift you applied for.')
+         RETURNING *`,
+        [rej.user_id]
+      );
+      await supabase.channel(`notifications:${rej.user_id}`).send({
+        type: 'broadcast',
+        event: 'new_notification',
+        payload: rejNotifRes.rows[0],
+      }).catch(() => {});
+      await supabase.channel(`professional:${rej.user_id}`).send({
+        type: 'broadcast',
+        event: 'application_rejected',
+        payload: { shiftId: app.shift_id },
+      }).catch(() => {});
+    }
 
     // Create booking
     const bookingRes = await client.query(
@@ -293,7 +315,21 @@ router.put('/:id/accept', requireAuth, async (req: AuthRequest, res) => {
 
     await client.query('COMMIT');
 
-    // Broadcast to professional
+    // Broadcast and Notify professional
+    const notifRes = await client.query(
+      `INSERT INTO notifications (user_id, type, title, content)
+       VALUES ($1, 'shift_application_accepted', 'Application Accepted!', 'Your application for shift ' || $2 || ' has been accepted by the facility. You are hired!')
+       RETURNING *`,
+      [app.pro_user_id, app.shift_id]
+    );
+    const newNotif = notifRes.rows[0];
+
+    await supabase.channel(`notifications:${app.pro_user_id}`).send({
+      type: 'broadcast',
+      event: 'new_notification',
+      payload: newNotif,
+    }).catch(() => {});
+    
     await supabase.channel(`professional:${app.pro_user_id}`).send({
       type: 'broadcast',
       event: 'application_accepted',
@@ -332,21 +368,44 @@ router.put('/:id/reject', requireAuth, async (req: AuthRequest, res) => {
     }
 
     const result = await query(
-      `UPDATE shift_applications SET status = 'rejected', reviewed_at = NOW()
-       WHERE id = $1 AND status = 'pending'
-       RETURNING id, shift_id`,
+      `UPDATE shift_applications sa
+       SET status = 'rejected', reviewed_at = NOW()
+       FROM professional_profiles pp
+       WHERE sa.id = $1 AND sa.status = 'pending' AND pp.id = sa.professional_id
+       RETURNING sa.id, sa.shift_id, pp.user_id`,
       [req.params.id]
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Application not found or already processed' });
     }
+
+    const appRow = result.rows[0];
+
+    // Notify professional
+    const notifRes = await query(
+      `INSERT INTO notifications (user_id, type, title, content)
+       VALUES ($1, 'shift_application_rejected', 'Application Not Selected', 'The facility has declined your application for this shift.')
+       RETURNING *`,
+      [appRow.user_id]
+    );
+    await supabase.channel(`notifications:${appRow.user_id}`).send({
+      type: 'broadcast',
+      event: 'new_notification',
+      payload: notifRes.rows[0],
+    }).catch(() => {});
+    await supabase.channel(`professional:${appRow.user_id}`).send({
+      type: 'broadcast',
+      event: 'application_rejected',
+      payload: { shiftId: appRow.shift_id },
+    }).catch(() => {});
+
     const shiftOwner = await query(
       `SELECT fp.user_id
        FROM shifts s
        JOIN facility_profiles fp ON fp.id = s.facility_id
        WHERE s.id = $1`,
-      [result.rows[0].shift_id]
+      [appRow.shift_id]
     );
     if (shiftOwner.rows[0]) {
       await supabase.channel(`facility:${shiftOwner.rows[0].user_id}`).send({

@@ -12,7 +12,7 @@ export default function ShiftDetails() {
   const [shift, setShift] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
-  const [applied, setApplied] = useState(false);
+  const [application, setApplication] = useState<any>(null);
   const [errorModal, setErrorModal] = useState<string | null>(null);
 
   useEffect(() => {
@@ -31,9 +31,9 @@ export default function ShiftDetails() {
         setShift(shiftData);
         
         // Check if already applied
-        const hasApplied = myAppsRes.applications?.some((app: any) => app.shift_id === id);
-        if (hasApplied) {
-          setApplied(true);
+        const existingApp = myAppsRes.applications?.find((app: any) => app.shift_id === id);
+        if (existingApp) {
+          setApplication(existingApp);
         }
       } catch (err: any) {
         console.error('Failed to load shift', err);
@@ -48,8 +48,8 @@ export default function ShiftDetails() {
     if (!shift) return;
     setApplying(true);
     try {
-      await appApi.apply(shift.id, "I am interested in this shift and available to work.");
-      setApplied(true);
+      const newApp = await appApi.apply(shift.id, "I am interested in this shift and available to work.");
+      setApplication({ status: 'pending', ...newApp });
     } catch (err: any) {
       setErrorModal(err.message || 'Failed to apply');
     } finally {
@@ -183,11 +183,32 @@ export default function ShiftDetails() {
                 <p className="text-sm font-medium text-emerald-700/70 text-center mb-8">${shift.pay_rate}/hr</p>
 
                 <div className="space-y-3">
-                  {applied ? (
-                    <div className="w-full flex flex-col items-center justify-center gap-2 p-4 bg-white rounded-2xl border border-emerald-200 text-emerald-700 font-bold shadow-sm">
-                      <CheckCircle className="w-6 h-6 text-emerald-500" />
-                      Application Sent
-                      <span className="text-xs font-medium text-emerald-600/70 text-center">You will be notified if accepted</span>
+                  {application ? (
+                    <div className={cn(
+                      "w-full flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border font-bold shadow-sm",
+                      application.status === 'accepted' ? "bg-emerald-50 border-emerald-200 text-emerald-700" :
+                      application.status === 'rejected' ? "bg-red-50 border-red-200 text-red-600" :
+                      "bg-white border-gray-200 text-gray-700"
+                    )}>
+                      {application.status === 'accepted' ? (
+                        <>
+                          <CheckCircle className="w-6 h-6 text-emerald-500" />
+                          Application Accepted
+                          <span className="text-xs font-medium text-emerald-600/70 text-center">Facility has hired you for this shift!</span>
+                        </>
+                      ) : application.status === 'rejected' ? (
+                        <>
+                          <XCircle className="w-6 h-6 text-red-500" />
+                          Application Not Selected
+                          <span className="text-xs font-medium text-red-600/70 text-center">Facility went with another candidate</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="w-6 h-6 text-gray-400" />
+                          Application Sent
+                          <span className="text-xs font-medium text-gray-500 text-center">You will be notified if accepted</span>
+                        </>
+                      )}
                     </div>
                   ) : shift.status !== 'open' ? (
                     <button disabled className="w-full py-4 bg-gray-200 text-gray-500 rounded-2xl font-bold">
@@ -207,7 +228,7 @@ export default function ShiftDetails() {
                     </button>
                   )}
                   
-                  {!applied && shift.status === 'open' && (
+                  {!application && shift.status === 'open' && (
                     <p className="text-xs text-center text-emerald-700/60 font-medium">
                       By applying, you confirm you are available for the entirety of this shift.
                     </p>
