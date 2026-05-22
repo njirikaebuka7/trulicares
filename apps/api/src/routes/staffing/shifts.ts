@@ -91,9 +91,11 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
     let professionalProfile: any = null;
     let allLicenses: string[] = [];
     let profileSpecialties: string[] = [];
+    let profileText = '';
+    
     if (req.user!.role === 'professional') {
       const proRes = await query(
-        `SELECT pp.license_type, pp.specialties,
+        `SELECT pp.license_type, pp.specialties, pp.bio, pp.work_experience, pp.certifications, pp.background_check_status,
                 (SELECT json_agg(pl.license_type) FROM professional_licenses pl WHERE pl.professional_id = pp.id) as extra_licenses
          FROM professional_profiles pp WHERE pp.user_id = $1`,
         [req.user!.id]
@@ -102,10 +104,22 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
       if (professionalProfile) {
         allLicenses = [professionalProfile.license_type, ...(professionalProfile.extra_licenses || [])].filter(Boolean);
         profileSpecialties = professionalProfile.specialties || [];
+        
+        const certsText = (professionalProfile.certifications || []).map((c: any) => c.title || '').join(' ');
+        const expText = (professionalProfile.work_experience || []).map((w: any) => `${w.title || ''} ${w.facility || ''} ${w.description || ''}`).join(' ');
+        profileText = [
+          professionalProfile.bio,
+          certsText,
+          expText,
+          professionalProfile.background_check_status,
+          ...allLicenses,
+          ...profileSpecialties
+        ].filter(Boolean).join(' ').toLowerCase();
       }
     }
 
     const licenseParamIndex = idx++;
+    const proTextParamIndex = idx++;
     const limitParamIndex = idx++;
     const offsetParamIndex = idx++;
 
@@ -116,8 +130,10 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
               s.slots_total, s.slots_filled,
               fp.facility_name, fp.facility_type,
               CASE
-                WHEN cardinality($${licenseParamIndex}::text[]) = 0 THEN false
-                ELSE s.role = ANY($${licenseParamIndex}::text[])
+                WHEN cardinality($${licenseParamIndex}::text[]) > 0 AND s.role = ANY($${licenseParamIndex}::text[]) THEN true
+                WHEN $${proTextParamIndex}::text != '' AND $${proTextParamIndex}::text ILIKE '%' || s.role || '%' THEN true
+                WHEN s.specialty IS NOT NULL AND $${proTextParamIndex}::text != '' AND $${proTextParamIndex}::text ILIKE '%' || s.specialty || '%' THEN true
+                ELSE false
               END AS is_match,
               (SELECT COUNT(*) FROM shift_applications sa WHERE sa.shift_id = s.id AND sa.status = 'pending') AS applicant_count
        FROM shifts s
@@ -125,16 +141,10 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
        ${whereClause}
        ORDER BY is_match DESC, s.start_time ASC
        LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}`,
-      [...filterParams, allLicenses, parsedLimit, parsedOffset]
+      [...filterParams, allLicenses, profileText, parsedLimit, parsedOffset]
     );
 
-    const shifts = result.rows.map((s: any) => ({
-      ...s,
-      is_match: professionalProfile 
-        ? (allLicenses.includes(s.role) &&
-           (!s.specialty || profileSpecialties.includes(s.specialty)))
-        : false
-    }));
+    const shifts = result.rows;
 
     const countRes = await query(
       `SELECT COUNT(*) FROM shifts s ${whereClause}`,

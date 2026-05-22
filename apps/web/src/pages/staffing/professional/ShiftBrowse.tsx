@@ -5,10 +5,13 @@ import {
   Building2, ArrowRight, Briefcase, ChevronRight,
   Info, CheckCircle, AlertCircle, Loader2
 } from 'lucide-react';
-import { shifts as shiftApi, applications as appApi } from '@/lib/staffingApi';
 import { Shift } from '@/types/staffing';
+import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/lib/supabase';
+import { shifts as shiftApi, applications as appApi } from '@/lib/staffingApi';
 
 export default function ShiftBrowse() {
+  const { user } = useAuth();
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [loading, setLoading] = useState(true);
   const [applyingId, setApplyingId] = useState<string | null>(null);
@@ -38,7 +41,25 @@ export default function ShiftBrowse() {
 
   useEffect(() => {
     loadShifts();
-  }, []);
+    
+    if (!user) return;
+    
+    const channel = supabase.channel(`professional:${user.id}`)
+      .on('broadcast', { event: 'application_accepted' }, () => {
+        loadShifts();
+      })
+      .on('broadcast', { event: 'application_rejected' }, () => {
+        loadShifts();
+      })
+      .on('broadcast', { event: 'booking_status_change' }, () => {
+        loadShifts();
+      })
+      .subscribe();
+      
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   const handleApply = async (shiftId: string) => {
     setApplyingId(shiftId);

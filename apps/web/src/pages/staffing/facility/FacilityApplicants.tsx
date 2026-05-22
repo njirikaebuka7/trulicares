@@ -4,8 +4,11 @@ import { ArrowLeft, User, CheckCircle, XCircle, Clock, MapPin, Briefcase, FileTe
 import { applications as appApi, shifts as shiftApi } from '@/lib/staffingApi';
 import { cn } from '@/utils/cn';
 import { Shift } from '@/types/staffing';
+import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/lib/supabase';
 
 export default function FacilityApplicants() {
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const shiftId = searchParams.get('shift');
   const navigate = useNavigate();
@@ -40,7 +43,20 @@ export default function FacilityApplicants() {
       }
     }
     loadData();
-  }, [shiftId, navigate]);
+
+    if (!user) return;
+
+    const channel = supabase.channel(`facility:${user.id}`)
+      .on('broadcast', { event: 'shift_status_change' }, () => {
+        // A professional applied or withdrew, reload applicants
+        loadData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [shiftId, navigate, user]);
 
   const handleAccept = async (appId: string) => {
     try {
