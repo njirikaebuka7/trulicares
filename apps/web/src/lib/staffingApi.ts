@@ -54,6 +54,7 @@ export const shifts = {
   getFacilityOverview: () => get('/staffing/shifts/overview'),
   get: (id: string) => get(`/staffing/shifts/${id}`),
   post: (data: any) => post('/staffing/shifts', data),
+  update: (id: string, data: any) => put(`/staffing/shifts/${id}`, data),
   cancel: (id: string) => del(`/staffing/shifts/${id}`),
 };
 

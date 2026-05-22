@@ -315,6 +315,79 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// ── PUT /api/staffing/shifts/:id — Update a shift ────────────
+router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    if (req.user!.role !== 'facility') {
+      return res.status(403).json({ error: 'Facility access only' });
+    }
+
+    const facilityRes = await query(
+      'SELECT id FROM facility_profiles WHERE user_id = $1',
+      [req.user!.id]
+    );
+    if (facilityRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Facility profile not found' });
+    }
+
+    const {
+      role, specialty, description, payRate, durationHours,
+      startTime, location, address, city, state, zip, slotsTotal,
+    } = req.body;
+
+    // We only allow editing if the shift is still 'open'
+    const currentShiftRes = await query(
+      `SELECT status FROM shifts WHERE id = $1 AND facility_id = $2`,
+      [req.params.id, facilityRes.rows[0].id]
+    );
+
+    if (currentShiftRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Shift not found' });
+    }
+
+    if (currentShiftRes.rows[0].status !== 'open') {
+      return res.status(400).json({ error: 'Only open shifts can be edited' });
+    }
+
+    const result = await query(
+      `UPDATE shifts 
+       SET role = COALESCE($1, role),
+           specialty = COALESCE($2, specialty),
+           description = COALESCE($3, description),
+           pay_rate = COALESCE($4, pay_rate),
+           duration_hours = COALESCE($5, duration_hours),
+           start_time = COALESCE($6, start_time),
+           location = COALESCE($7, location),
+           address = COALESCE($8, address),
+           city = COALESCE($9, city),
+           state = COALESCE($10, state),
+           zip = COALESCE($11, zip),
+           slots_total = COALESCE($12, slots_total),
+           updated_at = NOW()
+       WHERE id = $13 AND facility_id = $14 AND status = 'open'
+       RETURNING *, (pay_rate * duration_hours) AS total_pay`,
+      [
+        role, specialty, description, 
+        payRate ? parseFloat(payRate) : null, 
+        durationHours ? parseFloat(durationHours) : null,
+        startTime, location, address, city, state, zip, slotsTotal,
+        req.params.id, facilityRes.rows[0].id
+      ]
+    );
+
+    await supabase.channel(`facility:${req.user!.id}`).send({
+      type: 'broadcast',
+      event: 'shift_updated',
+      payload: { shiftId: req.params.id, shift: result.rows[0] },
+    }).catch(() => {});
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Update shift error:', err);
+    res.status(500).json({ error: 'Failed to update shift' });
+  }
+});
+
 // ── DELETE /api/staffing/shifts/:id — Cancel a shift ──────────
 router.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
   try {

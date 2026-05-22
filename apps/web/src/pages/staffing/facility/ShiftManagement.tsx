@@ -7,12 +7,14 @@ import {
 import { Link } from 'react-router-dom';
 import { shifts as shiftApi } from '@/lib/staffingApi';
 import { Shift } from '@/types/staffing';
+import EditShiftModal from './EditShiftModal';
 
 export default function ShiftManagement() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [editingShift, setEditingShift] = useState<Shift | null>(null);
 
   const handleCancel = async (id: string) => {
     if (!confirm('Are you sure you want to cancel this shift?')) return;
@@ -159,13 +161,24 @@ export default function ShiftManagement() {
                           <div className="fixed inset-0 z-10" onClick={() => setActiveMenu(null)} />
                           <div className="absolute right-0 top-10 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-20">
                             {shift.status === 'open' && (
-                              <button 
-                                onClick={() => handleCancel(shift.id)}
-                                disabled={cancellingId === shift.id}
-                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                              >
-                                {cancellingId === shift.id ? 'Cancelling...' : 'Cancel Shift'}
-                              </button>
+                              <>
+                                <button 
+                                  onClick={() => {
+                                    setActiveMenu(null);
+                                    setEditingShift(shift);
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                >
+                                  Edit Shift
+                                </button>
+                                <button 
+                                  onClick={() => handleCancel(shift.id)}
+                                  disabled={cancellingId === shift.id}
+                                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                >
+                                  {cancellingId === shift.id ? 'Cancelling...' : 'Cancel Shift'}
+                                </button>
+                              </>
                             )}
                             {shift.status !== 'open' && (
                               <div className="px-4 py-2 text-sm text-gray-400 italic">
@@ -182,6 +195,17 @@ export default function ShiftManagement() {
             </div>
           ))}
         </div>
+      )}
+
+      {editingShift && (
+        <EditShiftModal 
+          shift={editingShift} 
+          onClose={() => setEditingShift(null)} 
+          onSuccess={(updated) => {
+            setShifts(prev => prev.map(s => s.id === updated.id ? updated : s));
+            setEditingShift(null);
+          }} 
+        />
       )}
     </div>
   );
