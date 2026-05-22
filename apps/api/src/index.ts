@@ -7,7 +7,18 @@ const PORT = parseInt(process.env.PORT || '3001', 10);
 async function verifyDatabase() {
   try {
     await pool.query('SELECT 1');
-    console.log('✓ Database connected');
+    
+    // Auto-migrate extended professional profile fields
+    await pool.query(`
+      ALTER TABLE professional_profiles
+        ADD COLUMN IF NOT EXISTS work_experience JSONB DEFAULT '[]'::jsonb,
+        ADD COLUMN IF NOT EXISTS certifications JSONB DEFAULT '[]'::jsonb,
+        ADD COLUMN IF NOT EXISTS govt_id_docs JSONB DEFAULT '[]'::jsonb,
+        ADD COLUMN IF NOT EXISTS govt_id_number TEXT,
+        ADD COLUMN IF NOT EXISTS background_check_details JSONB;
+    `);
+
+    console.log('✓ Database connected and migrated');
   } catch (err: any) {
     console.error('✗ Database connection failed:', err.message);
     throw err;
