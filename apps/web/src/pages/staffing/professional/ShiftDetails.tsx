@@ -24,8 +24,17 @@ export default function ShiftDetails() {
     async function loadData() {
       setLoading(true);
       try {
-        const shiftData = await shiftApi.get(id as string);
+        const [shiftData, myAppsRes] = await Promise.all([
+          shiftApi.get(id as string),
+          appApi.my().catch(() => ({ applications: [] })) // Graceful fallback
+        ]);
         setShift(shiftData);
+        
+        // Check if already applied
+        const hasApplied = myAppsRes.applications?.some((app: any) => app.shift_id === id);
+        if (hasApplied) {
+          setApplied(true);
+        }
       } catch (err: any) {
         console.error('Failed to load shift', err);
       } finally {
