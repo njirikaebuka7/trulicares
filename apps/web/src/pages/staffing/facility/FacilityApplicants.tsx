@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, CheckCircle, XCircle, Clock, MapPin, Briefcase, FileText } from 'lucide-react';
+import { ArrowLeft, User, CheckCircle, XCircle, Clock, MapPin, Briefcase, FileText, ChevronDown, ChevronUp, Stethoscope, GraduationCap, ShieldCheck } from 'lucide-react';
 import { applications as appApi, shifts as shiftApi } from '@/lib/staffingApi';
 import { cn } from '@/utils/cn';
 import { Shift } from '@/types/staffing';
@@ -14,6 +14,7 @@ export default function FacilityApplicants() {
   const [applicants, setApplicants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
+  const [expandedApp, setExpandedApp] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -188,12 +189,137 @@ export default function FacilityApplicants() {
 
               </div>
 
-              {/* Cover Note */}
-              {app.cover_note && (
-                <div className="mt-5 pt-5 border-t border-gray-100">
-                  <div className="flex items-start gap-2 text-sm text-gray-600">
+              {/* Cover Note & Expand Toggle */}
+              <div className="mt-5 pt-5 border-t border-gray-100 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                {app.cover_note ? (
+                  <div className="flex items-start gap-2 text-sm text-gray-600 flex-1">
                     <FileText className="w-4 h-4 mt-0.5 text-gray-400 shrink-0" />
                     <p className="leading-relaxed italic">"{app.cover_note}"</p>
+                  </div>
+                ) : <div className="flex-1" />}
+                
+                <button
+                  onClick={() => setExpandedApp(expandedApp === app.id ? null : app.id)}
+                  className="flex items-center gap-1.5 text-sm font-bold text-brand-600 hover:text-brand-700 transition-colors shrink-0"
+                >
+                  {expandedApp === app.id ? (
+                    <>Hide Full Profile <ChevronUp className="w-4 h-4" /></>
+                  ) : (
+                    <>View Full Profile <ChevronDown className="w-4 h-4" /></>
+                  )}
+                </button>
+              </div>
+
+              {/* Expanded Profile Details */}
+              {expandedApp === app.id && (
+                <div className="mt-6 pt-6 border-t border-gray-100 space-y-6 animate-fade-in bg-gray-50 -mx-6 -mb-6 p-6 rounded-b-2xl">
+                  {/* Bio */}
+                  {app.bio && (
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                        <User className="w-4 h-4" /> About
+                      </h4>
+                      <p className="text-sm text-gray-700 leading-relaxed">{app.bio}</p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Roles & Specialties */}
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <Stethoscope className="w-4 h-4" /> Credentials & Specialties
+                      </h4>
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-xs text-gray-500 font-medium mb-1.5">Roles/Licenses:</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {[app.license_type, ...(app.extra_licenses || [])].filter(Boolean).map((r, i) => (
+                              <span key={i} className="px-2.5 py-1 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-bold">
+                                {r}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        {app.specialties && app.specialties.length > 0 && (
+                          <div>
+                            <p className="text-xs text-gray-500 font-medium mb-1.5">Specialties:</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {app.specialties.map((s: string) => (
+                                <span key={s} className="px-2.5 py-1 bg-brand-50 text-brand-700 rounded-lg text-xs font-bold">
+                                  {s}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Certifications */}
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <GraduationCap className="w-4 h-4" /> Certifications
+                      </h4>
+                      <div className="space-y-2">
+                        {app.certifications && (typeof app.certifications === 'string' ? JSON.parse(app.certifications) : app.certifications).length > 0 ? (
+                          (typeof app.certifications === 'string' ? JSON.parse(app.certifications) : app.certifications).map((cert: any, i: number) => (
+                            <div key={i} className="bg-white p-3 rounded-xl border border-gray-100 flex items-center justify-between gap-3 shadow-sm">
+                              <div>
+                                <p className="font-bold text-gray-900 text-sm">{cert.name}</p>
+                                <p className="text-xs text-gray-500">Expires: {cert.expiry || 'Never'}</p>
+                              </div>
+                              {cert.docUrl && (
+                                <a href={cert.docUrl} target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:bg-brand-50 p-2 rounded-lg transition-colors">
+                                  <FileText className="w-4 h-4" />
+                                </a>
+                              )}
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-gray-500 italic">No certifications listed.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Work Experience */}
+                    <div className="md:col-span-2">
+                      <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <Briefcase className="w-4 h-4" /> Work Experience
+                      </h4>
+                      <div className="space-y-3">
+                        {app.work_experience && (typeof app.work_experience === 'string' ? JSON.parse(app.work_experience) : app.work_experience).length > 0 ? (
+                          (typeof app.work_experience === 'string' ? JSON.parse(app.work_experience) : app.work_experience).map((we: any, i: number) => (
+                            <div key={i} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                              <h5 className="font-bold text-gray-900">{we.role}</h5>
+                              <p className="text-sm text-gray-600 font-medium mb-2">{we.facility} • {we.startDate} to {we.endDate || 'Present'}</p>
+                              {we.description && <p className="text-sm text-gray-600">{we.description}</p>}
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-gray-500 italic">No work experience listed.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Background Check */}
+                    <div className="md:col-span-2">
+                      <div className="flex items-center gap-3 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                        <div className={cn(
+                          "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
+                          app.background_check_status === 'approved' ? "bg-emerald-100 text-emerald-600" :
+                          app.background_check_status === 'pending' ? "bg-amber-100 text-amber-600" : "bg-gray-100 text-gray-400"
+                        )}>
+                          <ShieldCheck className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-gray-900 text-sm">Background Check</p>
+                          <p className="text-xs font-medium text-gray-500">
+                            {app.background_check_status === 'approved' ? 'Verified clear by TruliCares' :
+                             app.background_check_status === 'pending' ? 'Verification in progress' : 'Not submitted'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
