@@ -163,7 +163,7 @@ export default function ShiftBrowse() {
                       </div>
                       <div className="flex flex-wrap items-center gap-y-2 gap-x-4 text-xs text-gray-500 font-medium">
                         <div className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-gray-400" /> {startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({shift.duration_hours}h)</div>
-                        <div className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-gray-400" /> {shift.city}, {shift.state}</div>
+                        <div className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-gray-400" /> {shift.location ? `${shift.location} • ` : ''}{shift.city}, {shift.state}</div>
                         <div className="flex items-center gap-1.5 text-brand-600 font-bold bg-brand-50 px-2 py-0.5 rounded-lg"><Clock className="w-3.5 h-3.5" /> {countdownText}</div>
                       </div>
                     </div>
