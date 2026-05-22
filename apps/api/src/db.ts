@@ -18,6 +18,16 @@ pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err);
 });
 
+// Auto-migrate schema on cold start
+pool.query(`
+  ALTER TABLE professional_profiles
+    ADD COLUMN IF NOT EXISTS work_experience JSONB DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS certifications JSONB DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS govt_id_docs JSONB DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS govt_id_number TEXT,
+    ADD COLUMN IF NOT EXISTS background_check_details JSONB;
+`).catch(err => console.error('Auto-migration failed', err));
+
 export async function query(text: string, params?: any[]) {
   const start = Date.now();
   const result = await pool.query(text, params);
