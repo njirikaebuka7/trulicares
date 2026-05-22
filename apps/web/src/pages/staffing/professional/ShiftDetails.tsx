@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, MapPin, Building2, Calendar, FileText, Loader2, CheckCircle, ChevronRight, Check, Briefcase } from 'lucide-react';
+import { ArrowLeft, Clock, MapPin, Building2, Calendar, FileText, Loader2, CheckCircle, ChevronRight, Check, Briefcase, AlertCircle, X } from 'lucide-react';
 import { shifts as shiftApi, applications as appApi } from '@/lib/staffingApi';
 import { Shift } from '@/types/staffing';
 import { cn } from '@/utils/cn';
@@ -13,6 +13,7 @@ export default function ShiftDetails() {
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
+  const [errorModal, setErrorModal] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) {
@@ -41,7 +42,7 @@ export default function ShiftDetails() {
       await appApi.apply(shift.id, "I am interested in this shift and available to work.");
       setApplied(true);
     } catch (err: any) {
-      alert(err.message || 'Failed to apply');
+      setErrorModal(err.message || 'Failed to apply');
     } finally {
       setApplying(false);
     }
@@ -209,6 +210,33 @@ export default function ShiftDetails() {
           </div>
         </div>
       </div>
+
+      {/* Error Modal */}
+      {errorModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl relative animate-scale-in">
+            <button 
+              onClick={() => setErrorModal(null)}
+              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-5 border-4 border-red-50">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <h3 className="text-xl font-black text-gray-900 mb-2">Credential Mismatch</h3>
+            <p className="text-gray-600 mb-8 font-medium leading-relaxed">{errorModal}</p>
+            <div className="flex justify-end">
+              <button 
+                onClick={() => setErrorModal(null)}
+                className="px-6 py-2.5 bg-gray-900 text-white rounded-full font-bold hover:bg-gray-800 transition-all active:scale-95"
+              >
+                Okay, got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

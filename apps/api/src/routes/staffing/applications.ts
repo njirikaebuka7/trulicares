@@ -14,7 +14,8 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
 
     // Get professional profile + verify approved
     const proRes = await query(
-      `SELECT id, verification_status, license_type, specialties
+      `SELECT id, verification_status, license_type, specialties,
+       (SELECT json_agg(pl.license_type) FROM professional_licenses pl WHERE pl.professional_id = professional_profiles.id) as extra_licenses
        FROM professional_profiles
        WHERE user_id = $1`,
       [req.user!.id]
@@ -23,9 +24,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Professional profile not found. Please complete onboarding.' });
     }
     const pro = proRes.rows[0];
-    // if (pro.verification_status !== 'approved') {
-    //   return res.status(403).json({ error: 'Your credentials must be verified before applying to shifts.' });
-    // }
+    const allLicenses = [pro.license_type, ...(pro.extra_licenses || [])].filter(Boolean);
 
     const { shiftId, coverNote } = req.body;
     if (!shiftId) {
@@ -43,9 +42,9 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
     const shift = shiftRes.rows[0];
 
     // ROLE MATCHING
-    if (pro.license_type !== shift.role) {
+    if (!allLicenses.includes(shift.role)) {
       return res.status(403).json({ 
-        error: `Credential mismatch: This shift requires an ${shift.role}, but you are registered as an ${pro.license_type}.` 
+        error: `Credential mismatch: This shift requires an ${shift.role}, but you are registered as ${allLicenses.join(', ') || 'none'}.` 
       });
     }
 
