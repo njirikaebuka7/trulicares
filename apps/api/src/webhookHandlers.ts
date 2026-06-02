@@ -1,5 +1,7 @@
 import Stripe from 'stripe';
 import { getClient, query, supabase } from './db.js';
+import { orderBackgroundCheck } from './services/backgroundCheck.js';
+import { enqueueEmail } from './queues/queues.js';
 
 async function broadcastStaffingUpdate(bookingId: string, event: string, payload: Record<string, unknown> = {}) {
   const bookingRes = await query(
@@ -239,13 +241,26 @@ export class WebhookHandlers {
             [session.payment_intent || session.id, userId, session.id]
           );
 
-          // Create verification queue entry
+          // Create verification queue entry (manual fallback / audit trail)
           await query(
             `INSERT INTO verification_queue (caregiver_id, specialty, experience, documents, background_check, status, submitted_at)
              VALUES ($1, $2, $3, $4, true, 'pending', NOW())
              ON CONFLICT DO NOTHING`,
             [userId, 'General Care', 'N/A', JSON.stringify([{ name: 'Paid Premium Background Verification', url: '#' }])]
           );
+
+          // Kick off the real Checkr background check (no-op fallback if Checkr is off).
+          await orderBackgroundCheck(userId).catch((e) => console.error('orderBackgroundCheck failed:', e?.message));
+
+          // Payment confirmation email.
+          const payer = await query('SELECT name, email FROM users WHERE id = $1', [userId]);
+          if (payer.rows[0]) {
+            await enqueueEmail('payment-confirmation', payer.rows[0].email, {
+              name: payer.rows[0].name,
+              description: 'TruliCares Premium Background Check',
+              amount: session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : '$39.00',
+            }).catch(() => {});
+          }
         } else if (session.metadata?.type === 'staffing_shift' && session.metadata?.booking_id) {
           await markStaffingBookingPaid(session);
         }

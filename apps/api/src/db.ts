@@ -25,8 +25,21 @@ pool.query(`
     ADD COLUMN IF NOT EXISTS certifications JSONB DEFAULT '[]'::jsonb,
     ADD COLUMN IF NOT EXISTS govt_id_docs JSONB DEFAULT '[]'::jsonb,
     ADD COLUMN IF NOT EXISTS govt_id_number TEXT,
-    ADD COLUMN IF NOT EXISTS background_check_details JSONB;
+    ADD COLUMN IF NOT EXISTS background_check_details JSONB,
+    ADD COLUMN IF NOT EXISTS checkr_candidate_id TEXT,
+    ADD COLUMN IF NOT EXISTS checkr_invitation_id TEXT,
+    ADD COLUMN IF NOT EXISTS checkr_report_id TEXT;
 `).catch(err => console.error('Auto-migration failed', err));
+
+// Auto-migrate Checkr columns for caregivers
+pool.query(`
+  ALTER TABLE caregiver_profiles
+    ADD COLUMN IF NOT EXISTS checkr_candidate_id TEXT,
+    ADD COLUMN IF NOT EXISTS checkr_invitation_id TEXT,
+    ADD COLUMN IF NOT EXISTS checkr_report_id TEXT,
+    ADD COLUMN IF NOT EXISTS background_check_status TEXT NOT NULL DEFAULT 'not_started',
+    ADD COLUMN IF NOT EXISTS background_check_completed_at TIMESTAMPTZ;
+`).catch(err => console.error('Caregiver Checkr auto-migration failed', err));
 
 export async function query(text: string, params?: any[]) {
   const start = Date.now();

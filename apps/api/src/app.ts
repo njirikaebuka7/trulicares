@@ -13,6 +13,7 @@ import notificationsRouter from './routes/notifications.js';
 import adminRouter from './routes/admin.js';
 import clientsRouter from './routes/clients.js';
 import staffingRouter from './routes/staffing/index.js';
+import checkrRouter from './routes/checkr.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
 import { redisHealthCheck } from './services/redis.js';
 
@@ -40,6 +41,9 @@ app.post(
     }
   }
 );
+
+// ── Checkr webhook MUST be before express.json() (needs raw body for HMAC) ─────
+app.use('/api/checkr', checkrRouter);
 
 // ── Global middleware ─────────────────────────────────────────────────────────
 app.use(cors({ origin: true, credentials: true }));
