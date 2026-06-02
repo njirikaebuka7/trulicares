@@ -1,6 +1,8 @@
 import { Router } from 'express';
-import { query } from '../../db.js';
+import { query, getClient, supabase } from '../../db.js';
 import { requireAuth, AuthRequest } from '../../middleware/auth.js';
+import { getUncachableStripeClient } from '../../stripeClient.js';
+import { enqueueEmail } from '../../queues/queues.js';
 
 const router = Router();
 
@@ -134,37 +136,129 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── PUT /api/staffing/disputes/:id — Admin resolves dispute ──
+//
+// Beyond flipping the status, this now actually moves the escrowed funds:
+//   • outcome 'release' → pay the professional (complete booking, credit wallet)
+//   • outcome 'refund'  → refund the facility via Stripe, mark escrow refunded
+//   • outcome 'none'    → just close the dispute (e.g. dismissed) with no money movement
 router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
+  const client = await getClient();
   try {
     if (req.user!.role !== 'admin') {
+      client.release();
       return res.status(403).json({ error: 'Admin access only' });
     }
 
-    const { status, resolutionNotes } = req.body;
+    const { status, resolutionNotes, outcome = 'none' } = req.body;
     if (!status || !['resolved', 'dismissed'].includes(status)) {
+      client.release();
       return res.status(400).json({ error: 'Invalid status. Must be resolved or dismissed.' });
     }
+    if (!['release', 'refund', 'none'].includes(outcome)) {
+      client.release();
+      return res.status(400).json({ error: 'Invalid outcome. Must be release, refund, or none.' });
+    }
 
-    const result = await query(
-      `UPDATE shift_disputes SET
-         status = $1,
-         resolution_notes = $2,
-         resolved_at = NOW(),
-         resolved_by = $3,
-         updated_at = NOW()
-       WHERE id = $4
-       RETURNING *`,
+    await client.query('BEGIN');
+
+    const dRes = await client.query(
+      `SELECT sd.*, sb.id AS booking_id, sb.wage_amount, sb.platform_fee_amount, sb.total_charged,
+              sb.stripe_payment_intent_id, sb.ref_id AS booking_ref, sb.shift_id,
+              pp.user_id AS pro_user_id, fp.user_id AS facility_user_id
+       FROM shift_disputes sd
+       JOIN shift_bookings sb ON sb.id = sd.booking_id
+       JOIN professional_profiles pp ON pp.id = sb.professional_id
+       JOIN facility_profiles fp ON fp.id = sb.facility_id
+       WHERE sd.id = $1 FOR UPDATE`,
+      [req.params.id]
+    );
+    if (dRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      client.release();
+      return res.status(404).json({ error: 'Dispute not found' });
+    }
+    const d = dRes.rows[0];
+
+    // Update the dispute record
+    const updated = await client.query(
+      `UPDATE shift_disputes SET status = $1, resolution_notes = $2, resolved_at = NOW(),
+         resolved_by = $3, updated_at = NOW() WHERE id = $4 RETURNING *`,
       [status, resolutionNotes || null, req.user!.id, req.params.id]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Dispute not found' });
+    let moneyMessage = '';
+
+    if (outcome === 'release') {
+      const wage = parseFloat(d.wage_amount);
+      await client.query(
+        `UPDATE shift_escrow SET status = 'released', released_at = NOW(), released_to = $1 WHERE booking_id = $2 AND status IN ('holding','disputed')`,
+        [d.pro_user_id, d.booking_id]
+      );
+      const w = await client.query(
+        `INSERT INTO professional_wallets (user_id, balance, total_earned) VALUES ($1, $2, $2)
+         ON CONFLICT (user_id) DO UPDATE SET balance = professional_wallets.balance + $2,
+           total_earned = professional_wallets.total_earned + $2, updated_at = NOW() RETURNING balance`,
+        [d.pro_user_id, wage]
+      );
+      await client.query(
+        `INSERT INTO wallet_transactions (user_id, type, amount, balance_after, description, booking_id)
+         VALUES ($1, 'credit', $2, $3, $4, $5)`,
+        [d.pro_user_id, wage, w.rows[0].balance, `Dispute resolved in your favor: ${d.booking_ref}`, d.booking_id]
+      );
+      await client.query(`UPDATE shift_bookings SET status = 'completed', updated_at = NOW() WHERE id = $1`, [d.booking_id]);
+      await client.query(`UPDATE shifts SET status = 'completed', updated_at = NOW() WHERE id = $1`, [d.shift_id]);
+      moneyMessage = `$${wage.toFixed(2)} released to the professional.`;
+    } else if (outcome === 'refund') {
+      // Refund the facility via Stripe (best-effort; escrow marked refunded regardless).
+      if (d.stripe_payment_intent_id) {
+        try {
+          const stripe = await getUncachableStripeClient();
+          await stripe.refunds.create({ payment_intent: d.stripe_payment_intent_id });
+        } catch (e: any) {
+          console.error('[dispute] Stripe refund failed:', e?.message);
+        }
+      }
+      await client.query(
+        `UPDATE shift_escrow SET status = 'refunded', released_at = NOW() WHERE booking_id = $1 AND status IN ('holding','disputed')`,
+        [d.booking_id]
+      );
+      await client.query(`UPDATE shift_bookings SET status = 'cancelled', updated_at = NOW() WHERE id = $1`, [d.booking_id]);
+      moneyMessage = `$${parseFloat(d.total_charged).toFixed(2)} refunded to the facility.`;
     }
 
-    res.json({ dispute: result.rows[0], message: `Dispute ${status}` });
+    await client.query('COMMIT');
+
+    // Notify both parties (in-app + email), best-effort.
+    const recipients = await query(
+      `SELECT id, name, email FROM users WHERE id = ANY($1::uuid[])`,
+      [[d.pro_user_id, d.facility_user_id]]
+    );
+    for (const u of recipients.rows) {
+      await supabase.channel(`notifications:${u.id}`).send({
+        type: 'broadcast',
+        event: 'new_notification',
+        payload: { title: 'Dispute resolved', content: `Dispute ${d.booking_ref} ${status}. ${moneyMessage}` },
+      }).catch(() => {});
+      await enqueueEmail('generic-notification', u.email, {
+        name: u.name,
+        subject: 'Your dispute has been resolved',
+        heading: 'Dispute resolved',
+        message: `Dispute for booking ${d.booking_ref} was ${status}. ${moneyMessage} ${resolutionNotes ? `Notes: ${resolutionNotes}` : ''}`.trim(),
+      }).catch(() => {});
+    }
+    if (d.pro_user_id && outcome === 'release') {
+      await supabase.channel(`wallet:${d.pro_user_id}`).send({
+        type: 'broadcast', event: 'balance_updated', payload: {},
+      }).catch(() => {});
+    }
+
+    res.json({ dispute: updated.rows[0], message: `Dispute ${status}. ${moneyMessage}`.trim() });
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Resolve dispute error:', err);
     res.status(500).json({ error: 'Failed to update dispute' });
+  } finally {
+    client.release();
   }
 });
 

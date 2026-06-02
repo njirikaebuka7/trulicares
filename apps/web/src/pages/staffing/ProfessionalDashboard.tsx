@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Search, Calendar, Wallet, 
   UserCircle, Bell, Menu, X, LogOut, ChevronRight,
   Shield, CheckCircle, Briefcase, Clock, FileText,
-  ChevronLeft, Info
+  ChevronLeft, Info, MessageCircle
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { professional as proApi, shifts as shiftApi, applications as appApi, wallet as walletApi } from '@/lib/staffingApi';
@@ -22,6 +22,8 @@ import WalletView from './professional/WalletView';
 import ProfessionalProfileView from './professional/ProfessionalProfileView';
 import ResumeGenerator from './professional/ResumeGenerator';
 import ShiftDetails from './professional/ShiftDetails';
+import StaffingChat from './StaffingChat';
+import CheckInTimer from '@/components/staffing/CheckInTimer';
 import { DashboardProvider, useDashboard } from './professional/DashboardContext';
 
 export default function ProfessionalDashboard() {
@@ -114,6 +116,7 @@ function ProfessionalDashboardInner() {
     { label: 'Overview', icon: LayoutDashboard, path: '/professional-dashboard' },
     { label: 'Browse Shifts', icon: Search, path: '/professional-dashboard/browse' },
     { label: 'My Schedule', icon: Calendar, path: '/professional-dashboard/schedule' },
+    { label: 'Messages', icon: MessageCircle, path: '/professional-dashboard/messages' },
     { label: 'Wallet', icon: Wallet, path: '/professional-dashboard/wallet' },
     { label: 'My Profile', icon: UserCircle, path: '/professional-dashboard/profile' },
     { label: 'Resume', icon: FileText, path: '/professional-dashboard/resume' },
@@ -322,6 +325,7 @@ function ProfessionalDashboardInner() {
             <Route path="browse" element={<ShiftBrowse />} />
             <Route path="shifts/:id" element={<ShiftDetails />} />
             <Route path="schedule" element={<ProfessionalCalendar />} />
+            <Route path="messages" element={<StaffingChat />} />
             <Route path="wallet" element={<WalletView />} />
             <Route path="profile" element={<ProfessionalProfileView />} />
             <Route path="resume" element={<ResumeGenerator />} />
@@ -525,28 +529,3 @@ function Overview({ profile, summary, activeShift }: { profile: ProfessionalProf
   );
 }
 
-function CheckInTimer({ bookingId, status, startTime, endTime, role, onUpdate }: any) {
-  return (
-    <div className="bg-emerald-600 rounded-2xl p-6 text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-md animate-pulse-subtle relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.2),transparent)] pointer-events-none" />
-      <div className="flex items-center gap-4 relative">
-        <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center shadow-inner shrink-0">
-          <Clock className="w-6 h-6 text-white" />
-        </div>
-        <div>
-          <h4 className="text-lg font-bold">Active Shift In Progress</h4>
-          <p className="text-emerald-100 font-semibold text-xs mt-0.5">Status: {status.replace('_', ' ')}</p>
-        </div>
-      </div>
-      <div className="flex items-center gap-4 relative">
-        <div className="text-right hidden sm:block mr-2">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-200 opacity-60">Ends in</p>
-          <p className="text-base font-bold">2h 45m</p>
-        </div>
-        <button className="bg-white text-emerald-700 px-6 py-2.5 rounded-full font-semibold text-sm shadow-md hover:bg-emerald-50 transition-all active:scale-95">
-          View Shift Details
-        </button>
-      </div>
-    </div>
-  );
-}

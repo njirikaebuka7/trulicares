@@ -96,20 +96,30 @@ router.post('/withdraw', requireAuth, async (req: AuthRequest, res) => {
       [newBalance, withdrawAmount, req.user!.id]
     );
 
+    const last4 = bankRes.rows[0].account_number_last4;
+
     // Log transaction
     await client.query(
       `INSERT INTO wallet_transactions (user_id, type, amount, balance_after, description)
        VALUES ($1, 'withdrawal', $2, $3, $4)`,
-      [req.user!.id, withdrawAmount, newBalance, `Withdrawal to ${bankRes.rows[0].bank_name} ****${bankRes.rows[0].account_number_last4}`]
+      [req.user!.id, withdrawAmount, newBalance, `Withdrawal to ${bankRes.rows[0].bank_name} ****${last4}`]
     );
+
+    // Record an auditable payout request (status tracked until the payout settles).
+    await client.query(
+      `INSERT INTO withdrawals (user_id, amount, status, bank_last4) VALUES ($1, $2, 'processing', $3)`,
+      [req.user!.id, withdrawAmount, last4]
+    ).catch(() => {});
 
     await client.query('COMMIT');
 
-    // NOTE: In production, trigger Stripe Connect payout here
+    // NOTE: In production, trigger the Stripe Connect payout here and update the
+    // withdrawals row to 'paid'/'failed' from the payout webhook. See improvement.md §11.
     res.json({
       message: 'Withdrawal request submitted. Funds will arrive in 1-3 business days.',
       amount: withdrawAmount,
       newBalance,
+      status: 'processing',
     });
   } catch (err) {
     await client.query('ROLLBACK');

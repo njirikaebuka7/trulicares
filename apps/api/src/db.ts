@@ -41,6 +41,43 @@ pool.query(`
     ADD COLUMN IF NOT EXISTS background_check_completed_at TIMESTAMPTZ;
 `).catch(err => console.error('Caregiver Checkr auto-migration failed', err));
 
+// Auto-migrate staffing in-app chat tables
+pool.query(`
+  CREATE TABLE IF NOT EXISTS staffing_conversations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    facility_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    professional_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    booking_id UUID REFERENCES shift_bookings(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (facility_id, professional_id)
+  );
+  CREATE TABLE IF NOT EXISTS staffing_messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id UUID NOT NULL REFERENCES staffing_conversations(id) ON DELETE CASCADE,
+    sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_staffing_msg_conversation ON staffing_messages(conversation_id, created_at);
+`).catch(err => console.error('Staffing chat auto-migration failed', err));
+
+// Auto-migrate withdrawals ledger (payout requests). Actual transfer is performed by
+// Stripe Connect payouts in production; this records and tracks each request.
+pool.query(`
+  CREATE TABLE IF NOT EXISTS withdrawals (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    amount NUMERIC(10,2) NOT NULL,
+    status TEXT NOT NULL DEFAULT 'processing' CHECK (status IN ('processing','paid','failed')),
+    bank_last4 TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    processed_at TIMESTAMPTZ
+  );
+  CREATE INDEX IF NOT EXISTS idx_withdrawals_user ON withdrawals(user_id, created_at);
+`).catch(err => console.error('Withdrawals auto-migration failed', err));
+
 export async function query(text: string, params?: any[]) {
   const start = Date.now();
   const result = await pool.query(text, params);

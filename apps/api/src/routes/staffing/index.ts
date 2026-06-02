@@ -6,6 +6,7 @@ import applicationsRouter from './applications.js';
 import checkinRouter from './checkin.js';
 import walletRouter from './wallet.js';
 import disputesRouter from './disputes.js';
+import messagesRouter from './messages.js';
 
 const router = Router();
 
@@ -16,5 +17,6 @@ router.use('/applications', applicationsRouter);
 router.use('/', checkinRouter);          // /api/staffing/checkin/:id etc.
 router.use('/wallet', walletRouter);
 router.use('/disputes', disputesRouter);
+router.use('/conversations', messagesRouter); // in-app chat (facility <-> professional)
 
 export default router;

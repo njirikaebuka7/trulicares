@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Search, Calendar, PlusCircle, 
   Settings, Bell, Menu, X, LogOut, ChevronRight,
   Shield, CheckCircle, Briefcase, Clock, Building,
-  ChevronLeft, Users
+  ChevronLeft, Users, MessageCircle
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { facility as facApi, shifts as shiftApi } from '@/lib/staffingApi';
@@ -21,6 +21,7 @@ import FacilityShifts from './facility/ShiftManagement';
 import FacilitySchedule from './facility/FacilitySchedule';
 import FacilityProfileView from './facility/FacilityProfileView';
 import FacilityApplicants from './facility/FacilityApplicants';
+import StaffingChat from './StaffingChat';
 import { FacilityDashboardProvider, useFacilityDashboard } from './facility/FacilityDashboardContext';
 
 export default function FacilityDashboard() {
@@ -82,6 +83,7 @@ function FacilityDashboardInner() {
     { label: 'Overview', icon: LayoutDashboard, path: '/facility-dashboard' },
     { label: 'My Shifts', icon: Search, path: '/facility-dashboard/shifts' },
     { label: 'Schedule', icon: Calendar, path: '/facility-dashboard/schedule' },
+    { label: 'Messages', icon: MessageCircle, path: '/facility-dashboard/messages' },
     { label: 'Post a Shift', icon: PlusCircle, path: '/facility-dashboard/post' },
     { label: 'Facility Profile', icon: Building, path: '/facility-dashboard/profile' },
   ];
@@ -295,6 +297,7 @@ function FacilityDashboardInner() {
             <Route path="shifts" element={<FacilityShifts />} />
             <Route path="applicants" element={<FacilityApplicants />} />
             <Route path="schedule" element={<FacilitySchedule />} />
+            <Route path="messages" element={<StaffingChat />} />
             <Route path="profile" element={<FacilityProfileView />} />
           </Routes>
         </div>

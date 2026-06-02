@@ -267,6 +267,15 @@ router.put('/:id/accept', requireAuth, async (req: AuthRequest, res) => {
     );
     const booking = bookingRes.rows[0];
 
+    // Open an in-app chat thread between this facility and professional.
+    await client.query(
+      `INSERT INTO staffing_conversations (facility_id, professional_id, booking_id)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (facility_id, professional_id)
+         DO UPDATE SET booking_id = COALESCE(staffing_conversations.booking_id, EXCLUDED.booking_id), updated_at = NOW()`,
+      [req.user!.id, app.pro_user_id, booking.id]
+    ).catch(() => {});
+
     // Mark shift as filled
     await client.query(
       `UPDATE shifts SET status = 'filled', slots_filled = slots_filled + 1, updated_at = NOW()

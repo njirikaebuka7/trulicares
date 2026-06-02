@@ -292,4 +292,25 @@ Each step compiles (`tsc`) and is pushed so Vercel redeploys incrementally.
 
 ## 14. Done / changelog
 
-- _(updated as phases land)_
+- **Phase 1 — scalability backbone** (commit: Redis/BullMQ/email): Redis singleton +
+  health check, two-tier cache, Redis rate limiter + strict presets, BullMQ queues/
+  worker/producers with graceful inline fallback, 13 branded email templates, Resend
+  service refactor (enqueue-only), sharp inline avatar optimization. All gated on
+  `REDIS_URL` so the live deploy is unaffected until provisioned.
+- **Phase 2 — Checkr**: candidate+invitation flow on bg-check payment, signature-verified
+  webhook, status columns + auto-migrate, approval/security emails, manual fallback.
+- **Phase 3 — staffing chat + avatars**: `staffing_conversations`/`staffing_messages`
+  tables (+ auto-migrate), `/api/staffing/conversations` routes, auto-created thread on
+  application accept, `StaffingChat` view + Messages nav in both staffing dashboards,
+  reusable `Avatar` (real photo / initials fallback).
+- **Phase 4 — gap fixes**: real `CheckInTimer` wired into the pro Overview (removed the
+  hardcoded "2h 45m" stub); dispute resolution now releases escrow to the pro or refunds
+  the facility via Stripe (was status-only); escrow auto-release cleanup job for forgotten
+  confirmations; withdrawals ledger table for auditable payout requests.
+
+### Still open (documented, lower priority)
+- Stripe Connect payouts for real wallet withdrawals (table + status tracking are in place).
+- Geofenced check-in: needs shift lat/lng stored; the real `CheckInTimer` is wired and
+  `utils/geolocation` exists — capture+compare is the remaining step.
+- Admin dashboard UI for the new dispute `outcome` (release/refund) control.
+- Housekeeping: gitignore tracked `dist/`, `dist-server/`, scratch scripts.
