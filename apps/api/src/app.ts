@@ -14,6 +14,7 @@ import adminRouter from './routes/admin.js';
 import clientsRouter from './routes/clients.js';
 import staffingRouter from './routes/staffing/index.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
+import { redisHealthCheck } from './services/redis.js';
 
 const app: Express = express();
 
@@ -54,8 +55,9 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // ── Health check ──────────────────────────────────────────────────────────────
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/api/health', async (_req, res) => {
+  const redis = await redisHealthCheck();
+  res.json({ status: 'ok', timestamp: new Date().toISOString(), redis });
 });
 
 // ── Rate Limiting (Brute Force Defense) ──────────────────────────────────────

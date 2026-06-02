@@ -1,4 +1,5 @@
 import { supabase } from '../supabaseClient.js';
+import { optimizeImageBuffer } from './image.js';
 
 /**
  * Uploads a base64 image data string directly to a public Supabase Storage bucket.
@@ -22,12 +23,16 @@ export async function uploadBase64Image(userId: string, base64String: string): P
     return base64String;
   }
 
-  const mimeType = matches[1];
+  const rawMimeType = matches[1];
   const base64Data = matches[2];
-  const buffer = Buffer.from(base64Data, 'base64');
+  const rawBuffer = Buffer.from(base64Data, 'base64');
 
-  // Derive file extension
-  const extension = mimeType.split('/')[1] || 'png';
+  // Optimize: resize + convert to webp (shrinks Storage footprint dramatically).
+  // Falls back to the original buffer if sharp is unavailable.
+  const optimized = await optimizeImageBuffer(rawBuffer, rawMimeType, { maxSize: 512, quality: 80 });
+  const buffer = optimized.buffer;
+  const mimeType = optimized.contentType;
+  const extension = optimized.extension;
   const fileName = `${userId}-${Date.now()}.${extension}`;
 
   try {

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { requireAuth, requireCaregiver, AuthRequest } from '../middleware/auth.js';
 import { getCached, setCached, invalidateCache } from '../services/cache.js';
+import { searchLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
 
@@ -51,7 +52,7 @@ function formatCaregiver(row: any) {
 }
 
 // GET /api/caregivers
-router.get('/', async (req, res) => {
+router.get('/', searchLimiter, async (req, res) => {
   try {
     const cacheKey = `caregivers:list:${JSON.stringify(req.query)}`;
     const cached = getCached<any>(cacheKey);

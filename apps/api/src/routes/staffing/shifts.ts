@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query, supabase } from '../../db.js';
 import { requireAuth, AuthRequest } from '../../middleware/auth.js';
+import { searchLimiter } from '../../middleware/rateLimiter.js';
 
 const router = Router();
 
@@ -68,7 +69,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-router.get('/', requireAuth, async (req: AuthRequest, res) => {
+router.get('/', requireAuth, searchLimiter, async (req: AuthRequest, res) => {
   try {
     const { role, city, state, minPay, maxPay, startAfter, limit = '20', offset = '0' } = req.query as any;
     const parsedLimit = parseInt(limit, 10);

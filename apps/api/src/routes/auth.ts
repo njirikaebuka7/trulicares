@@ -3,8 +3,16 @@ import bcrypt from 'bcryptjs';
 import { query } from '../db.js';
 import { generateToken, requireAuth, AuthRequest } from '../middleware/auth.js';
 import { sendWelcomeEmail, sendPasswordResetEmail, sendNotificationPreferenceEmail } from '../services/email.js';
+import { enqueueEmail } from '../queues/queues.js';
 import crypto from 'crypto';
 import { uploadBase64Image } from '../services/storage.js';
+import {
+  loginLimiter,
+  registerLimiter,
+  forgotPasswordLimiter,
+  otpLimiter,
+  uploadLimiter,
+} from '../middleware/rateLimiter.js';
 
 const router = Router();
 
@@ -21,7 +29,7 @@ function detectRole(email: string, explicitRole?: string): 'family' | 'caregiver
 }
 
 // POST /api/auth/register
-router.post('/register', async (req, res) => {
+router.post('/register', registerLimiter, async (req, res) => {
   try {
     const { name, email, password, role: requestedRole, caregiverData, phone } = req.body;
 
@@ -94,7 +102,7 @@ router.post('/register', async (req, res) => {
 });
 
 // POST /api/auth/login
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -122,6 +130,15 @@ router.post('/login', async (req, res) => {
     }
 
     const token = generateToken({ id: user.id, email: user.email, role: user.role, name: user.name });
+
+    // Security: notify the user of the new sign-in (queued, non-blocking).
+    const rawIp = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    enqueueEmail('login-alert', user.email, {
+      name: user.name,
+      time: new Date().toLocaleString(),
+      device: (req.headers['user-agent'] || 'Unknown device').toString().slice(0, 120),
+      ip: Array.isArray(rawIp) ? rawIp[0] : rawIp,
+    }).catch(() => {});
 
     res.json({
       token,
@@ -180,7 +197,7 @@ router.get('/settings', requireAuth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/auth/profile-photo — base64 data URL stored directly
-router.post('/profile-photo', requireAuth, async (req: AuthRequest, res) => {
+router.post('/profile-photo', requireAuth, uploadLimiter, async (req: AuthRequest, res) => {
   try {
     const { photoData } = req.body;
     if (!photoData) return res.status(400).json({ error: 'photoData is required' });
@@ -210,6 +227,7 @@ router.put('/password', requireAuth, async (req: AuthRequest, res) => {
     if (!valid) return res.status(401).json({ error: 'Current password is incorrect' });
     const hash = await bcrypt.hash(newPassword, 12);
     await query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [hash, req.user!.id]);
+    enqueueEmail('password-changed', req.user!.email, { name: req.user!.name }).catch(() => {});
     res.json({ message: 'Password changed successfully' });
   } catch (err) {
     console.error('Password change error:', err);
@@ -363,7 +381,7 @@ router.get('/stats', requireAuth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/auth/forgot-password
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email is required' });
@@ -423,7 +441,7 @@ router.post('/reset-password', async (req, res) => {
 });
 
 // POST /api/auth/otp/send
-router.post('/otp/send', async (req, res) => {
+router.post('/otp/send', otpLimiter, async (req, res) => {
   try {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ error: 'Phone number is required' });
@@ -451,7 +469,7 @@ router.post('/otp/send', async (req, res) => {
 });
 
 // POST /api/auth/otp/verify
-router.post('/otp/verify', async (req, res) => {
+router.post('/otp/verify', otpLimiter, async (req, res) => {
   try {
     const { phone, code } = req.body;
     if (!phone || !code) return res.status(400).json({ error: 'Phone and code are required' });
