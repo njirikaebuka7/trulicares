@@ -16,7 +16,7 @@ Last updated: 2026‑06‑02
    (Redis, BullMQ, Checkr, sharp) is **optional at runtime**: if its environment
    variable is missing the code falls back to the previous behaviour
    (in‑memory cache, in‑memory rate limit, direct email send, no‑op background check).
-   This lets us merge & deploy infrastructure *before* the external services are
+   This lets us merge & deploy infrastructure _before_ the external services are
    provisioned, with zero downtime.
 2. **Workers run off‑Vercel.** Vercel serverless functions are ephemeral and cannot
    host a long‑lived BullMQ worker or a persistent Redis pool. The API (Vercel) only
@@ -61,19 +61,19 @@ Last updated: 2026‑06‑02
 
 ## 2. Workstreams & status
 
-| # | Workstream | Module | Status |
-|---|-----------|--------|--------|
-| 1 | Redis connection + serverless singleton | infra | ☐ |
-| 2 | Redis cache service (+ health check, in‑mem fallback) | infra | ☐ |
-| 3 | Redis rate limiter + strict per‑route limits | infra/auth | ☐ |
-| 4 | BullMQ queues / producers / worker / start cmd | infra | ☐ |
-| 5 | Branded email templates (13) + Resend service refactor | both | ☐ |
-| 6 | Email sending moved into worker (no controller sends) | both | ☐ |
-| 7 | Sharp image optimization (queue + storage) | both | ☐ |
-| 8 | Checkr background‑check integration | marketplace | ☐ |
-| 9 | Staffing in‑app chat + real profile avatars | staffing | ☐ |
-| 10 | Gap bug fixes (check‑in widget, payout, escrow auto‑release, geofence, dispute resolution) | staffing | ☐ |
-| 11 | Cleanup / cron jobs (expired tokens, stuck escrow, OTP purge) | infra | ☐ |
+| #   | Workstream                                                                                 | Module      | Status |
+| --- | ------------------------------------------------------------------------------------------ | ----------- | ------ |
+| 1   | Redis connection + serverless singleton                                                    | infra       | ☐      |
+| 2   | Redis cache service (+ health check, in‑mem fallback)                                      | infra       | ☐      |
+| 3   | Redis rate limiter + strict per‑route limits                                               | infra/auth  | ☐      |
+| 4   | BullMQ queues / producers / worker / start cmd                                             | infra       | ☐      |
+| 5   | Branded email templates (13) + Resend service refactor                                     | both        | ☐      |
+| 6   | Email sending moved into worker (no controller sends)                                      | both        | ☐      |
+| 7   | Sharp image optimization (queue + storage)                                                 | both        | ☐      |
+| 8   | Checkr background‑check integration                                                        | marketplace | ☐      |
+| 9   | Staffing in‑app chat + real profile avatars                                                | staffing    | ☐      |
+| 10  | Gap bug fixes (check‑in widget, payout, escrow auto‑release, geofence, dispute resolution) | staffing    | ☐      |
+| 11  | Cleanup / cron jobs (expired tokens, stuck escrow, OTP purge)                              | infra       | ☐      |
 
 ---
 
@@ -135,21 +135,21 @@ CHECKR_PACKAGE=test_pro_criminal
 All rendered from a shared branded base layout (logo header, brand colours, button,
 footer with support link). Each has a typed payload and a queue job name.
 
-| Template key | Trigger | Recipient | Module |
-|---|---|---|---|
-| `forgot-password` | password reset requested | user | both |
-| `email-verification` | signup / verify email (OTP or link) | user | both |
-| `welcome` | account created | user | both |
-| `login-alert` | new device/login | user | both |
-| `new-message` | new chat message (debounced) | recipient | both |
-| `care-request` | family books / requests care, shift posted/applied | caregiver / family / facility / pro | both |
-| `admin-notification` | new report, dispute, verification queue item | admin | both |
-| `payment-confirmation` | Stripe payment succeeded (messaging unlock, bg check, shift) | payer | both |
-| `account-approval` | verification approved | caregiver / professional / facility | both |
-| `account-rejection` | verification rejected | caregiver / professional / facility | both |
-| `password-changed` | password successfully changed | user | both |
-| `security-alert` | suspicious activity / suspension | user | both |
-| `generic-notification` | catch‑all in‑app notification mirror | any | both |
+| Template key           | Trigger                                                      | Recipient                           | Module |
+| ---------------------- | ------------------------------------------------------------ | ----------------------------------- | ------ |
+| `forgot-password`      | password reset requested                                     | user                                | both   |
+| `email-verification`   | signup / verify email (OTP or link)                          | user                                | both   |
+| `welcome`              | account created                                              | user                                | both   |
+| `login-alert`          | new device/login                                             | user                                | both   |
+| `new-message`          | new chat message (debounced)                                 | recipient                           | both   |
+| `care-request`         | family books / requests care, shift posted/applied           | caregiver / family / facility / pro | both   |
+| `admin-notification`   | new report, dispute, verification queue item                 | admin                               | both   |
+| `payment-confirmation` | Stripe payment succeeded (messaging unlock, bg check, shift) | payer                               | both   |
+| `account-approval`     | verification approved                                        | caregiver / professional / facility | both   |
+| `account-rejection`    | verification rejected                                        | caregiver / professional / facility | both   |
+| `password-changed`     | password successfully changed                                | user                                | both   |
+| `security-alert`       | suspicious activity / suspension                             | user                                | both   |
+| `generic-notification` | catch‑all in‑app notification mirror                         | any                                 | both   |
 
 Producer: `enqueueEmail(template, to, data)` → BullMQ `email` queue → worker renders +
 sends via Resend. **Controllers never call Resend directly.**
@@ -158,13 +158,13 @@ sends via Resend. **Controllers never call Resend directly.**
 
 ## 6. BullMQ queues
 
-| Queue | Jobs | Producer location | Notes |
-|---|---|---|---|
-| `email` | one job per template send | everywhere (via `enqueueEmail`) | retry 5×, exp backoff |
-| `image` | `optimize-avatar` | profile photo upload | sharp resize→webp, then Supabase Storage |
-| `notification` | `fan-out` persistent notif + realtime broadcast + optional email | match/booking/message events | |
-| `cleanup` | `purge-expired-otps`, `release-stuck-escrow`, `prune-reset-tokens` | repeatable (cron) | scheduled by worker on boot |
-| `report` | `admin-analytics-export` | admin dashboard export button | heavy aggregation off the request path |
+| Queue          | Jobs                                                               | Producer location               | Notes                                    |
+| -------------- | ------------------------------------------------------------------ | ------------------------------- | ---------------------------------------- |
+| `email`        | one job per template send                                          | everywhere (via `enqueueEmail`) | retry 5×, exp backoff                    |
+| `image`        | `optimize-avatar`                                                  | profile photo upload            | sharp resize→webp, then Supabase Storage |
+| `notification` | `fan-out` persistent notif + realtime broadcast + optional email   | match/booking/message events    |                                          |
+| `cleanup`      | `purge-expired-otps`, `release-stuck-escrow`, `prune-reset-tokens` | repeatable (cron)               | scheduled by worker on boot              |
+| `report`       | `admin-analytics-export`                                           | admin dashboard export button   | heavy aggregation off the request path   |
 
 Worker entry: `apps/api/src/worker.ts` → `npm run worker` (and `worker:dev`).
 Failed jobs log a redacted summary (job name, id, attempt, error message — **no PII/body**).
@@ -173,13 +173,13 @@ Failed jobs log a redacted summary (job name, id, attempt, error message — **n
 
 ## 7. Caching plan (what gets cached, TTL, invalidation)
 
-| Data | Key | TTL | Invalidate on |
-|---|---|---|---|
-| Caregiver list / search results | `cg:list:<filtersHash>` | 60s | caregiver profile update, verification change |
-| Caregiver public profile card | `cg:profile:<id>` | 120s | that caregiver's profile update |
-| Open shifts browse | `shifts:open:<filtersHash>` | 30s | shift post/edit/fill/cancel |
-| Admin stats | `admin:stats` | 60s | n/a (short TTL) |
-| Resources/blog articles | `resources:all` | 600s | n/a |
+| Data                            | Key                         | TTL  | Invalidate on                                 |
+| ------------------------------- | --------------------------- | ---- | --------------------------------------------- |
+| Caregiver list / search results | `cg:list:<filtersHash>`     | 60s  | caregiver profile update, verification change |
+| Caregiver public profile card   | `cg:profile:<id>`           | 120s | that caregiver's profile update               |
+| Open shifts browse              | `shifts:open:<filtersHash>` | 30s  | shift post/edit/fill/cancel                   |
+| Admin stats                     | `admin:stats`               | 60s  | n/a (short TTL)                               |
+| Resources/blog articles         | `resources:all`             | 600s | n/a                                           |
 
 Cache service API stays the same signature (`getCached`/`setCached`/`invalidateCache`)
 so existing call sites keep working; the implementation becomes Redis‑backed with an
@@ -191,15 +191,15 @@ in‑memory fallback.
 
 Redis‑backed sliding/fixed window keyed by IP (+ email for auth). Strict buckets:
 
-| Endpoint(s) | Limit |
-|---|---|
-| `POST /api/auth/login` | 5 / 15 min per IP+email |
-| `POST /api/auth/register` | 5 / hour per IP |
-| `POST /api/auth/forgot-password` | 3 / hour per IP+email |
-| OTP request/verify | 5 / 15 min per IP+email |
-| photo upload endpoints | 10 / 10 min per user |
-| search / caregiver list / shift browse | 60 / min per IP |
-| global `/api/*` default | 100 / 15 min per IP (unchanged) |
+| Endpoint(s)                            | Limit                           |
+| -------------------------------------- | ------------------------------- |
+| `POST /api/auth/login`                 | 5 / 15 min per IP+email         |
+| `POST /api/auth/register`              | 5 / hour per IP                 |
+| `POST /api/auth/forgot-password`       | 3 / hour per IP+email           |
+| OTP request/verify                     | 5 / 15 min per IP+email         |
+| photo upload endpoints                 | 10 / 10 min per user            |
+| search / caregiver list / shift browse | 60 / min per IP                 |
+| global `/api/*` default                | 100 / 15 min per IP (unchanged) |
 
 Temporary tokens/counters in Redis: OTP codes (`otp:<email>`, TTL 10 min), password
 reset attempt counters, login‑failure counters for lockout.
@@ -251,21 +251,21 @@ the two products don't share a table.
 
 ## 11. Gap bug fixes
 
-| Gap | Fix |
-|---|---|
-| Pro dashboard "Active Shift" widget is a hardcoded stub (`2h 45m`, dead button) | Import the real `components/staffing/CheckInTimer` into the Overview; remove the local stub. |
-| Wallet withdrawal isn't a real payout | Create a `withdrawals` record + enqueue payout job; document Stripe Connect payout wiring; show "processing" status to the pro. |
-| Escrow never auto‑releases if facility forgets | `cleanup` repeatable job: auto‑complete + release escrow N hours after `checked_out` with no dispute; notify both parties. |
-| Geofence stubbed (`isNearLocation=false`) | Use `utils/geolocation` + browser geolocation on check‑in; compare to shift coords; warn (not block) when far; store distance on booking. |
-| Dispute resolution one‑directional | Admin resolve endpoint: `resolved`→release to pro or `refunded`→refund facility (Stripe refund), close dispute, notify both, email. |
-| Tracked build artifacts / scratch scripts | Add to `.gitignore` (separate housekeeping commit). |
+| Gap                                                                             | Fix                                                                                                                                       |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Pro dashboard "Active Shift" widget is a hardcoded stub (`2h 45m`, dead button) | Import the real `components/staffing/CheckInTimer` into the Overview; remove the local stub.                                              |
+| Wallet withdrawal isn't a real payout                                           | Create a `withdrawals` record + enqueue payout job; document Stripe Connect payout wiring; show "processing" status to the pro.           |
+| Escrow never auto‑releases if facility forgets                                  | `cleanup` repeatable job: auto‑complete + release escrow N hours after `checked_out` with no dispute; notify both parties.                |
+| Geofence stubbed (`isNearLocation=false`)                                       | Use `utils/geolocation` + browser geolocation on check‑in; compare to shift coords; warn (not block) when far; store distance on booking. |
+| Dispute resolution one‑directional                                              | Admin resolve endpoint: `resolved`→release to pro or `refunded`→refund facility (Stripe refund), close dispute, notify both, email.       |
+| Tracked build artifacts / scratch scripts                                       | Add to `.gitignore` (separate housekeeping commit).                                                                                       |
 
 ---
 
 ## 12. Rollout order (safe, incremental commits)
 
 1. **Infra foundation** (graceful, additive): env, deps, Redis, cache, rate limit,
-   BullMQ scaffolding, worker entry. *(no behaviour change without `REDIS_URL`)*
+   BullMQ scaffolding, worker entry. _(no behaviour change without `REDIS_URL`)_
 2. **Email system**: templates + service refactor + worker email processor + wire flows.
 3. **Sharp** image optimization in upload path.
 4. **Checkr** service + webhook + flow.
@@ -309,6 +309,7 @@ Each step compiles (`tsc`) and is pushed so Vercel redeploys incrementally.
   confirmations; withdrawals ledger table for auditable payout requests.
 
 ### Still open (documented, lower priority)
+
 - Stripe Connect payouts for real wallet withdrawals (table + status tracking are in place).
 - Geofenced check-in: needs shift lat/lng stored; the real `CheckInTimer` is wired and
   `utils/geolocation` exists — capture+compare is the remaining step.
