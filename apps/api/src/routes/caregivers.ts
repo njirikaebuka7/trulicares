@@ -227,9 +227,12 @@ router.put('/profile', requireCaregiver, async (req: AuthRequest, res) => {
     const {
       bio, specialties, hourlyRateMin, hourlyRateMax, yearsExperience,
       availability, location, serviceZips, jobTitle, languages, education, certifications,
-      idCardNumber, idCardFront, idCardBack, idSelfie, idVerificationStatus,
-      backgroundCheckStatus, backgroundCheckDetails, resumeUrl, resumes
+      idCardNumber, idCardFront, idCardBack, idSelfie,
+      backgroundCheckDetails, resumeUrl, resumes
     } = req.body;
+    // NOTE: idVerificationStatus / backgroundCheckStatus are intentionally NOT accepted
+    // here — those are set only by admin review or the Checkr webhook, never by the
+    // caregiver themselves (otherwise anyone could self-mark as "verified").
 
     const updates: string[] = [];
     const params: any[] = [];
@@ -253,8 +256,6 @@ router.put('/profile', requireCaregiver, async (req: AuthRequest, res) => {
     if (idCardFront !== undefined) { updates.push(`id_card_front = $${idx++}`); params.push(idCardFront); }
     if (idCardBack !== undefined) { updates.push(`id_card_back = $${idx++}`); params.push(idCardBack); }
     if (idSelfie !== undefined) { updates.push(`id_selfie = $${idx++}`); params.push(idSelfie); }
-    if (idVerificationStatus !== undefined) { updates.push(`id_verification_status = $${idx++}`); params.push(idVerificationStatus); }
-    if (backgroundCheckStatus !== undefined) { updates.push(`background_check_status = $${idx++}`); params.push(backgroundCheckStatus); }
     if (backgroundCheckDetails !== undefined) { updates.push(`background_check_details = $${idx++}`); params.push(JSON.stringify(backgroundCheckDetails)); }
     if (resumeUrl !== undefined) { updates.push(`resume_url = $${idx++}`); params.push(resumeUrl); }
     if (resumes !== undefined) { updates.push(`resumes = $${idx++}`); params.push(JSON.stringify(resumes)); }
