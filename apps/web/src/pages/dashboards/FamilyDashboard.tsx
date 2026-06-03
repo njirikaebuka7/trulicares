@@ -13,6 +13,7 @@ import ReportModal from '@/components/ReportModal';
 import { useAuth } from '@/context/AuthContext';
 import { get, post, put, auth as authApi, payments as paymentsApi, notifications as notificationsApi } from '@/lib/api';
 import { cn } from '@/utils/cn';
+import { sameDay, dayLabel, listStamp } from '@/utils/chatTime';
 import { supabase } from '@/lib/supabase';
 import logoImg from '@/assets/logo.png';
 
@@ -83,7 +84,7 @@ export default function FamilyDashboard() {
   const [notifPrefs, setNotifPrefs] = useState({ email: true, sms: true, push: false, marketing: false });
   const [privacyPrefs, setPrivacyPrefs] = useState({ profileVisible: true, shareActivity: false, dataAnalytics: true });
   const [chatInput, setChatInput] = useState('');
-  const [chatMessages, setChatMessages] = useState<Record<string, Array<{text: string; fromMe: boolean; time: string}>>>({});
+  const [chatMessages, setChatMessages] = useState<Record<string, Array<{text: string; fromMe: boolean; time: string; at?: string}>>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [editingReq, setEditingReq] = useState<any | null>(null);
   const [editLocation, setEditLocation] = useState('');
@@ -183,6 +184,7 @@ export default function FamilyDashboard() {
         text: m.content,
         fromMe: m.isOwn,
         time: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        at: m.createdAt,
       }));
       setChatMessages(prev => ({ ...prev, [convId]: msgs }));
     } catch {}
@@ -495,7 +497,7 @@ export default function FamilyDashboard() {
     if (!chatInput.trim() || !selectedMessage) return;
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const content = chatInput.trim();
-    const newMsg = { text: content, fromMe: true, time };
+    const newMsg = { text: content, fromMe: true, time, at: new Date().toISOString() };
     setChatMessages(prev => ({ ...prev, [selectedMessage]: [...(prev[selectedMessage] || []), newMsg] }));
     setChatInput('');
     try { await post(`/conversations/${selectedMessage}/messages`, { content }); } catch {}
@@ -1392,7 +1394,7 @@ export default function FamilyDashboard() {
             return (
               <div className="space-y-4">
                 <h2 className="text-xl font-bold text-gray-900">Messages</h2>
-                {threadList.length === 0 && !activeConv && (
+                {threadList.length === 0 ? (
                   <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-12 text-center">
                     <MessageCircle className="w-12 h-12 text-gray-200 mx-auto mb-4" />
                     <p className="font-semibold text-gray-700 mb-1">No conversations yet</p>
@@ -1401,133 +1403,157 @@ export default function FamilyDashboard() {
                       View Matches
                     </Button>
                   </div>
-                )}
-                {activeConv ? (
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col">
-                    {/* Chat header */}
-                    <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
-                      <button onClick={() => { setSelectedMessage(null); setShowPhone(false); }} className="text-sm text-brand-600 hover:underline font-medium shrink-0">← Back</button>
-                      {activeConv?.otherPhoto ? (
-                        <img src={activeConv.otherPhoto} alt={activeConv.otherName} className="w-9 h-9 rounded-full object-cover shrink-0" />
-                      ) : (
-                        <div className={cn('w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0', avatarColors[0])}>
-                          {(activeConv?.otherName || '?').split(' ').map((n: string) => n[0]).join('')}
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <span className="font-semibold text-gray-900 block truncate">{activeConv?.otherName}</span>
-                        <span className="text-xs text-green-600">● Online</span>
+                ) : (
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex h-[calc(100dvh-12rem)] min-h-[460px]">
+                    {/* Conversation list pane */}
+                    <aside className={cn('w-full md:w-80 lg:w-96 border-r border-gray-100 flex-col min-h-0', activeConv ? 'hidden md:flex' : 'flex')}>
+                      <div className="flex-1 min-h-0 overflow-y-auto">
+                        {threadList.map((conv: any, i: number) => {
+                          const msgs = chatMessages[conv.id] || [];
+                          const lastMsg = msgs[msgs.length - 1];
+                          const unreadDot = (conv.unreadCount || 0) > 0;
+                          return (
+                            <button key={conv.id} onClick={() => { setSelectedMessage(conv.id); loadMessages(conv.id); }}
+                              className={cn('w-full flex items-center gap-3 px-4 py-3 text-left border-b border-gray-50 hover:bg-gray-50 transition-colors', activeConv?.id === conv.id && 'bg-brand-50/60')}>
+                              <div className="relative shrink-0">
+                                {conv.otherPhoto ? (
+                                  <img src={conv.otherPhoto} alt={conv.otherName} className="w-12 h-12 rounded-full object-cover" />
+                                ) : (
+                                  <div className={cn('w-12 h-12 rounded-full flex items-center justify-center text-white font-bold', avatarColors[i % avatarColors.length])}>
+                                    {(conv.otherName || '?').split(' ').map((n: string) => n[0]).join('')}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2 mb-0.5">
+                                  <h4 className={cn('font-semibold text-sm truncate', unreadDot ? 'text-gray-900' : 'text-gray-700')}>{conv.otherName}</h4>
+                                  <span className="text-[10px] text-gray-400 shrink-0">{listStamp(conv.lastMessageAt)}</span>
+                                </div>
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-xs text-gray-500 truncate">
+                                    {lastMsg ? (lastMsg.fromMe ? `You: ${lastMsg.text}` : lastMsg.text) : conv.lastMessage || ''}
+                                  </p>
+                                  {unreadDot && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-brand-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">{conv.unreadCount}</span>}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
-                      {/* Book Care Session */}
-                      <button
-                        onClick={() => {
-                          setShowBookModal({
-                            caregiverId: activeConv?.caregiverId || activeConv?.otherId,
-                            caregiverName: activeConv?.otherName,
-                            service: activeConv?.careType || 'Child Care'
-                          });
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-semibold transition-colors shrink-0"
-                      >
-                        <Calendar className="w-3.5 h-3.5 shrink-0 text-brand-600" />
-                        <span className="hidden sm:inline">Book Session</span>
-                      </button>
-                      {/* Call button */}
-                      <div className="relative shrink-0">
-                        <button
-                          onClick={() => setShowPhone(p => !p)}
-                          className="w-9 h-9 rounded-full bg-brand-50 hover:bg-brand-100 flex items-center justify-center text-brand-600 transition-colors"
-                          title="Call caregiver"
-                        >
-                          <Phone className="w-4 h-4" />
-                        </button>
-                        {showPhone && (
-                          <div className="absolute right-0 top-11 bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-52 z-20">
-                            <p className="text-xs text-gray-500 mb-1 font-medium">Caregiver phone</p>
-                            {activeConv?.otherPhone ? (
-                              <a href={`tel:${activeConv.otherPhone}`} className="text-sm font-semibold text-brand-600 hover:underline block">
-                                {activeConv.otherPhone}
-                              </a>
-                            ) : (
-                              <p className="text-xs text-gray-500">Phone not provided yet. Contact via message.</p>
-                            )}
-                            <button onClick={() => setShowPhone(false)} className="text-xs text-gray-400 hover:text-gray-600 mt-2 block">Close</button>
+                    </aside>
+
+                    {/* Conversation thread pane */}
+                    <section className={cn('flex-1 flex-col min-h-0', activeConv ? 'flex' : 'hidden md:flex')}>
+                      {!activeConv ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-3">
+                          <div className="w-16 h-16 rounded-2xl bg-brand-50 flex items-center justify-center">
+                            <MessageCircle className="w-8 h-8 text-brand-400" />
                           </div>
-                        )}
-                      </div>
-                    </div>
-                    {/* Messages */}
-                    <div className="px-5 py-5 space-y-4 min-h-64 max-h-96 overflow-y-auto">
-                      {activeMessages.map((msg, i) => (
-                        <div key={i} className={cn('flex gap-3', msg.fromMe && 'justify-end')}>
-                          {!msg.fromMe && (
-                            activeConv?.otherPhoto ? (
-                              <img src={activeConv.otherPhoto} alt="" className="w-8 h-8 rounded-full object-cover shrink-0 self-end" />
+                          <p className="text-sm">Select a conversation to start chatting</p>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Chat header */}
+                          <div className="flex items-center gap-3 px-4 sm:px-5 h-16 border-b border-gray-100 shrink-0">
+                            <button onClick={() => { setSelectedMessage(null); setShowPhone(false); }} className="md:hidden text-brand-600 shrink-0 -ml-1">
+                              <ChevronLeft className="w-5 h-5" />
+                            </button>
+                            {activeConv?.otherPhoto ? (
+                              <img src={activeConv.otherPhoto} alt={activeConv.otherName} className="w-9 h-9 rounded-full object-cover shrink-0" />
                             ) : (
-                              <div className={cn('w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0 self-end', avatarColors[0])}>
+                              <div className={cn('w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0', avatarColors[0])}>
                                 {(activeConv?.otherName || '?').split(' ').map((n: string) => n[0]).join('')}
                               </div>
-                            )
-                          )}
-                          <div className={cn('rounded-2xl px-4 py-2.5 max-w-xs sm:max-w-sm', msg.fromMe ? 'bg-brand-600 rounded-tr-none' : 'bg-gray-100 rounded-tl-none')}>
-                            <p className={cn('text-sm', msg.fromMe ? 'text-white' : 'text-gray-800')}>{msg.text}</p>
-                            <p className={cn('text-xs mt-1', msg.fromMe ? 'text-brand-200' : 'text-gray-400')}>{msg.time}</p>
-                          </div>
-                        </div>
-                      ))}
-                      <div ref={messagesEndRef} />
-                    </div>
-                    {/* Input */}
-                    <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
-                      <input
-                        type="text"
-                        value={chatInput}
-                        onChange={e => setChatInput(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
-                        placeholder="Type a message…"
-                        className="flex-1 border border-gray-200 rounded-full px-4 py-2.5 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/20"
-                      />
-                      <button
-                        onClick={handleSendMessage}
-                        disabled={!chatInput.trim()}
-                        className="w-10 h-10 rounded-full bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors shrink-0"
-                      >
-                        <Send className="w-4 h-4 text-white" />
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  threadList.map((conv: any, i: number) => {
-                    const msgs = chatMessages[conv.id] || [];
-                    const lastMsg = msgs[msgs.length - 1];
-                    const unreadDot = (conv.unreadCount || 0) > 0;
-                    return (
-                      <div key={conv.id} onClick={() => { setSelectedMessage(conv.id); loadMessages(conv.id); }}
-                        className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-4 cursor-pointer hover:border-brand-200 hover:shadow-md transition-all">
-                        <div className="relative shrink-0">
-                          {conv.otherPhoto ? (
-                            <img src={conv.otherPhoto} alt={conv.otherName} className="w-12 h-12 rounded-full object-cover" />
-                          ) : (
-                            <div className={cn('w-12 h-12 rounded-full flex items-center justify-center text-white font-bold', avatarColors[i % avatarColors.length])}>
-                              {(conv.otherName || '?').split(' ').map((n: string) => n[0]).join('')}
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <span className="font-semibold text-gray-900 block truncate leading-tight">{activeConv?.otherName}</span>
+                              <span className="text-xs text-green-600">● Online</span>
                             </div>
-                          )}
-                          {i === 0 && <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-0.5">
-                            <h4 className={cn('font-semibold', unreadDot ? 'text-gray-900' : 'text-gray-700')}>{conv.otherName}</h4>
-                            <span className="text-xs text-gray-400">{conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
+                            {/* Book Care Session */}
+                            <button
+                              onClick={() => {
+                                setShowBookModal({
+                                  caregiverId: activeConv?.caregiverId || activeConv?.otherId,
+                                  caregiverName: activeConv?.otherName,
+                                  service: activeConv?.careType || 'Child Care'
+                                });
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-semibold transition-colors shrink-0"
+                            >
+                              <Calendar className="w-3.5 h-3.5 shrink-0 text-brand-600" />
+                              <span className="hidden sm:inline">Book Session</span>
+                            </button>
+                            {/* Call button */}
+                            <div className="relative shrink-0">
+                              <button
+                                onClick={() => setShowPhone(p => !p)}
+                                className="w-9 h-9 rounded-full bg-brand-50 hover:bg-brand-100 flex items-center justify-center text-brand-600 transition-colors"
+                                title="Call caregiver"
+                              >
+                                <Phone className="w-4 h-4" />
+                              </button>
+                              {showPhone && (
+                                <div className="absolute right-0 top-11 bg-white border border-gray-200 rounded-xl shadow-lg p-3 w-52 z-20">
+                                  <p className="text-xs text-gray-500 mb-1 font-medium">Caregiver phone</p>
+                                  {activeConv?.otherPhone ? (
+                                    <a href={`tel:${activeConv.otherPhone}`} className="text-sm font-semibold text-brand-600 hover:underline block">
+                                      {activeConv.otherPhone}
+                                    </a>
+                                  ) : (
+                                    <p className="text-xs text-gray-500">Phone not provided yet. Contact via message.</p>
+                                  )}
+                                  <button onClick={() => setShowPhone(false)} className="text-xs text-gray-400 hover:text-gray-600 mt-2 block">Close</button>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          <p className="text-sm text-gray-500 truncate">
-                            {lastMsg ? (lastMsg.fromMe ? `You: ${lastMsg.text}` : lastMsg.text) : conv.lastMessage || ''}
-                          </p>
-                        </div>
-                        {unreadDot && <span className="w-2.5 h-2.5 bg-brand-500 rounded-full shrink-0" />}
-                        <ChevronRight className="w-5 h-5 text-gray-300 shrink-0" />
-                      </div>
-                    );
-                  })
+                          {/* Messages (scrollable, WhatsApp-style day dividers) */}
+                          <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-5 py-4 space-y-1 bg-[#f7f8fa]">
+                            {activeMessages.map((msg, i) => {
+                              const prev = activeMessages[i - 1];
+                              const showDay = !!msg.at && (!prev?.at || !sameDay(new Date(prev.at), new Date(msg.at)));
+                              return (
+                                <div key={i}>
+                                  {showDay && (
+                                    <div className="flex justify-center my-3">
+                                      <span className="px-3 py-1 rounded-full bg-white text-gray-500 text-[11px] font-medium shadow-sm border border-gray-100">
+                                        {dayLabel(new Date(msg.at as string))}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <div className={cn('flex', msg.fromMe ? 'justify-end' : 'justify-start')}>
+                                    <div className={cn('max-w-[80%] sm:max-w-[70%] rounded-2xl px-3.5 py-2 shadow-sm', msg.fromMe ? 'bg-brand-600 text-white rounded-br-md' : 'bg-white text-gray-800 border border-gray-100 rounded-bl-md')}>
+                                      <p className="text-sm whitespace-pre-wrap break-words">{msg.text}</p>
+                                      <p className={cn('text-[10px] mt-0.5 text-right', msg.fromMe ? 'text-brand-200' : 'text-gray-400')}>{msg.time}</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            <div ref={messagesEndRef} />
+                          </div>
+                          {/* Input */}
+                          <div className="px-3 sm:px-5 py-3 border-t border-gray-100 flex gap-3 shrink-0 bg-white">
+                            <input
+                              type="text"
+                              value={chatInput}
+                              onChange={e => setChatInput(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
+                              placeholder="Type a message…"
+                              className="flex-1 border border-gray-200 rounded-full px-4 py-2.5 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/20"
+                            />
+                            <button
+                              onClick={handleSendMessage}
+                              disabled={!chatInput.trim()}
+                              className="w-10 h-10 rounded-full bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors shrink-0"
+                            >
+                              <Send className="w-4 h-4 text-white" />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </section>
+                  </div>
                 )}
               </div>
             );

@@ -13,6 +13,7 @@ import { useAuth } from '@/context/AuthContext';
 import { detectLocationWithZip } from '@/utils/geolocation';
 import { auth as authApi, get, post, put } from '@/lib/api';
 import { cn } from '@/utils/cn';
+import { sameDay, dayLabel, listStamp } from '@/utils/chatTime';
 import { supabase } from '@/lib/supabase';
 import logoImg from '@/assets/logo.png';
 
@@ -87,7 +88,7 @@ export default function CaregiverDashboard() {
   const [cgNotifPrefs, setCgNotifPrefs] = useState({ email: true, sms: true, push: true, marketing: false });
   const [cgSelectedMsg, setCgSelectedMsg] = useState<string | null>(null);
   const [cgMsgInput, setCgMsgInput] = useState('');
-  const [cgFamilyMessages, setCgFamilyMessages] = useState<Record<string, { text: string; fromMe: boolean; time: string }[]>>({});
+  const [cgFamilyMessages, setCgFamilyMessages] = useState<Record<string, { text: string; fromMe: boolean; time: string; at?: string }[]>>({});
   const cgMsgEndRef = useRef<HTMLDivElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [cgSaving, setCgSaving] = useState(false);
@@ -185,6 +186,7 @@ export default function CaregiverDashboard() {
         text: m.content,
         fromMe: m.isOwn,
         time: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        at: m.createdAt,
       }));
       setCgFamilyMessages(prev => ({ ...prev, [convId]: msgs }));
     } catch {}
@@ -1021,147 +1023,155 @@ export default function CaregiverDashboard() {
               const content = cgMsgInput.trim();
               setCgFamilyMessages(prev => ({
                 ...prev,
-                [cgSelectedMsg]: [...(prev[cgSelectedMsg] || []), { text: content, fromMe: true, time }],
+                [cgSelectedMsg]: [...(prev[cgSelectedMsg] || []), { text: content, fromMe: true, time, at: new Date().toISOString() }],
               }));
               setCgMsgInput('');
               try { await post(`/conversations/${cgSelectedMsg}/messages`, { content }); } catch {}
             };
 
-            if (cgSelectedMsg) {
-              const family = cgFamilies.find(f => f.id === cgSelectedMsg)!;
-              const msgs = cgFamilyMessages[cgSelectedMsg] || [];
-              return (
-                <div className="space-y-4">
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 180px)', minHeight: 420 }}>
-                    <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 shrink-0">
-                      <button
-                        onClick={() => setCgSelectedMsg(null)}
-                        className="text-sm text-emerald-600 font-semibold hover:underline"
-                      >← Back</button>
-                      {family.photoUrl ? (
-                        <img src={family.photoUrl} alt={family.name} className="w-9 h-9 rounded-xl object-cover shrink-0" />
-                      ) : (
-                        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0', family.color)}>
-                          {family.name.charAt(0)}
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900 text-sm truncate">{family.name}</p>
-                        <p className="text-xs text-emerald-600">● {family.care}</p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          const conversation = conversations.find(c => c.id === cgSelectedMsg);
-                          setShowBookModal({
-                            familyId: conversation?.familyId || '',
-                            familyName: family.name,
-                            service: family.care
-                          });
-                          setBookLocation(conversation?.location || '');
-                        }}
-                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold transition-colors shrink-0"
-                      >
-                        <Calendar className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
-                        <span className="hidden sm:inline">Book Session</span>
-                      </button>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto px-5 py-5 space-y-3">
-                      {msgs.map((m, i) => (
-                        <div key={i} className={cn('flex gap-3', m.fromMe ? 'justify-end' : 'justify-start')}>
-                          {!m.fromMe && (
-                            family.photoUrl ? (
-                              <img src={family.photoUrl} alt="" className="w-8 h-8 rounded-full object-cover shrink-0 self-end" />
-                            ) : (
-                              <div className={cn('w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0 self-end', family.color)}>
-                                {family.name.charAt(0)}
-                              </div>
-                            )
-                          )}
-                          <div className={cn(
-                            'max-w-[80%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed',
-                            m.fromMe ? 'bg-emerald-600 text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-                          )}>
-                            <p>{m.text}</p>
-                            <p className={cn('text-[10px] mt-0.5', m.fromMe ? 'text-emerald-200' : 'text-gray-400')}>{m.time}</p>
-                          </div>
-                        </div>
-                      ))}
-                      <div ref={cgMsgEndRef} />
-                    </div>
-
-                    <div className="px-5 py-4 border-t border-gray-100 flex gap-3 shrink-0">
-                      <input
-                        type="text"
-                        value={cgMsgInput}
-                        onChange={e => setCgMsgInput(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && sendCgMsg()}
-                        placeholder="Type a message…"
-                        className="flex-1 border border-gray-200 rounded-full px-4 py-2.5 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
-                      />
-                      <button
-                        onClick={sendCgMsg}
-                        disabled={!cgMsgInput.trim()}
-                        className="w-10 h-10 rounded-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 flex items-center justify-center text-white transition-colors"
-                      >
-                        <Send className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            }
+            const activeFamily = cgSelectedMsg ? cgFamilies.find(f => f.id === cgSelectedMsg) : null;
+            const activeMsgs = cgSelectedMsg ? (cgFamilyMessages[cgSelectedMsg] || []) : [];
 
             return (
               <div className="space-y-4">
                 <h2 className="text-xl font-bold text-gray-900">Messages</h2>
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden divide-y divide-gray-50">
-                  {cgFamilies.map((family) => {
-                    const msgs = cgFamilyMessages[family.id] || [];
-                    const lastMsg = msgs[msgs.length - 1];
-                    return (
-                      <button
-                        key={family.id}
-                        onClick={() => { setCgSelectedMsg(family.id); loadCgMessages(family.id); }}
-                        className="w-full flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors text-left"
-                      >
-                        {family.photoUrl ? (
-                          <div className="relative shrink-0">
-                            <img src={family.photoUrl} alt={family.name} className="w-11 h-11 rounded-2xl object-cover" />
-                            {family.unread > 0 && (
-                              <span className="absolute -top-1 -right-1 w-4 h-4 bg-coral-500 rounded-full border-2 border-white" />
-                            )}
+                {cgFamilies.length === 0 ? (
+                  <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-12 text-center">
+                    <MessageCircle className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+                    <p className="font-semibold text-gray-700 mb-1">No conversations yet</p>
+                    <p className="text-sm text-gray-400">Messages appear here once a family unlocks chat with you.</p>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex h-[calc(100dvh-12rem)] min-h-[460px]">
+                    {/* Conversation list pane */}
+                    <aside className={cn('w-full md:w-80 lg:w-96 border-r border-gray-100 flex-col min-h-0', activeFamily ? 'hidden md:flex' : 'flex')}>
+                      <div className="flex-1 min-h-0 overflow-y-auto">
+                        {cgFamilies.map((family) => {
+                          const msgs = cgFamilyMessages[family.id] || [];
+                          const lastMsg = msgs[msgs.length - 1];
+                          return (
+                            <button
+                              key={family.id}
+                              onClick={() => { setCgSelectedMsg(family.id); loadCgMessages(family.id); }}
+                              className={cn('w-full flex items-center gap-3 px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors text-left', activeFamily?.id === family.id && 'bg-emerald-50/60')}
+                            >
+                              {family.photoUrl ? (
+                                <img src={family.photoUrl} alt={family.name} className="w-12 h-12 rounded-2xl object-cover shrink-0" />
+                              ) : (
+                                <div className={cn('w-12 h-12 rounded-2xl flex items-center justify-center text-white font-bold text-sm shrink-0', family.color)}>
+                                  {family.name.charAt(0)}
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2 mb-0.5">
+                                  <p className={cn('text-sm font-semibold truncate', family.unread > 0 ? 'text-gray-900' : 'text-gray-700')}>{family.name}</p>
+                                  <span className="text-[10px] text-gray-400 shrink-0">{listStamp(lastMsg?.at) || lastMsg?.time || ''}</span>
+                                </div>
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-xs text-gray-500 truncate">
+                                    {lastMsg ? (lastMsg.fromMe ? `You: ${lastMsg.text}` : lastMsg.text) : family.care}
+                                  </p>
+                                  {family.unread > 0 && (
+                                    <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">{family.unread}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </aside>
+
+                    {/* Conversation thread pane */}
+                    <section className={cn('flex-1 flex-col min-h-0', activeFamily ? 'flex' : 'hidden md:flex')}>
+                      {!activeFamily ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-3">
+                          <div className="w-16 h-16 rounded-2xl bg-emerald-50 flex items-center justify-center">
+                            <MessageCircle className="w-8 h-8 text-emerald-400" />
                           </div>
-                        ) : (
-                          <div className={cn('w-11 h-11 rounded-2xl flex items-center justify-center text-white font-bold text-sm shrink-0 relative', family.color)}>
-                            {family.name.charAt(0)}
-                            {family.unread > 0 && (
-                              <span className="absolute -top-1 -right-1 w-4 h-4 bg-coral-500 rounded-full border-2 border-white" />
-                            )}
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-0.5">
-                            <p className={cn('text-sm font-semibold truncate', family.unread > 0 ? 'text-gray-900' : 'text-gray-700')}>
-                              {family.name}
-                            </p>
-                            <span className="text-xs text-gray-400 shrink-0 ml-2">{lastMsg?.time || ''}</span>
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-xs text-gray-500 truncate">
-                              {lastMsg ? (lastMsg.fromMe ? `You: ${lastMsg.text}` : lastMsg.text) : ''}
-                            </p>
-                            {family.unread > 0 && (
-                              <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full shrink-0" />
-                            )}
-                          </div>
-                          <p className="text-[11px] text-emerald-600 font-medium mt-0.5">{family.care}</p>
+                          <p className="text-sm">Select a conversation to start chatting</p>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
-                      </button>
-                    );
-                  })}
-                </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-3 px-4 sm:px-5 h-16 border-b border-gray-100 shrink-0">
+                            <button onClick={() => setCgSelectedMsg(null)} className="md:hidden text-emerald-600 shrink-0 -ml-1">
+                              <ChevronLeft className="w-5 h-5" />
+                            </button>
+                            {activeFamily.photoUrl ? (
+                              <img src={activeFamily.photoUrl} alt={activeFamily.name} className="w-9 h-9 rounded-xl object-cover shrink-0" />
+                            ) : (
+                              <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0', activeFamily.color)}>
+                                {activeFamily.name.charAt(0)}
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-gray-900 text-sm truncate leading-tight">{activeFamily.name}</p>
+                              <p className="text-xs text-emerald-600">● {activeFamily.care}</p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                const conversation = conversations.find(c => c.id === cgSelectedMsg);
+                                setShowBookModal({
+                                  familyId: conversation?.familyId || '',
+                                  familyName: activeFamily.name,
+                                  service: activeFamily.care
+                                });
+                                setBookLocation(conversation?.location || '');
+                              }}
+                              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold transition-colors shrink-0"
+                            >
+                              <Calendar className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                              <span className="hidden sm:inline">Book Session</span>
+                            </button>
+                          </div>
+
+                          <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-5 py-4 space-y-1 bg-[#f7f8fa]">
+                            {activeMsgs.map((m, i) => {
+                              const prev = activeMsgs[i - 1];
+                              const showDay = !!m.at && (!prev?.at || !sameDay(new Date(prev.at), new Date(m.at)));
+                              return (
+                                <div key={i}>
+                                  {showDay && (
+                                    <div className="flex justify-center my-3">
+                                      <span className="px-3 py-1 rounded-full bg-white text-gray-500 text-[11px] font-medium shadow-sm border border-gray-100">
+                                        {dayLabel(new Date(m.at as string))}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <div className={cn('flex', m.fromMe ? 'justify-end' : 'justify-start')}>
+                                    <div className={cn('max-w-[80%] sm:max-w-[70%] px-3.5 py-2 rounded-2xl shadow-sm', m.fromMe ? 'bg-emerald-600 text-white rounded-br-md' : 'bg-white text-gray-800 border border-gray-100 rounded-bl-md')}>
+                                      <p className="text-sm whitespace-pre-wrap break-words">{m.text}</p>
+                                      <p className={cn('text-[10px] mt-0.5 text-right', m.fromMe ? 'text-emerald-200' : 'text-gray-400')}>{m.time}</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            <div ref={cgMsgEndRef} />
+                          </div>
+
+                          <div className="px-3 sm:px-5 py-3 border-t border-gray-100 flex gap-3 shrink-0 bg-white">
+                            <input
+                              type="text"
+                              value={cgMsgInput}
+                              onChange={e => setCgMsgInput(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && sendCgMsg()}
+                              placeholder="Type a message…"
+                              className="flex-1 border border-gray-200 rounded-full px-4 py-2.5 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                            />
+                            <button
+                              onClick={sendCgMsg}
+                              disabled={!cgMsgInput.trim()}
+                              className="w-10 h-10 rounded-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 flex items-center justify-center text-white transition-colors shrink-0"
+                            >
+                              <Send className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </section>
+                  </div>
+                )}
               </div>
             );
           })()}
