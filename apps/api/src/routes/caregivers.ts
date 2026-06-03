@@ -6,7 +6,15 @@ import { searchLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
 
-function formatCaregiver(row: any) {
+/**
+ * Shapes a caregiver row for the API.
+ *
+ * @param includePrivate When true, includes sensitive PII (email, government ID number
+ *   + images, selfie, and background-check details containing SSN/DOB/address). This is
+ *   ONLY safe for the caregiver viewing their own profile or an admin — never for public
+ *   browse/detail, which would leak PII to anyone.
+ */
+function formatCaregiver(row: any, includePrivate = false) {
   let bgStatus = row.background_check_status || 'none';
   if (row.background_checked && bgStatus === 'none') {
     bgStatus = 'approved';
@@ -14,10 +22,9 @@ function formatCaregiver(row: any) {
     bgStatus = row.pending_status;
   }
 
-  return {
+  const base = {
     id: row.id,
     name: row.name,
-    email: row.email,
     role: 'caregiver' as const,
     bio: row.bio || '',
     specialties: row.specialties || [],
@@ -27,32 +34,39 @@ function formatCaregiver(row: any) {
     location: row.location || 'United States',
     verified: row.verified || false,
     backgroundChecked: row.background_checked || false,
-    backgroundCheckStatus: bgStatus,
+    backgroundCheckStatus: bgStatus, // status badge only (no underlying PII)
     yearsExperience: row.years_experience || 0,
     availability: row.availability || 'Flexible',
     photoUrl: row.photo_url || undefined,
     serviceZips: row.service_zips || [],
     status: row.status || 'active',
     joinedAt: row.created_at,
-    // Extended profile fields
+    // Extended profile fields (safe to show families)
     jobTitle: row.job_title || 'Caregiver',
     languages: row.languages || ['English'],
     education: row.education || '',
     certifications: row.certifications || [],
-    // New Profile Fields
+    idVerificationStatus: row.id_verification_status || 'none', // status only
+    resumeUrl: row.resume_url || '',
+    resumes: row.resumes || [],
+  };
+
+  if (!includePrivate) return base;
+
+  // Owner/admin only — sensitive PII.
+  return {
+    ...base,
+    email: row.email,
     idCardNumber: row.id_card_number || '',
     idCardFront: row.id_card_front || '',
     idCardBack: row.id_card_back || '',
     idSelfie: row.id_selfie || '',
-    idVerificationStatus: row.id_verification_status || 'none',
     backgroundCheckDetails: row.background_check_details || null,
-    resumeUrl: row.resume_url || '',
-    resumes: row.resumes || [],
   };
 }
 
-// GET /api/caregivers
-router.get('/', searchLimiter, async (req, res) => {
+// GET /api/caregivers — authenticated browse; returns PUBLIC fields only (no PII)
+router.get('/', requireAuth, searchLimiter, async (req, res) => {
   try {
     const cacheKey = `caregivers:list:${JSON.stringify(req.query)}`;
     const cached = getCached<any>(cacheKey);
@@ -114,7 +128,7 @@ router.get('/', searchLimiter, async (req, res) => {
       params
     );
 
-    const payload = { caregivers: result.rows.map(formatCaregiver) };
+    const payload = { caregivers: result.rows.map((r: any) => formatCaregiver(r)) };
     setCached(cacheKey, payload, 30); // Cache lists for 30s
 
     res.json(payload);
@@ -143,15 +157,15 @@ router.get('/profile/me', requireCaregiver, async (req: AuthRequest, res) => {
       [req.user!.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Profile not found' });
-    res.json({ caregiver: formatCaregiver(result.rows[0]) });
+    res.json({ caregiver: formatCaregiver(result.rows[0], true) }); // owner sees own PII
   } catch (err) {
     console.error('Caregiver profile me error:', err);
     res.status(500).json({ error: 'Failed to fetch profile' });
   }
 });
 
-// GET /api/caregivers/:id
-router.get('/:id', async (req, res) => {
+// GET /api/caregivers/:id — authenticated; PUBLIC fields only (cached, so never per-viewer PII)
+router.get('/:id', requireAuth, async (req, res) => {
   try {
     const cacheKey = `caregivers:detail:${req.params.id}`;
     const cached = getCached<any>(cacheKey);
@@ -266,7 +280,7 @@ router.put('/profile', requireCaregiver, async (req: AuthRequest, res) => {
        FROM users u JOIN caregiver_profiles cp ON cp.user_id = u.id WHERE u.id = $1`,
       [req.user!.id]
     );
-    const payload = { caregiver: formatCaregiver(result.rows[0]) };
+    const payload = { caregiver: formatCaregiver(result.rows[0], true) }; // owner editing own profile
     invalidateCache('caregivers:');
     res.json(payload);
   } catch (err) {
