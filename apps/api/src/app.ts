@@ -14,6 +14,7 @@ import adminRouter from './routes/admin.js';
 import clientsRouter from './routes/clients.js';
 import staffingRouter from './routes/staffing/index.js';
 import checkrRouter from './routes/checkr.js';
+import cronRouter from './routes/cron.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
 import { redisHealthCheck } from './services/redis.js';
 
@@ -74,6 +75,7 @@ app.use('/api/notifications', notificationsRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/clients', clientsRouter);
 app.use('/api/staffing', staffingRouter); // Independent staffing module
+app.use('/api/cron', cronRouter); // Vercel Cron maintenance jobs
 
 // ── 404 handler for unknown API routes ────────────────────────────────────────
 app.use('/api/*path', (_req, res) => {

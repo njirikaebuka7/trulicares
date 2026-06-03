@@ -19,6 +19,13 @@ export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
 
 const PREFIX = process.env.QUEUE_PREFIX || 'trulicares';
 
+/**
+ * Inline mode: run jobs directly in the API process instead of enqueuing for a worker.
+ * Set INLINE_JOBS=true when you don't run a separate worker (keeps email/jobs working
+ * with zero extra infra). Redis is still used for cache + rate limiting either way.
+ */
+const inlineMode = () => process.env.INLINE_JOBS === 'true';
+
 const DEFAULT_JOB_OPTS: JobsOptions = {
   attempts: 5,
   backoff: { type: 'exponential', delay: 2000 },
@@ -49,17 +56,17 @@ export interface EmailJob {
 
 export async function enqueueEmail(template: EmailTemplate, to: string, data: Record<string, any> = {}): Promise<void> {
   if (!to) return;
-  const q = getQueue('email');
+  const q = inlineMode() ? null : getQueue('email');
   if (q) {
     await q.add('send', { template, to, data } satisfies EmailJob, {
       jobId: `email:${template}:${to}:${Date.now()}`,
     });
     return;
   }
-  // Fallback: send inline without blocking the response (dynamic import avoids a cycle).
-  void import('../services/email.js')
+  // Inline send (INLINE_JOBS=true, or no worker/Redis). Dynamic import avoids a cycle.
+  await import('../services/email.js')
     .then(({ sendEmail }) => sendEmail({ template, to, data }))
-    .catch((err) => console.error('[email fallback] send failed:', err?.message));
+    .catch((err) => console.error('[email inline] send failed:', err?.message));
 }
 
 // ── Image optimization ───────────────────────────────────────
@@ -89,14 +96,14 @@ export interface NotificationJob {
   broadcast?: { channel: string; event: string; payload?: Record<string, any> };
 }
 export async function enqueueNotification(job: NotificationJob): Promise<void> {
-  const q = getQueue('notification');
+  const q = inlineMode() ? null : getQueue('notification');
   if (q) {
     await q.add('fan-out', job);
     return;
   }
-  void import('./processors/notification.js')
+  await import('./processors/notification.js')
     .then(({ processNotification }) => processNotification(job))
-    .catch((err) => console.error('[notification fallback] failed:', err?.message));
+    .catch((err) => console.error('[notification inline] failed:', err?.message));
 }
 
 // ── Report generation ────────────────────────────────────────
