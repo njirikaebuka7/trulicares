@@ -338,19 +338,24 @@ router.post('/verify-id', requireCaregiver, async (req: AuthRequest, res) => {
 router.post('/apply-background-check', requireCaregiver, async (req: AuthRequest, res) => {
   try {
     const { details } = req.body;
-    if (!details || !details.legalName || !details.dob || !details.ssn) {
+    if (!details || !details.legalName || !details.dob) {
       return res.status(400).json({ error: 'Missing required background check details.' });
     }
+
+    // SECURITY: never persist a raw SSN. The real identity/SSN check is performed by
+    // Checkr on its hosted form (PII never touches our DB). Strip any SSN the client
+    // sends before storing the (non-sensitive) details for the manual-review fallback.
+    const { ssn: _ssn, socialSecurityNumber: _ssn2, ...safeDetails } = details;
 
     // Ensure profile exists
     await query(`INSERT INTO caregiver_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, [req.user!.id]);
 
-    // Save details on caregiver profile
+    // Save NON-sensitive details on caregiver profile
     await query(
       `UPDATE caregiver_profiles
        SET background_check_status = 'pending', background_check_details = $1
        WHERE user_id = $2`,
-      [JSON.stringify(details), req.user!.id]
+      [JSON.stringify(safeDetails), req.user!.id]
     );
 
     // documents column is text[] — store each piece of info as a readable string

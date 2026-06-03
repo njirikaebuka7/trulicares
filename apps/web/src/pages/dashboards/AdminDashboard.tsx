@@ -873,8 +873,8 @@ export default function AdminDashboard() {
                                       <p className="font-bold text-gray-800 text-xs">{details.dob || 'N/A'}</p>
                                     </div>
                                     <div className="text-2xs space-y-0.5">
-                                      <span className="font-bold text-gray-400">Social Security Number (SSN)</span>
-                                      <p className="font-mono font-bold text-gray-800 text-xs bg-slate-50 px-1.5 py-0.5 rounded border border-gray-100 w-fit">{details.ssn || 'N/A'}</p>
+                                      <span className="font-bold text-gray-400">SSN</span>
+                                      <p className="font-bold text-gray-500 text-xs italic">Handled securely by screening partner — not stored</p>
                                     </div>
                                     <div className="text-2xs space-y-0.5">
                                       <span className="font-bold text-gray-400">Current Address</span>

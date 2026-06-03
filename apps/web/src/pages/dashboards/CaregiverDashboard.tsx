@@ -134,7 +134,6 @@ export default function CaregiverDashboard() {
   const [bgDob, setBgDob] = useState('');
   const [bgCurrentAddress, setBgCurrentAddress] = useState('');
   const [bgPreviousAddress, setBgPreviousAddress] = useState('');
-  const [bgSsn, setBgSsn] = useState('');
   const [bgOffersTransport, setBgOffersTransport] = useState(false);
   const [bgDriversLicense, setBgDriversLicense] = useState('');
   const [bgSubmitLoading, setBgSubmitLoading] = useState(false);
@@ -2075,7 +2074,7 @@ export default function CaregiverDashboard() {
                               
                               <div className="space-y-3 text-xs leading-relaxed">
                                 <p>1. **Permission to run background check**: I hereby authorize Trulicares and its third-party background screening agencies to conduct a check covering identity validation, criminal records, sex offender registry, and motor vehicle records (if driving care is offered).</p>
-                                <p>2. **Privacy Notice**: Your personal identifiers, including SSN and date of birth, will be encrypted and transmitted securely. They are stored strictly for reporting purposes and never shared with other caregivers or families.</p>
+                                <p>2. **Privacy Notice**: When required, sensitive identifiers such as your SSN are collected directly by our accredited screening partner on their secure portal — TruliCares never stores your SSN. Other details are kept strictly for verification and are never shared with families or other caregivers.</p>
                                 <p>3. **What is checked**: We cross-reference municipal court registers, county records, federal crimes repositories, and state databases to confirm a clean and safe background history.</p>
                               </div>
 
@@ -2139,27 +2138,15 @@ export default function CaregiverDashboard() {
                                 </div>
                               </div>
 
-                              <div className="grid sm:grid-cols-2 gap-4">
-                                <div>
-                                  <label className="block text-xs font-semibold text-gray-700 mb-1">Social Security Number (SSN)</label>
-                                  <input
-                                    type="password"
-                                    value={bgSsn}
-                                    onChange={e => setBgSsn(e.target.value)}
-                                    placeholder="XXX-XX-XXXX"
-                                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none text-xs transition-all"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-xs font-semibold text-gray-700 mb-1">Current Address</label>
-                                  <input
-                                    type="text"
-                                    value={bgCurrentAddress}
-                                    onChange={e => setBgCurrentAddress(e.target.value)}
-                                    placeholder="123 Emerald Ave, Suite 10"
-                                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none text-xs transition-all"
-                                  />
-                                </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-700 mb-1">Current Address</label>
+                                <input
+                                  type="text"
+                                  value={bgCurrentAddress}
+                                  onChange={e => setBgCurrentAddress(e.target.value)}
+                                  placeholder="123 Emerald Ave, Suite 10"
+                                  className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none text-xs transition-all"
+                                />
                               </div>
 
                               <div>
@@ -2212,7 +2199,7 @@ export default function CaregiverDashboard() {
                                 </Button>
                                 <Button
                                   variant="primary"
-                                  disabled={bgSubmitLoading || !bgLegalName || !bgDob || !bgSsn || !bgCurrentAddress || (bgOffersTransport && !bgDriversLicense)}
+                                  disabled={bgSubmitLoading || !bgLegalName || !bgDob || !bgCurrentAddress || (bgOffersTransport && !bgDriversLicense)}
                                   onClick={async () => {
                                     setBgSubmitLoading(true);
                                     try {
@@ -2222,7 +2209,6 @@ export default function CaregiverDashboard() {
                                           dob: bgDob,
                                           currentAddress: bgCurrentAddress,
                                           previousAddress: bgPreviousAddress,
-                                          ssn: bgSsn,
                                           offersTransport: bgOffersTransport,
                                           driversLicense: bgOffersTransport ? bgDriversLicense : null
                                         }
