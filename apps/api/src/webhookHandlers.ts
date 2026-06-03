@@ -2,7 +2,7 @@ import Stripe from 'stripe';
 import { getClient, query, supabase } from './db.js';
 import { orderBackgroundCheck } from './services/backgroundCheck.js';
 import { enqueueEmail } from './queues/queues.js';
-import { notifyAdmins } from './services/notify.js';
+import { notifyAdmins, notifyAdminPayment } from './services/notify.js';
 
 async function broadcastStaffingUpdate(bookingId: string, event: string, payload: Record<string, unknown> = {}) {
   const bookingRes = await query(
@@ -98,10 +98,17 @@ async function markStaffingBookingPaid(session: Stripe.Checkout.Session) {
     );
     if (info.rows[0]) {
       const b = info.rows[0];
+      const amount = `$${parseFloat(b.total_charged).toFixed(2)}`;
       await enqueueEmail('payment-confirmation', b.email, {
         name: b.name,
         description: `${b.role} shift booking`,
-        amount: `$${parseFloat(b.total_charged).toFixed(2)}`,
+        amount,
+        refId: b.ref_id,
+      });
+      await notifyAdminPayment({
+        description: `${b.role} shift booking`,
+        amount,
+        payer: b.email,
         refId: b.ref_id,
       });
     }
@@ -191,6 +198,9 @@ export class WebhookHandlers {
           `UPDATE payments SET status = 'succeeded' WHERE stripe_payment_intent_id = $1`,
           [pi.id]
         );
+        // Note: admin payment alerts are sent from the checkout.session.completed
+        // branches below (every payment uses Checkout), which avoids double-emailing
+        // since Stripe fires both events for a Checkout payment.
         if (pi.metadata?.matchId && pi.metadata?.userId) {
           await query(
             `UPDATE matches SET messaging_unlocked = true WHERE id = $1`,
@@ -257,6 +267,10 @@ export class WebhookHandlers {
               [session.metadata.userId, caregiverId, session.metadata.matchId]
             );
           }
+          await notifyAdminPayment({
+            description: 'Messaging unlock',
+            amount: `$${((session.amount_total || 0) / 100).toFixed(2)}`,
+          }).catch(() => {});
         } else if (session.metadata?.type === 'background_check' && session.metadata?.userId) {
           const userId = session.metadata.userId;
           // Update payment record
@@ -286,13 +300,19 @@ export class WebhookHandlers {
 
           // Payment confirmation email.
           const payer = await query('SELECT name, email FROM users WHERE id = $1', [userId]);
+          const bgAmount = session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : '$39.00';
           if (payer.rows[0]) {
             await enqueueEmail('payment-confirmation', payer.rows[0].email, {
               name: payer.rows[0].name,
               description: 'TruliCares Premium Background Check',
-              amount: session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : '$39.00',
+              amount: bgAmount,
             }).catch(() => {});
           }
+          await notifyAdminPayment({
+            description: 'Background check',
+            amount: bgAmount,
+            payer: payer.rows[0]?.email,
+          }).catch(() => {});
         } else if (session.metadata?.type === 'staffing_shift' && session.metadata?.booking_id) {
           await markStaffingBookingPaid(session);
         }

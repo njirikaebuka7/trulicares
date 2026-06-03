@@ -21,3 +21,24 @@ export async function notifyAdmins(opts: {
     details: opts.details,
   }).catch((e) => console.error('[notifyAdmins] failed:', e?.message));
 }
+
+/** Convenience: alert admins that a payment completed. */
+export async function notifyAdminPayment(opts: {
+  description: string;
+  amount: string;
+  payer?: string;
+  refId?: string;
+}): Promise<void> {
+  const details: Array<[string, string]> = [
+    ['Amount', opts.amount],
+    ['For', opts.description],
+  ];
+  if (opts.payer) details.push(['Payer', opts.payer]);
+  if (opts.refId) details.push(['Reference', opts.refId]);
+  await notifyAdmins({
+    subject: `Payment received: ${opts.amount}`,
+    heading: '💰 Payment received',
+    message: `A payment of ${opts.amount} was completed for ${opts.description}.`,
+    details,
+  });
+}
