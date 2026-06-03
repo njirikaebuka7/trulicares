@@ -287,6 +287,7 @@ export default function FamilyDashboard() {
     const params = new URLSearchParams(window.location.search);
     const paymentStatus = params.get('payment');
     const matchId = params.get('matchId');
+    const sessionId = params.get('session_id');
     const tab = params.get('tab') as Tab;
 
     if (tab) setActiveTab(tab);
@@ -294,9 +295,9 @@ export default function FamilyDashboard() {
     if (paymentStatus === 'success' && matchId) {
       // Clear params to avoid re-triggering
       window.history.replaceState({}, '', window.location.pathname + (tab ? `?tab=${tab}` : ''));
-      
-      // Call unlock API
-      post(`/matches/${matchId}/unlock-messaging`)
+
+      // Call unlock API — pass the Stripe session id so the server can verify payment
+      post(`/matches/${matchId}/unlock-messaging`, sessionId ? { sessionId } : {})
         .then(() => {
           showToast('Messaging unlocked successfully!');
           fetchData();

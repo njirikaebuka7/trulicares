@@ -148,7 +148,7 @@ router.post('/checkout', requireAuth, async (req: AuthRequest, res) => {
           quantity: 1,
         }],
         mode: 'payment',
-        success_url: `${host}/dashboard?tab=Matches&payment=success&matchId=${matchId}`,
+        success_url: `${host}/dashboard?tab=Matches&payment=success&matchId=${matchId}&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${host}/dashboard?tab=Matches&payment=cancelled`,
         metadata: { matchId, userId: req.user!.id, type: 'unlock' },
       });

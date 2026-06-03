@@ -235,18 +235,66 @@ router.put('/:id/decline', requireAuth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/matches/:id/unlock-messaging
+//
+// SECURITY: messaging is paid ($9.99). This endpoint must NOT unlock for free. We require
+// proof of payment — either a succeeded `payments` row (set by the Stripe webhook) OR a
+// Stripe-verified checkout session passed as `sessionId` (works even if the webhook isn't
+// configured). A direct call with neither is rejected with 402.
 router.post('/:id/unlock-messaging', requireAuth, async (req: AuthRequest, res) => {
   try {
     const { id: userId } = req.user!;
-    // 1. Unlock the match
-    const matchResult = await query(
-      `UPDATE matches SET messaging_unlocked = true, care_date = NULL WHERE id = $1 AND family_id = $2 RETURNING *`,
-      [req.params.id, userId]
-    );
-    if (matchResult.rows.length === 0) return res.status(404).json({ error: 'Match not found' });
-    const match = matchResult.rows[0];
+    const { sessionId } = req.body || {};
 
-    // 2. Create/get conversation
+    const matchRow = await query(`SELECT * FROM matches WHERE id = $1 AND family_id = $2`, [req.params.id, userId]);
+    if (matchRow.rows.length === 0) return res.status(404).json({ error: 'Match not found' });
+    const match = matchRow.rows[0];
+    const wasUnlocked = !!match.messaging_unlocked;
+
+    if (!wasUnlocked) {
+      let paid = false;
+
+      // 1. Webhook path — a succeeded payment is recorded for this match
+      const paidRow = await query(
+        `SELECT 1 FROM payments WHERE match_id = $1 AND user_id = $2 AND status = 'succeeded' LIMIT 1`,
+        [req.params.id, userId]
+      );
+      if (paidRow.rows.length > 0) paid = true;
+
+      // 2. Fallback — verify the Stripe checkout session directly (no webhook needed)
+      if (!paid && sessionId) {
+        try {
+          const { getUncachableStripeClient } = await import('../stripeClient.js');
+          const stripe = await getUncachableStripeClient();
+          const session = await stripe.checkout.sessions.retrieve(sessionId);
+          if (
+            session.payment_status === 'paid' &&
+            session.metadata?.type === 'unlock' &&
+            session.metadata?.matchId === req.params.id &&
+            session.metadata?.userId === userId
+          ) {
+            paid = true;
+            await query(
+              `UPDATE payments SET status = 'succeeded', stripe_payment_intent_id = $1
+               WHERE match_id = $2 AND user_id = $3 AND status = 'pending'`,
+              [session.payment_intent || session.id, req.params.id, userId]
+            );
+          }
+        } catch (e: any) {
+          console.error('Unlock: Stripe session verify failed:', e?.message);
+        }
+      }
+
+      if (!paid) {
+        return res.status(402).json({ error: 'Payment required to unlock messaging.' });
+      }
+
+      await query(
+        `UPDATE matches SET messaging_unlocked = true, care_date = NULL WHERE id = $1 AND family_id = $2`,
+        [req.params.id, userId]
+      );
+    }
+
+    // Create/get conversation (idempotent)
     await query(
       `INSERT INTO conversations (family_id, caregiver_id, match_id)
        VALUES ($1, $2, $3)
@@ -256,21 +304,17 @@ router.post('/:id/unlock-messaging', requireAuth, async (req: AuthRequest, res) 
       [userId, match.caregiver_id, match.id]
     );
 
-    // 3. Update payment status (fallback for missing webhook)
-    await query(
-      `UPDATE payments SET status = 'succeeded' WHERE match_id = $1 AND user_id = $2 AND status = 'pending'`,
-      [req.params.id, userId]
-    );
+    // Notify the caregiver only on the first unlock (avoid re-notifying on repeat calls)
+    if (!wasUnlocked) {
+      const familyName = req.user!.name || 'A family';
+      await query(
+        `INSERT INTO notifications (user_id, title, content, type)
+         VALUES ($1, $2, $3, 'messaging_unlocked')`,
+        [match.caregiver_id, 'Messaging Unlocked!', `${familyName} has unlocked direct messaging with you. Start the conversation now.`]
+      ).catch(err => console.error('Error inserting notification:', err));
+    }
 
-    // 4. Notify caregiver
-    const familyName = req.user!.name || 'A family';
-    await query(
-      `INSERT INTO notifications (user_id, title, content, type)
-       VALUES ($1, $2, $3, 'messaging_unlocked')`,
-      [match.caregiver_id, 'Messaging Unlocked!', `${familyName} has unlocked direct messaging with you. Start the conversation now.`]
-    ).catch(err => console.error('Error inserting notification:', err));
-
-    res.json({ match, message: 'Messaging unlocked' });
+    res.json({ match: { ...match, messaging_unlocked: true }, message: 'Messaging unlocked' });
   } catch (err) {
     console.error('Unlock messaging error:', err);
     res.status(500).json({ error: 'Failed to unlock messaging' });
