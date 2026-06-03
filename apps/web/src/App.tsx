@@ -44,7 +44,7 @@ export default function App() {
               </ProtectedRoute>
             } />
             <Route path="/caregivers/:id" element={
-              <ProtectedRoute requiredRole="family">
+              <ProtectedRoute requiredRole={['family', 'caregiver']}>
                 <CaregiverProfile />
               </ProtectedRoute>
             } />

@@ -841,6 +841,10 @@ export default function CaregiverDashboard() {
                     className="bg-white text-emerald-700 border-white hover:bg-emerald-50 rounded-full">
                     View Job Requests
                   </Button>
+                  <Button size="sm" onClick={() => navigate(`/caregivers/${user?.id}`)}
+                    className="bg-white/10 border border-white/20 text-white hover:bg-white/20 rounded-full">
+                    Preview Public Profile
+                  </Button>
                 </div>
               </div>
 

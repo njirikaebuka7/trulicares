@@ -16,6 +16,7 @@ import { cn } from '@/utils/cn';
 import { sameDay, dayLabel, listStamp } from '@/utils/chatTime';
 import { TrustBadges, DistanceChip } from '@/components/ui/CaregiverTrust';
 import EmptyState from '@/components/ui/EmptyState';
+import Avatar from '@/components/ui/Avatar';
 import { supabase } from '@/lib/supabase';
 import logoImg from '@/assets/logo.png';
 
@@ -923,13 +924,7 @@ export default function FamilyDashboard() {
                     <div className="divide-y divide-gray-50">
                       {matches.slice(0, 3).map((match: any, i: number) => (
                         <div key={match.id} className="flex items-center gap-3 px-5 py-3.5">
-                          {match.caregiver?.photoUrl ? (
-                            <img src={match.caregiver.photoUrl} alt={match.caregiver.name} className="w-9 h-9 rounded-xl object-cover shrink-0" />
-                          ) : (
-                            <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-xs shrink-0', avatarColors[i % avatarColors.length])}>
-                              {(match.caregiver?.name || '?').split(' ').map((n: string) => n[0]).join('')}
-                            </div>
-                          )}
+                          <Avatar name={match.caregiver?.name} src={match.caregiver?.photoUrl} size={36} className="rounded-xl" />
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-sm text-gray-900 truncate">{match.caregiver?.name}</p>
                             <div className="flex items-center gap-1.5 flex-wrap">
@@ -1101,13 +1096,7 @@ export default function FamilyDashboard() {
                   {matches.filter((m: any) => !m.careRequestId || !requests.some((r: any) => r.id === m.careRequestId)).map((match: any, i: number) => (
                     <div key={match.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
                       <div className="flex items-start gap-3">
-                        {match.caregiver?.photoUrl ? (
-                          <img src={match.caregiver.photoUrl} alt={match.caregiver.name} className="w-12 h-12 rounded-xl object-cover shrink-0" />
-                        ) : (
-                          <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold shrink-0', avatarColors[i % avatarColors.length])}>
-                            {(match.caregiver?.name || '?').split(' ').map((n: string) => n[0]).join('')}
-                          </div>
-                        )}
+                        <Avatar name={match.caregiver?.name} src={match.caregiver?.photoUrl} size={48} className="rounded-xl" />
                         <div className="flex-1 min-w-0">
                           <span className="font-bold text-gray-900 text-sm block">{match.caregiver?.name}</span>
                           <div className="flex items-center gap-1 mt-0.5">
@@ -1169,13 +1158,7 @@ export default function FamilyDashboard() {
                   {matches.map((match: any, i: number) => (
                     <div key={match.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                       <div className="flex items-start gap-4">
-                        {match.caregiver?.photoUrl ? (
-                          <img src={match.caregiver.photoUrl} alt={match.caregiver.name} className="w-14 h-14 rounded-2xl object-cover shrink-0" />
-                        ) : (
-                          <div className={cn('w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0', avatarColors[i % avatarColors.length])}>
-                            {(match.caregiver?.name || '?').split(' ').map((n: string) => n[0]).join('')}
-                          </div>
-                        )}
+                        <Avatar name={match.caregiver?.name} src={match.caregiver?.photoUrl} size={56} className="rounded-2xl" />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap mb-1">
                             <h3 className="font-bold text-gray-900">{match.caregiver?.name}</h3>
@@ -1207,56 +1190,15 @@ export default function FamilyDashboard() {
                           {match.status}
                         </span>
                       </div>
-                      <div className="mt-4 flex gap-2 flex-wrap items-center border-t border-gray-50 pt-4">
+                      <div className="mt-4 border-t border-gray-50 pt-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
+                        {/* Primary action — full-width on mobile for an app-like tap target */}
                         {match.messagingUnlocked ? (
-                          <>
-                            <Button variant="primary" size="sm" onClick={() => setActiveTab('Messages')}>
-                              <MessageCircle className="w-3.5 h-3.5" /> Message
-                            </Button>
-                            <button
-                              onClick={() => {
-                                setShowReviewModal({
-                                  caregiverId: match.caregiver?.id || '',
-                                  caregiverName: match.caregiver?.name || 'Caregiver',
-                                  matchId: match.id
-                                });
-                                setReviewService(match.careType || 'Child Care');
-                              }}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-amber-50 text-amber-700 text-xs font-semibold transition-all shadow-sm"
-                            >
-                              <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500 shrink-0" /> Rate Caregiver
-                            </button>
-                            <button
-                              onClick={() => {
-                                setReportModal({
-                                  isOpen: true,
-                                  reportedUserId: match.caregiver?.id || '',
-                                  reportedUserName: match.caregiver?.name || 'Caregiver',
-                                  requestId: match.careRequestId,
-                                  refId: match.refId
-                                });
-                              }}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-red-50 text-red-600 text-xs font-semibold transition-all shadow-sm"
-                            >
-                              <Flag className="w-3.5 h-3.5 shrink-0" /> Report Issue
-                            </button>
-                            <button
-                              onClick={() => {
-                                setShowDisputeModal({
-                                  matchId: match.id,
-                                  caregiverName: match.caregiver?.name || 'Caregiver',
-                                  sessionDate: match.scheduledAt || undefined,
-                                });
-                              }}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-rose-50 text-rose-700 text-xs font-semibold transition-all shadow-sm"
-                            >
-                              <Scale className="w-3.5 h-3.5 shrink-0" /> File Dispute
-                            </button>
-                          </>
+                          <Button variant="primary" size="sm" className="w-full sm:w-auto justify-center" onClick={() => setActiveTab('Messages')}>
+                            <MessageCircle className="w-3.5 h-3.5" /> Message
+                          </Button>
                         ) : match.status === 'accepted' ? (
-                          <Button variant="coral" size="sm" onClick={async () => {
+                          <Button variant="coral" size="sm" className="w-full sm:w-auto justify-center" onClick={async () => {
                             try {
-                              // Redirect to Stripe Checkout for unlock
                               const res: any = await post('/payments/checkout', { matchId: match.id });
                               if (res.url) window.location.href = res.url;
                             } catch (err: any) {
@@ -1266,13 +1208,60 @@ export default function FamilyDashboard() {
                             <DollarSign className="w-3.5 h-3.5" /> Unlock Messaging
                           </Button>
                         ) : (
-                          <span className="text-xs px-3 py-1.5 rounded-full bg-amber-50 text-amber-600 font-semibold flex items-center gap-1.5">
+                          <span className="w-full sm:w-auto justify-center text-xs px-3 py-2 rounded-xl bg-amber-50 text-amber-600 font-semibold flex items-center gap-1.5">
                             <Clock className="w-3 h-3" /> Awaiting acceptance
                           </span>
                         )}
-                        <Button variant="secondary" size="sm" onClick={() => navigate(`/caregivers/${match.caregiver?.id}`)}>
-                          View Profile
-                        </Button>
+
+                        {/* Secondary actions — grouped, wrapping */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button variant="secondary" size="sm" onClick={() => navigate(`/caregivers/${match.caregiver?.id}`)}>
+                            View Profile
+                          </Button>
+                          {match.messagingUnlocked && (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setShowReviewModal({
+                                    caregiverId: match.caregiver?.id || '',
+                                    caregiverName: match.caregiver?.name || 'Caregiver',
+                                    matchId: match.id
+                                  });
+                                  setReviewService(match.careType || 'Child Care');
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-amber-50 text-amber-700 text-xs font-semibold transition-all shadow-sm"
+                              >
+                                <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500 shrink-0" /> Rate
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setReportModal({
+                                    isOpen: true,
+                                    reportedUserId: match.caregiver?.id || '',
+                                    reportedUserName: match.caregiver?.name || 'Caregiver',
+                                    requestId: match.careRequestId,
+                                    refId: match.refId
+                                  });
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-red-50 text-red-600 text-xs font-semibold transition-all shadow-sm"
+                              >
+                                <Flag className="w-3.5 h-3.5 shrink-0" /> Report
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setShowDisputeModal({
+                                    matchId: match.id,
+                                    caregiverName: match.caregiver?.name || 'Caregiver',
+                                    sessionDate: match.scheduledAt || undefined,
+                                  });
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-rose-50 text-rose-700 text-xs font-semibold transition-all shadow-sm"
+                              >
+                                <Scale className="w-3.5 h-3.5 shrink-0" /> Dispute
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}

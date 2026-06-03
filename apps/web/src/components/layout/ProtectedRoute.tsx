@@ -1,9 +1,12 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 
+type Role = 'family' | 'caregiver' | 'admin' | 'professional' | 'facility';
+
 interface Props {
   children: React.ReactNode;
-  requiredRole?: 'family' | 'caregiver' | 'admin' | 'professional' | 'facility';
+  /** A single role or a list of allowed roles. */
+  requiredRole?: Role | Role[];
 }
 
 export default function ProtectedRoute({ children, requiredRole }: Props) {
@@ -22,7 +25,8 @@ export default function ProtectedRoute({ children, requiredRole }: Props) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
-  if (requiredRole && user?.role !== requiredRole) {
+  const allowed = requiredRole ? (Array.isArray(requiredRole) ? requiredRole : [requiredRole]) : null;
+  if (allowed && (!user?.role || !allowed.includes(user.role as Role))) {
     return <Navigate to="/dashboard" replace />;
   }
 

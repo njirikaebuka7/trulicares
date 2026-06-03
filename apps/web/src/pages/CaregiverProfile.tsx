@@ -43,6 +43,7 @@ export default function CaregiverProfile() {
   const [showSpecialtyPicker, setShowSpecialtyPicker] = useState(false);
   const [existingMatch, setExistingMatch] = useState<any | null>(null);
   const [unlockingMsg, setUnlockingMsg] = useState(false);
+  const isOwner = !!user?.id && user.id === id; // caregiver previewing their own public profile
 
   useEffect(() => {
     if (!id) return;
@@ -202,6 +203,14 @@ export default function CaregiverProfile() {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 -mt-12">
+        {isOwner && (
+          <div className="bg-brand-600 text-white rounded-2xl px-4 py-3 mb-4 flex items-center justify-between gap-3 shadow-lg shadow-brand-600/20">
+            <p className="text-sm font-semibold">👀 Preview — this is how families see your profile.</p>
+            <button onClick={() => navigate('/dashboard')} className="text-xs font-bold bg-white/20 hover:bg-white/30 rounded-full px-3 py-1.5 transition-colors shrink-0">
+              Edit profile
+            </button>
+          </div>
+        )}
         {/* Profile card */}
         <div className="bg-white rounded-3xl border border-gray-100 shadow-lg p-6 mb-6">
           <div className="flex flex-col sm:flex-row items-start gap-6">
@@ -250,17 +259,28 @@ export default function CaregiverProfile() {
               </div>
 
               <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-600">
-                <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-gray-400" /> {caregiver.location}</span>
+                <span className="flex items-center gap-1.5">
+                  <MapPin className="w-4 h-4 text-gray-400" /> {caregiver.location}
+                  {(caregiver as any).serviceRadiusMiles ? ` · serves within ${(caregiver as any).serviceRadiusMiles} mi` : ''}
+                </span>
                 <span className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-gray-400" /> {caregiver.availability}</span>
                 <span className="flex items-center gap-1.5 font-semibold text-brand-600">
                   <DollarSign className="w-4 h-4" /> ${caregiver.hourlyRate[0]}–${caregiver.hourlyRate[1]}/hr
                 </span>
                 <span className="flex items-center gap-1.5"><Briefcase className="w-4 h-4 text-gray-400" /> {caregiver.yearsExperience} yrs experience</span>
+                {Array.isArray((caregiver as any).languages) && (caregiver as any).languages.length > 0 && (
+                  <span className="flex items-center gap-1.5"><MessageCircle className="w-4 h-4 text-gray-400" /> Speaks {(caregiver as any).languages.join(', ')}</span>
+                )}
               </div>
             </div>
           </div>
 
           <div className="flex gap-3 mt-6 pt-6 border-t border-gray-100 flex-wrap">
+            {isOwner ? (
+              <Button variant="primary" size="lg" onClick={() => navigate('/dashboard')} className="flex-1 sm:flex-none">
+                Back to Dashboard
+              </Button>
+            ) : (<>
             <Button variant="primary" size="lg" onClick={handleRequestCare} className="flex-1 sm:flex-none">
               Request Care
             </Button>
@@ -313,6 +333,7 @@ export default function CaregiverProfile() {
                 </Button>
               );
             })()}
+            </>)}
           </div>
         </div>
 
