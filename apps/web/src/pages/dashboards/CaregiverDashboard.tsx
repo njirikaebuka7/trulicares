@@ -194,8 +194,17 @@ export default function CaregiverDashboard() {
   useEffect(() => {
     if (!cgSelectedMsg) return;
     loadCgMessages(cgSelectedMsg);
-    const timer = setInterval(() => loadCgMessages(cgSelectedMsg), 3000);
-    return () => clearInterval(timer);
+    // Realtime: refetch on incoming message (instant, low DB load)
+    const channel = supabase
+      .channel(`conversation:${cgSelectedMsg}`)
+      .on('broadcast', { event: 'new_message' }, () => loadCgMessages(cgSelectedMsg))
+      .subscribe();
+    // Slow safety-net poll (was 3s)
+    const timer = setInterval(() => loadCgMessages(cgSelectedMsg), 20000);
+    return () => {
+      clearInterval(timer);
+      supabase.removeChannel(channel);
+    };
   }, [cgSelectedMsg]);
 
   const fetchData = useCallback((forceRefresh = false) => {

@@ -1,9 +1,16 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
-import { createMatchesForRequest } from '../services/matching.js';
+import { refreshFamilyMatches } from '../services/matching.js';
+import { writeLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
+
+function pageParams(req: AuthRequest, defLimit = 50, maxLimit = 100) {
+  const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? defLimit), 10) || defLimit, 1), maxLimit);
+  const offset = Math.max(parseInt(String(req.query.offset ?? '0'), 10) || 0, 0);
+  return { limit, offset };
+}
 
 function buildCaregiverProfile(row: any) {
   if (!row.caregiver_name) return null;
@@ -79,20 +86,11 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
     const { role, id } = req.user!;
 
     if (role === 'family') {
-      // Auto-generate/update matches for active requests first
-      try {
-        const activeRequests = await query(
-          `SELECT id, care_type, location, zip FROM care_requests 
-           WHERE family_id = $1 AND status IN ('matching', 'matched')`,
-          [id]
-        );
-        for (const reqRow of activeRequests.rows) {
-          await createMatchesForRequest(reqRow.id, id, reqRow.care_type, reqRow.location || undefined, reqRow.zip || undefined);
-        }
-      } catch (matchErr) {
-        console.error('Error auto-generating matches on GET /api/matches:', matchErr);
-      }
+      // Top up matches for active requests — throttled (at most once per 10 min per
+      // family) so dashboard polling no longer triggers a full re-match on every load.
+      await refreshFamilyMatches(id).catch((e) => console.error('refreshFamilyMatches:', e?.message));
 
+      const { limit, offset } = pageParams(req);
       const result = await query(
         `SELECT m.id, m.request_id, m.caregiver_id, m.family_id, m.status,
                 m.near_you, m.messaging_unlocked, m.care_date, m.created_at,
@@ -107,13 +105,15 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
          LEFT JOIN caregiver_profiles cp ON cp.user_id = m.caregiver_id
          LEFT JOIN care_requests cr ON cr.id = m.request_id
          WHERE m.family_id = $1 AND m.status != 'declined'
-         ORDER BY m.near_you DESC, cp.rating DESC NULLS LAST, m.created_at DESC`,
-        [id]
+         ORDER BY m.near_you DESC, cp.rating DESC NULLS LAST, m.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [id, limit, offset]
       );
       return res.json({ matches: result.rows.map(formatFamilyMatch) });
     }
 
     if (role === 'caregiver') {
+      const { limit, offset } = pageParams(req);
       const result = await query(
         `SELECT m.id, m.request_id, m.caregiver_id, m.family_id, m.status,
                 m.near_you, m.messaging_unlocked, m.created_at,
@@ -125,8 +125,9 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
          LEFT JOIN care_requests cr ON cr.id = m.request_id
          LEFT JOIN caregiver_profiles cp ON cp.user_id = m.caregiver_id
          WHERE m.caregiver_id = $1 AND m.status != 'matching'
-         ORDER BY m.created_at DESC`,
-        [id]
+         ORDER BY m.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [id, limit, offset]
       );
       return res.json({ matches: result.rows.map(formatCaregiverMatch) });
     }
@@ -148,7 +149,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/matches/:id/request
-router.post('/:id/request', requireAuth, async (req: AuthRequest, res) => {
+router.post('/:id/request', requireAuth, writeLimiter, async (req: AuthRequest, res) => {
   try {
     const { id: userId, role } = req.user!;
     if (role !== 'family') return res.status(403).json({ error: 'Only families can request caregivers' });
@@ -159,12 +160,15 @@ router.post('/:id/request', requireAuth, async (req: AuthRequest, res) => {
     }
 
     const result = await query(
-      `UPDATE matches SET status = 'pending' 
-       WHERE id = $1 AND family_id = $2 AND status = 'matching' 
+      `UPDATE matches SET status = 'pending'
+       WHERE id = $1 AND family_id = $2 AND status = 'matching'
        RETURNING *`,
       [req.params.id, userId]
     );
 
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Match not found or no longer available' });
+    }
     const match = result.rows[0];
     const familyName = req.user!.name || 'A family';
     await query(
@@ -181,7 +185,7 @@ router.post('/:id/request', requireAuth, async (req: AuthRequest, res) => {
 });
 
 // PUT /api/matches/:id/accept
-router.put('/:id/accept', requireAuth, async (req: AuthRequest, res) => {
+router.put('/:id/accept', requireAuth, writeLimiter, async (req: AuthRequest, res) => {
   try {
     const userCheck = await query('SELECT status FROM users WHERE id = $1', [req.user!.id]);
     if (userCheck.rows[0]?.status === 'suspended') {
@@ -210,7 +214,7 @@ router.put('/:id/accept', requireAuth, async (req: AuthRequest, res) => {
 });
 
 // PUT /api/matches/:id/decline
-router.put('/:id/decline', requireAuth, async (req: AuthRequest, res) => {
+router.put('/:id/decline', requireAuth, writeLimiter, async (req: AuthRequest, res) => {
   try {
     const result = await query(
       `UPDATE matches SET status = 'declined' WHERE id = $1 AND caregiver_id = $2 RETURNING *`,
@@ -240,7 +244,7 @@ router.put('/:id/decline', requireAuth, async (req: AuthRequest, res) => {
 // proof of payment — either a succeeded `payments` row (set by the Stripe webhook) OR a
 // Stripe-verified checkout session passed as `sessionId` (works even if the webhook isn't
 // configured). A direct call with neither is rejected with 402.
-router.post('/:id/unlock-messaging', requireAuth, async (req: AuthRequest, res) => {
+router.post('/:id/unlock-messaging', requireAuth, writeLimiter, async (req: AuthRequest, res) => {
   try {
     const { id: userId } = req.user!;
     const { sessionId } = req.body || {};

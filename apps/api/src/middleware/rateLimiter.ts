@@ -94,6 +94,8 @@ export const forgotPasswordLimiter = rateLimiter(3, 60 * 60 * 1000, { prefix: 'f
 export const otpLimiter = rateLimiter(5, 15 * 60 * 1000, { prefix: 'otp', keyBy: byIpAndEmail });
 export const uploadLimiter = rateLimiter(10, 10 * 60 * 1000, { prefix: 'upload', keyBy: byUserOrIp });
 export const searchLimiter = rateLimiter(60, 60 * 1000, { prefix: 'search' });
+// General write/mutation limiter, keyed per authenticated user (falls back to IP).
+export const writeLimiter = rateLimiter(40, 60 * 1000, { prefix: 'write', keyBy: byUserOrIp });
 
 // Automatically prune expired in-memory IPs to prevent memory leaks (fallback path only)
 setInterval(() => {

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
+import { writeLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
 
@@ -10,14 +11,17 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
     const { id, role } = req.user!;
     const caregiverId = role === 'caregiver' ? id : (req.query.caregiverId as string || id);
 
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '50'), 10) || 50, 1), 100);
+    const offset = Math.max(parseInt(String(req.query.offset ?? '0'), 10) || 0, 0);
     const result = await query(
       `SELECT r.id, r.rating, r.text, r.service, r.created_at,
               u.name as reviewer_name, u.photo_url as reviewer_photo
        FROM reviews r
        JOIN users u ON u.id = r.family_id
        WHERE r.caregiver_id = $1
-       ORDER BY r.created_at DESC`,
-      [caregiverId]
+       ORDER BY r.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [caregiverId, limit, offset]
     );
 
     const reviews = result.rows.map((r: any) => ({
@@ -31,11 +35,15 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
       createdAt: r.created_at,
     }));
 
-    const avgRating = reviews.length > 0
-      ? (reviews.reduce((sum: number, r: any) => sum + r.rating, 0) / reviews.length).toFixed(1)
-      : '0.0';
+    // True totals from an aggregate (not just the current page)
+    const agg = await query(
+      `SELECT COUNT(*)::int AS count, COALESCE(AVG(rating), 0) AS avg FROM reviews WHERE caregiver_id = $1`,
+      [caregiverId]
+    );
+    const count = agg.rows[0]?.count ?? 0;
+    const averageRating = parseFloat(parseFloat(agg.rows[0]?.avg ?? 0).toFixed(1));
 
-    res.json({ reviews, averageRating: parseFloat(avgRating), count: reviews.length });
+    res.json({ reviews, averageRating, count });
   } catch (err) {
     console.error('Get reviews error:', err);
     res.status(500).json({ error: 'Failed to fetch reviews' });
@@ -43,7 +51,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
 });
 
 // POST /api/reviews
-router.post('/', requireAuth, async (req: AuthRequest, res) => {
+router.post('/', requireAuth, writeLimiter, async (req: AuthRequest, res) => {
   try {
     const { id: userId, role } = req.user!;
     const { caregiverId, rating, text, service } = req.body;

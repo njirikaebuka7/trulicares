@@ -1,11 +1,18 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
-import { createMatchesForRequest } from '../services/matching.js';
+import { createMatchesForRequest, refreshFamilyMatches } from '../services/matching.js';
 import { sendJobRequestNotification } from '../services/email.js';
 import { generateRefId } from '../services/utils.js';
+import { writeLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
+
+function pageParams(req: AuthRequest, defLimit = 50, maxLimit = 100) {
+  const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? defLimit), 10) || defLimit, 1), maxLimit);
+  const offset = Math.max(parseInt(String(req.query.offset ?? '0'), 10) || 0, 0);
+  return { limit, offset };
+}
 
 const careTypeLabels: Record<string, string> = {
   'child-care': 'Child Care',
@@ -37,7 +44,7 @@ function formatRequest(row: any) {
 }
 
 // POST /api/care-requests
-router.post('/', requireAuth, async (req: AuthRequest, res) => {
+router.post('/', requireAuth, writeLimiter, async (req: AuthRequest, res) => {
   try {
     const { careType, details, location, zip, caregiverId } = req.body;
     if (!careType) return res.status(400).json({ error: 'Care type is required' });
@@ -110,10 +117,12 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
         const familyResult = await query('SELECT name FROM users WHERE id = $1', [req.user!.id]);
         const familyName = familyResult.rows[0]?.name || 'A family';
 
-        for (const match of matches.slice(0, 3)) {
-          const r = await query('SELECT email, name FROM users WHERE id = $1', [match.id]);
-          if (r.rows[0]) {
-            sendJobRequestNotification(r.rows[0].email, r.rows[0].name, familyName, careType).catch(console.error);
+        // Batch-fetch the top caregivers' contact info in ONE query (no N+1)
+        const topIds = matches.slice(0, 3).map((m) => m.id);
+        if (topIds.length > 0) {
+          const r = await query('SELECT email, name FROM users WHERE id = ANY($1)', [topIds]);
+          for (const cg of r.rows) {
+            sendJobRequestNotification(cg.email, cg.name, familyName, careType).catch(console.error);
           }
         }
       })
@@ -131,20 +140,10 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
   try {
     let result;
 
+    const { limit, offset } = pageParams(req);
     if (req.user!.role === 'family') {
-      // Auto-generate/update matches for active requests first
-      try {
-        const activeRequests = await query(
-          `SELECT id, care_type, location, zip FROM care_requests 
-           WHERE family_id = $1 AND status IN ('matching', 'matched')`,
-          [req.user!.id]
-        );
-        for (const reqRow of activeRequests.rows) {
-          await createMatchesForRequest(reqRow.id, req.user!.id, reqRow.care_type, reqRow.location || undefined, reqRow.zip || undefined);
-        }
-      } catch (matchErr) {
-        console.error('Error auto-generating matches on GET /api/care-requests:', matchErr);
-      }
+      // Top up matches — throttled (≤ once / 10 min per family), not on every poll.
+      await refreshFamilyMatches(req.user!.id).catch((e) => console.error('refreshFamilyMatches:', e?.message));
 
       result = await query(
         `SELECT cr.id, cr.care_type, cr.details, cr.location, cr.zip, cr.status, cr.created_at, cr.ref_id,
@@ -153,8 +152,9 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
          LEFT JOIN matches m ON m.request_id = cr.id
          WHERE cr.family_id = $1
          GROUP BY cr.id
-         ORDER BY cr.created_at DESC`,
-        [req.user!.id]
+         ORDER BY cr.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [req.user!.id, limit, offset]
       );
     } else {
       result = await query(
@@ -163,8 +163,9 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
          FROM care_requests cr
          JOIN matches m ON m.request_id = cr.id AND m.caregiver_id = $1
          JOIN users u ON u.id = cr.family_id
-         ORDER BY cr.created_at DESC`,
-        [req.user!.id]
+         ORDER BY cr.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [req.user!.id, limit, offset]
       );
     }
 

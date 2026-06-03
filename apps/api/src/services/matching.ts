@@ -1,5 +1,6 @@
 import { query } from '../db.js';
 import { generateRefId } from './utils.js';
+import { cacheGet, cacheSet } from './cache.js';
 
 export interface MatchCandidate {
   id: string;
@@ -226,4 +227,27 @@ export async function createMatchesForRequest(
   }
 
   return candidates;
+}
+
+/**
+ * Tops up matches for a family's active requests, THROTTLED to at most once per 10 min
+ * per family (via Redis/in-memory cache). This replaces the previous behaviour of
+ * re-running the full matching scan on every dashboard load/poll, which was the biggest
+ * load risk. Safe to call on every read — it no-ops while the throttle key is warm.
+ */
+export async function refreshFamilyMatches(familyId: string): Promise<void> {
+  const key = `match-refresh:${familyId}`;
+  if (await cacheGet<number>(key)) return; // refreshed recently → skip
+  await cacheSet(key, Date.now(), 600); // throttle window: 10 minutes
+
+  const activeRequests = await query(
+    `SELECT id, care_type, location, zip FROM care_requests
+     WHERE family_id = $1 AND status IN ('matching', 'matched')`,
+    [familyId]
+  );
+  for (const r of activeRequests.rows) {
+    await createMatchesForRequest(r.id, familyId, r.care_type, r.location || undefined, r.zip || undefined).catch(
+      (e) => console.error('refreshFamilyMatches/createMatchesForRequest:', e?.message)
+    );
+  }
 }

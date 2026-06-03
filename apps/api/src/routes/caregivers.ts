@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { requireAuth, requireCaregiver, AuthRequest } from '../middleware/auth.js';
-import { getCached, setCached, invalidateCache } from '../services/cache.js';
+import { cacheGet, cacheSet, invalidateCache } from '../services/cache.js';
 import { searchLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
@@ -69,7 +69,7 @@ function formatCaregiver(row: any, includePrivate = false) {
 router.get('/', requireAuth, searchLimiter, async (req, res) => {
   try {
     const cacheKey = `caregivers:list:${JSON.stringify(req.query)}`;
-    const cached = getCached<any>(cacheKey);
+    const cached = await cacheGet<any>(cacheKey);
     if (cached) {
       return res.json(cached);
     }
@@ -129,7 +129,7 @@ router.get('/', requireAuth, searchLimiter, async (req, res) => {
     );
 
     const payload = { caregivers: result.rows.map((r: any) => formatCaregiver(r)) };
-    setCached(cacheKey, payload, 30); // Cache lists for 30s
+    await cacheSet(cacheKey, payload, 30); // Cache lists for 30s (Redis-backed, shared)
 
     res.json(payload);
   } catch (err) {
@@ -168,7 +168,7 @@ router.get('/profile/me', requireCaregiver, async (req: AuthRequest, res) => {
 router.get('/:id', requireAuth, async (req, res) => {
   try {
     const cacheKey = `caregivers:detail:${req.params.id}`;
-    const cached = getCached<any>(cacheKey);
+    const cached = await cacheGet<any>(cacheKey);
     if (cached) {
       return res.json(cached);
     }
@@ -213,7 +213,7 @@ router.get('/:id', requireAuth, async (req, res) => {
       },
     };
 
-    setCached(cacheKey, payload, 60); // Cache details for 60s
+    await cacheSet(cacheKey, payload, 60); // Cache details for 60s (Redis-backed, shared)
     res.json(payload);
   } catch (err) {
     console.error('Caregiver get error:', err);

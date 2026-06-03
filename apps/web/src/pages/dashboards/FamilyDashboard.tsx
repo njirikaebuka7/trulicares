@@ -193,8 +193,17 @@ export default function FamilyDashboard() {
   useEffect(() => {
     if (!selectedMessage) return;
     loadMessages(selectedMessage);
-    const timer = setInterval(() => loadMessages(selectedMessage), 3000);
-    return () => clearInterval(timer);
+    // Realtime: refetch when the other party sends a message (instant, low DB load)
+    const channel = supabase
+      .channel(`conversation:${selectedMessage}`)
+      .on('broadcast', { event: 'new_message' }, () => loadMessages(selectedMessage))
+      .subscribe();
+    // Slow safety-net poll (was 3s) in case a realtime event is missed
+    const timer = setInterval(() => loadMessages(selectedMessage), 20000);
+    return () => {
+      clearInterval(timer);
+      supabase.removeChannel(channel);
+    };
   }, [selectedMessage]);
 
   const fetchData = useCallback(() => {

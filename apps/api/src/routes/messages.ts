@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { query } from '../db.js';
+import { query, supabase } from '../db.js';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
 import { sendMessageNotification } from '../services/email.js';
 
@@ -225,6 +225,23 @@ router.post('/:id/messages', requireAuth, async (req: AuthRequest, res) => {
     await query('UPDATE conversations SET updated_at = NOW() WHERE id = $1', [req.params.id]);
 
     const msg = msgResult.rows[0];
+
+    // Realtime: push to the conversation channel so the recipient updates instantly
+    // (replaces aggressive client polling).
+    await supabase
+      .channel(`conversation:${req.params.id}`)
+      .send({
+        type: 'broadcast',
+        event: 'new_message',
+        payload: {
+          id: msg.id,
+          conversationId: msg.conversation_id,
+          senderId: msg.sender_id,
+          content: msg.content,
+          createdAt: msg.created_at,
+        },
+      })
+      .catch(() => {});
 
     // Notify the other person
     const otherId = conv.family_id === userId ? conv.caregiver_id : conv.family_id;
