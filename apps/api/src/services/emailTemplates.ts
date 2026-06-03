@@ -249,8 +249,8 @@ export function renderEmail(template: EmailTemplate, data: Data): RenderedEmail 
               ['Location', esc(data.location || 'Unknown')],
               ['IP', esc(data.ip || 'Unknown')],
             ]) +
-            p(`If this was you, no action is needed. If not, reset your password immediately.`) +
-            button('Secure My Account', `${APP_URL()}/reset-password`),
+            p(`If this was you, no action is needed. If not, sign in and use “Forgot password” to reset your password immediately.`) +
+            button('Review Account', `${APP_URL()}/login`),
         }),
       };
     }

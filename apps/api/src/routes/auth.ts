@@ -388,9 +388,10 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
 
     const result = await query('SELECT id, name FROM users WHERE email = $1', [email.toLowerCase()]);
 
-    // Always return success to prevent email enumeration
-    res.json({ message: 'If an account exists, a reset link has been sent.' });
-
+    // IMPORTANT: do the token write + email send BEFORE responding. On Vercel
+    // serverless the function can freeze the moment the response is flushed, so any
+    // work placed after res.json() may never run (this is why the reset email never
+    // arrived). We still return a generic message to prevent email enumeration.
     if (result.rows.length > 0) {
       const user = result.rows[0];
       const token = crypto.randomBytes(32).toString('hex');
@@ -399,8 +400,12 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
         'UPDATE users SET reset_token = $1, reset_token_expires = $2 WHERE id = $3',
         [token, expires, user.id]
       );
-      sendPasswordResetEmail(email, user.name, token).catch(console.error);
+      await sendPasswordResetEmail(email, user.name, token).catch((e) =>
+        console.error('Reset email failed:', e?.message)
+      );
     }
+
+    res.json({ message: 'If an account exists, a reset link has been sent.' });
   } catch (err) {
     console.error('Forgot password error:', err);
     res.status(500).json({ error: 'Failed to process request' });
