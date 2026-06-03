@@ -14,6 +14,7 @@ import { useAuth } from '@/context/AuthContext';
 import { get, post, put, auth as authApi, payments as paymentsApi, notifications as notificationsApi } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import { sameDay, dayLabel, listStamp } from '@/utils/chatTime';
+import { TrustBadges, DistanceChip } from '@/components/ui/CaregiverTrust';
 import { supabase } from '@/lib/supabase';
 import logoImg from '@/assets/logo.png';
 
@@ -905,10 +906,12 @@ export default function FamilyDashboard() {
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-sm text-gray-900">{match.caregiver?.name}</p>
-                            <div className="flex items-center gap-1">
+                            <p className="font-semibold text-sm text-gray-900 truncate">{match.caregiver?.name}</p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
                               <span className="text-xs text-gray-500">{match.caregiver?.rating || '—'}</span>
+                              <DistanceChip miles={match.distanceMiles} nearYou={match.nearYou} />
+                              <TrustBadges verified={match.caregiver?.verified} backgroundChecked={match.caregiver?.backgroundChecked} compact />
                             </div>
                           </div>
                           <span className={cn('text-xs px-2.5 py-1 rounded-full font-semibold whitespace-nowrap',
@@ -1087,6 +1090,10 @@ export default function FamilyDashboard() {
                             <span className="text-xs font-semibold text-gray-700">{match.caregiver?.rating}</span>
                             <span className="text-xs text-gray-400">· {match.budget}</span>
                           </div>
+                          <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                            <TrustBadges verified={match.caregiver?.verified} backgroundChecked={match.caregiver?.backgroundChecked} compact />
+                            <DistanceChip miles={match.distanceMiles} nearYou={match.nearYou} />
+                          </div>
                         </div>
                         <span className={cn('px-2.5 py-1 rounded-full text-xs font-bold shrink-0',
                           match.status === 'accepted' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700')}>
@@ -1147,16 +1154,8 @@ export default function FamilyDashboard() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap mb-1">
                             <h3 className="font-bold text-gray-900">{match.caregiver?.name}</h3>
-                            {match.caregiver?.verified && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 text-xs font-bold">
-                                <Shield className="w-3 h-3" /> Verified
-                              </span>
-                            )}
-                            {match.nearYou && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-bold">
-                                <MapPin className="w-3 h-3" /> Near You
-                              </span>
-                            )}
+                            <TrustBadges verified={match.caregiver?.verified} backgroundChecked={match.caregiver?.backgroundChecked} />
+                            <DistanceChip miles={match.distanceMiles} nearYou={match.nearYou} />
                           </div>
                           <div className="flex items-center gap-2 mb-2">
                             <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />

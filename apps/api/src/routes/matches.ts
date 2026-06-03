@@ -54,6 +54,7 @@ function formatFamilyMatch(row: any) {
     careDate: row.care_date || null,
     messagingExpired: (row.messaging_unlocked || false) && careDate && hoursElapsed > 48,
     nearYou: row.near_you || false,
+    distanceMiles: row.distance_meters != null ? Math.round((row.distance_meters / 1609.34) * 10) / 10 : null,
   };
 }
 
@@ -99,7 +100,9 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
                 cp.rating, cp.review_count, cp.verified, cp.background_checked,
                 cp.years_experience, cp.availability, cp.location as caregiver_location,
                 cp.service_zips,
-                cr.care_type, cr.location as request_location, cr.ref_id
+                cr.care_type, cr.location as request_location, cr.ref_id,
+                CASE WHEN cp.geo IS NOT NULL AND cr.geo IS NOT NULL
+                     THEN ST_Distance(cp.geo, cr.geo) END AS distance_meters
          FROM matches m
          JOIN users uc ON uc.id = m.caregiver_id
          LEFT JOIN caregiver_profiles cp ON cp.user_id = m.caregiver_id
