@@ -557,9 +557,17 @@ export default function CaregiverDashboard() {
 
   if (dashboardLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-        <div className="w-16 h-16 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin mb-4" />
-        <p className="text-gray-500 font-medium">Setting up your dashboard...</p>
+      <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+        <div className="max-w-6xl mx-auto space-y-4 animate-pulse">
+          <div className="h-36 bg-gray-100 rounded-3xl" />
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+            {[0, 1, 2, 3].map((i) => <div key={i} className="h-28 bg-gray-100 rounded-2xl" />)}
+          </div>
+          <div className="grid lg:grid-cols-2 gap-6">
+            <div className="h-56 bg-gray-100 rounded-2xl" />
+            <div className="h-56 bg-gray-100 rounded-2xl" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -836,6 +844,45 @@ export default function CaregiverDashboard() {
                 </div>
               </div>
 
+              {/* Profile completeness — drives match quality (only shown until complete) */}
+              {(() => {
+                const checks = [
+                  { label: 'Add a photo', done: !!photoUrl },
+                  { label: 'Write a bio', done: (cgBio || '').trim().length >= 20 },
+                  { label: 'Pick specialties', done: cgSpecialties.length > 0 },
+                  { label: 'Set your rate', done: cgRate.min > 0 },
+                  { label: 'Set service area', done: !!(cgLocationData || cgLocation) },
+                  { label: 'Verify your ID', done: idVerificationStatus === 'approved' },
+                  { label: 'Background check', done: bgCheckStatus === 'approved' },
+                ];
+                const done = checks.filter((c) => c.done).length;
+                const pct = Math.round((done / checks.length) * 100);
+                if (pct === 100) return null;
+                const next = checks.filter((c) => !c.done).slice(0, 3);
+                return (
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <div>
+                        <p className="font-bold text-gray-900 text-sm">Complete your profile</p>
+                        <p className="text-xs text-gray-500">A complete profile gets matched with more families.</p>
+                      </div>
+                      <span className="text-lg font-black text-emerald-600 shrink-0">{pct}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                      <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {next.map((c) => (
+                        <button key={c.label} onClick={() => setActiveTab('Profile')}
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-full px-3 py-1.5 transition-colors active:scale-95">
+                          <Plus className="w-3 h-3" /> {c.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Live stats */}
               {(() => {
                 const activeClients = new Set(
@@ -881,6 +928,12 @@ export default function CaregiverDashboard() {
                     <button onClick={() => setActiveTab('Job Requests')} className="text-sm text-emerald-600 font-medium hover:underline">View all</button>
                   </div>
                   <div className="divide-y divide-gray-50">
+                    {jobRequests.length === 0 && (
+                      <div className="px-5 py-8 text-center text-sm text-gray-400">
+                        <Briefcase className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                        No new requests yet — families who match with you appear here.
+                      </div>
+                    )}
                     {jobRequests.slice(0, 2).map((job: any, i: number) => (
                       <div key={job.id} className="px-5 py-4 flex items-start gap-3">
                         <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-xs shrink-0', avatarColors[i])}>
@@ -903,6 +956,12 @@ export default function CaregiverDashboard() {
                     <button onClick={() => setActiveTab('Schedule')} className="text-sm text-emerald-600 font-medium hover:underline">View all</button>
                   </div>
                   <div className="divide-y divide-gray-50">
+                    {cgSchedule.length === 0 && (
+                      <div className="px-5 py-8 text-center text-sm text-gray-400">
+                        <Calendar className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                        No upcoming sessions yet.
+                      </div>
+                    )}
                     {cgSchedule.slice(0, 3).map((session: any) => (
                       <div key={session.id} className="flex items-center gap-3 px-5 py-3.5">
                         <div className="w-2 h-10 rounded-full bg-emerald-500 shrink-0" />
