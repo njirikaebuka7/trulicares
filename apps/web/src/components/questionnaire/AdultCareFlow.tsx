@@ -9,7 +9,7 @@ interface Props {
   onCancel?: () => void;
 }
 
-export default function AdultCareFlow({ onComplete, onBack, onCancel }: Props) {
+export default function AdultCareFlow({ onComplete, onBack, onCancel, initialLocation }: Props & { initialLocation?: any }) {
   const [step, setStep] = useState(0);
   const totalSteps = 7;
 
@@ -93,7 +93,7 @@ export default function AdultCareFlow({ onComplete, onBack, onCancel }: Props) {
     </>,
     <>
       <LocationPicker
-        initial={locationData}
+        initial={locationData || initialLocation}
         onConfirm={(str, data) => { setLocation(str); setLocationData(data); }}
       />
     </>,

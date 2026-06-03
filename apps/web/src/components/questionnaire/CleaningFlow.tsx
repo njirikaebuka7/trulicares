@@ -9,7 +9,7 @@ interface Props {
   onCancel?: () => void;
 }
 
-export default function CleaningFlow({ onComplete, onBack, onCancel }: Props) {
+export default function CleaningFlow({ onComplete, onBack, onCancel, initialLocation }: Props & { initialLocation?: any }) {
   const [step, setStep] = useState(0);
   const totalSteps = 10;
 
@@ -169,7 +169,7 @@ export default function CleaningFlow({ onComplete, onBack, onCancel }: Props) {
     // Location
     <>
       <LocationPicker
-        initial={locationData}
+        initial={locationData || initialLocation}
         onConfirm={(str, data) => { setLocation(str); setLocationData(data); }}
       />
     </>,

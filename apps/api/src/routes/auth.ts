@@ -178,7 +178,7 @@ router.get('/settings', requireAuth, async (req: AuthRequest, res) => {
   try {
     const { id } = req.user!;
     const [userRes, requestsRes, matchesRes, sessionsRes] = await Promise.all([
-      query('SELECT phone, address, notification_prefs, privacy_prefs, created_at FROM users WHERE id = $1', [id]),
+      query('SELECT phone, address, notification_prefs, privacy_prefs, created_at, latitude, longitude, city, state, zip_code, country, formatted_address, location_source FROM users WHERE id = $1', [id]),
       query("SELECT COUNT(*) FROM care_requests WHERE family_id = $1", [id]),
       query("SELECT COUNT(*) FROM matches WHERE family_id = $1", [id]),
       query("SELECT COUNT(*) FROM schedules WHERE family_id = $1", [id]),
@@ -196,6 +196,10 @@ router.get('/settings', requireAuth, async (req: AuthRequest, res) => {
       careRequestsCount: parseInt(requestsRes.rows[0].count),
       matchesCount: parseInt(matchesRes.rows[0].count),
       sessionsCount: parseInt(sessionsRes.rows[0].count),
+      location: u.latitude && u.longitude ? {
+        latitude: u.latitude, longitude: u.longitude, city: u.city, state: u.state,
+        zipCode: u.zip_code, country: u.country, formattedAddress: u.formatted_address, locationSource: u.location_source,
+      } : null,
     });
   } catch (err) {
     console.error('Settings error:', err);
@@ -311,7 +315,7 @@ router.put('/privacy', requireAuth, async (req: AuthRequest, res) => {
 // PUT /api/auth/profile
 router.put('/profile', requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { name, photoUrl, phone, address } = req.body;
+    const { name, photoUrl, phone, address, locationData } = req.body;
     const updates: string[] = [];
     const params: any[] = [];
     let idx = 1;
@@ -325,16 +329,38 @@ router.put('/profile', requireAuth, async (req: AuthRequest, res) => {
     if (photoUrl !== undefined) { updates.push(`photo_url = $${idx++}`); params.push(finalPhotoUrl); }
     if (phone !== undefined) { updates.push(`phone = $${idx++}`); params.push(phone.trim()); }
     if (address !== undefined) { updates.push(`address = $${idx++}`); params.push(address.trim()); }
+
+    // Confirmed home location (from the location picker)
+    if (locationData && typeof locationData === 'object') {
+      const loc = locationData;
+      updates.push(`latitude = $${idx++}`); params.push(Number.isFinite(Number(loc.latitude)) ? Number(loc.latitude) : null);
+      updates.push(`longitude = $${idx++}`); params.push(Number.isFinite(Number(loc.longitude)) ? Number(loc.longitude) : null);
+      updates.push(`city = $${idx++}`); params.push(loc.city || null);
+      updates.push(`state = $${idx++}`); params.push(loc.state || null);
+      updates.push(`zip_code = $${idx++}`); params.push(loc.zipCode || null);
+      updates.push(`country = $${idx++}`); params.push(loc.country || null);
+      updates.push(`formatted_address = $${idx++}`); params.push(loc.formattedAddress || null);
+      updates.push(`location_source = $${idx++}`); params.push(loc.locationSource || null);
+    }
+
     updates.push(`updated_at = NOW()`);
     params.push(req.user!.id);
 
     const result = await query(
-      `UPDATE users SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id, name, email, role, photo_url, phone, address`,
+      `UPDATE users SET ${updates.join(', ')} WHERE id = $${idx}
+       RETURNING id, name, email, role, photo_url, phone, address,
+                 latitude, longitude, city, state, zip_code, country, formatted_address, location_source`,
       params
     );
 
     const u = result.rows[0];
-    res.json({ id: u.id, name: u.name, email: u.email, role: u.role, photoUrl: u.photo_url, phone: u.phone, address: u.address });
+    res.json({
+      id: u.id, name: u.name, email: u.email, role: u.role, photoUrl: u.photo_url, phone: u.phone, address: u.address,
+      location: {
+        latitude: u.latitude, longitude: u.longitude, city: u.city, state: u.state,
+        zipCode: u.zip_code, country: u.country, formattedAddress: u.formatted_address, locationSource: u.location_source,
+      },
+    });
   } catch (err) {
     console.error('Profile update error:', err);
     res.status(500).json({ error: 'Failed to update profile' });

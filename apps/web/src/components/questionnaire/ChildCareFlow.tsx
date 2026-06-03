@@ -16,7 +16,7 @@ function ageLabel(years: number): string {
   return `${years} years`;
 }
 
-export default function ChildCareFlow({ onComplete, onBack, onCancel }: Props) {
+export default function ChildCareFlow({ onComplete, onBack, onCancel, initialLocation }: Props & { initialLocation?: any }) {
   const [step, setStep] = useState(0);
   const totalSteps = 7;
 
@@ -151,7 +151,7 @@ export default function ChildCareFlow({ onComplete, onBack, onCancel }: Props) {
     // Step 5: Location
     <>
       <LocationPicker
-        initial={locationData}
+        initial={locationData || initialLocation}
         onConfirm={(str, data) => { setLocation(str); setLocationData(data); }}
       />
     </>,

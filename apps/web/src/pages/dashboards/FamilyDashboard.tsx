@@ -17,6 +17,7 @@ import { sameDay, dayLabel, listStamp } from '@/utils/chatTime';
 import { TrustBadges, DistanceChip } from '@/components/ui/CaregiverTrust';
 import EmptyState from '@/components/ui/EmptyState';
 import Avatar from '@/components/ui/Avatar';
+import LocationPicker from '@/components/ui/LocationPicker';
 import { supabase } from '@/lib/supabase';
 import logoImg from '@/assets/logo.png';
 
@@ -146,6 +147,7 @@ export default function FamilyDashboard() {
 
   // ── Personal info form ─────────────────────────────────────────────────────
   const [personalForm, setPersonalForm] = useState({ name: user?.name || '', phone: '', address: '' });
+  const [homeLocation, setHomeLocation] = useState<any>(null);
   const [personalSaving, setPersonalSaving] = useState(false);
 
   // ── Edit-profile quick modal ───────────────────────────────────────────────
@@ -346,6 +348,7 @@ export default function FamilyDashboard() {
         setProfileSettings({ ...settingsData, ...(statsData || {}) });
         if (settingsData) {
           setPersonalForm({ name: meData?.name || user?.name || '', phone: settingsData.phone || '', address: settingsData.address || '' });
+          if (settingsData.location) setHomeLocation(settingsData.location);
           setEditPhone(settingsData.phone || '');
           setNotifPrefs(settingsData.notificationPrefs || { email: true, sms: true, push: false, marketing: false });
           setPrivacyPrefs(settingsData.privacyPrefs || { profileVisible: true, shareActivity: false, dataAnalytics: true });
@@ -408,9 +411,10 @@ export default function FamilyDashboard() {
   const handleSavePersonalInfo = async () => {
     setPersonalSaving(true);
     try {
-      const res: any = await authApi.updateProfile(personalForm);
+      const res: any = await authApi.updateProfile({ ...personalForm, locationData: homeLocation || undefined });
       updateUser({ name: res.name });
       setEditName(res.name);
+      if (res.location) setHomeLocation(res.location);
       setProfileModal(null);
       showToast('Personal information saved!');
     } catch (err: any) {
@@ -2063,6 +2067,13 @@ export default function FamilyDashboard() {
                 <input type="text" value={personalForm.address} placeholder="City, State ZIP"
                   onChange={e => setPersonalForm(p => ({ ...p, address: e.target.value }))}
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Home location <span className="text-gray-400 font-normal">(used to find caregivers near you)</span></label>
+                <LocationPicker
+                  initial={homeLocation}
+                  onConfirm={(_str, data) => setHomeLocation(data)}
+                />
               </div>
               <div className="flex gap-3 pt-2">
                 <Button variant="secondary" fullWidth onClick={() => setProfileModal(null)}>Cancel</Button>

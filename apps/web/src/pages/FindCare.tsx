@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { requests as requestsApi, matches as matchesApi } from '@/lib/api';
+import { requests as requestsApi, matches as matchesApi, auth as authApi } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import type { CareCategory } from '@/types';
 
@@ -47,8 +47,15 @@ export default function FindCare() {
   const [currentRequestId, setCurrentRequestId] = useState<string | null>(resumeRequestId || null);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [selectedCaregiverId, setSelectedCaregiverId] = useState<string | null>(directCaregiverId || null);
+  const [homeLocation, setHomeLocation] = useState<any>(null);
 
   const cancelDestination = isAuthenticated ? '/dashboard' : '/';
+
+  // Prefill the location step with the family's saved home location (if any).
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    authApi.settings().then((s: any) => { if (s?.location) setHomeLocation(s.location); }).catch(() => {});
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (autoSelectMatchId) {
@@ -158,13 +165,13 @@ export default function FindCare() {
       if (!careCategory) return null;
       switch (careCategory) {
         case 'child-care':
-          return <ChildCareFlow onComplete={handleCareDetailsComplete} onBack={() => setPhase('care-type')} onCancel={() => navigate(cancelDestination)} />;
+          return <ChildCareFlow initialLocation={homeLocation} onComplete={handleCareDetailsComplete} onBack={() => setPhase('care-type')} onCancel={() => navigate(cancelDestination)} />;
         case 'senior-care':
-          return <SeniorCareFlow onComplete={handleCareDetailsComplete} onBack={() => setPhase('care-type')} onCancel={() => navigate(cancelDestination)} />;
+          return <SeniorCareFlow initialLocation={homeLocation} onComplete={handleCareDetailsComplete} onBack={() => setPhase('care-type')} onCancel={() => navigate(cancelDestination)} />;
         case 'adult-care':
-          return <AdultCareFlow onComplete={handleCareDetailsComplete} onBack={() => setPhase('care-type')} onCancel={() => navigate(cancelDestination)} />;
+          return <AdultCareFlow initialLocation={homeLocation} onComplete={handleCareDetailsComplete} onBack={() => setPhase('care-type')} onCancel={() => navigate(cancelDestination)} />;
         case 'cleaning':
-          return <CleaningFlow onComplete={handleCareDetailsComplete} onBack={() => setPhase('care-type')} onCancel={() => navigate(cancelDestination)} />;
+          return <CleaningFlow initialLocation={homeLocation} onComplete={handleCareDetailsComplete} onBack={() => setPhase('care-type')} onCancel={() => navigate(cancelDestination)} />;
         default:
           return null;
       }
