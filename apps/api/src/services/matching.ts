@@ -174,7 +174,9 @@ export async function findMatches(opts: FindMatchesOptions): Promise<MatchCandid
     distanceSelect = `CASE WHEN cp.geo IS NOT NULL THEN ST_Distance(cp.geo, ${geoExpr}) END AS distance_meters`;
     // Include geo-near caregivers OR those without coordinates yet (legacy fallback).
     geoFilter = `AND ( (cp.geo IS NOT NULL AND ST_DWithin(cp.geo, ${geoExpr}, $${params.length})) OR cp.geo IS NULL )`;
-    orderBy = '(distance_meters IS NULL), distance_meters ASC NULLS LAST, cp.rating DESC NULLS LAST';
+    // NULLS LAST puts no-distance (legacy) caregivers after the nearest ones. (We must
+    // not reference the "distance_meters" alias inside an expression in ORDER BY.)
+    orderBy = 'distance_meters ASC NULLS LAST, cp.rating DESC NULLS LAST';
   }
 
   const result = await query(
