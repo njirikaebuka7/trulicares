@@ -20,6 +20,9 @@ export interface MatchCandidate {
   years_experience: number;
   availability: string;
   near_you?: boolean;
+  service_radius_miles?: number;
+  distance_miles?: number | null;
+  matchScore?: number;
 }
 
 function extractZip(location: string): string | null {
@@ -112,96 +115,121 @@ function locationsTally(
   return false;
 }
 
-export async function findMatches(
-  careType: string,
-  familyLocation: string | undefined,
-  familyZip: string | undefined,
-  budgetStr?: string,
-  limit = 10
-): Promise<MatchCandidate[]> {
-  const zip = familyZip || (familyLocation ? extractZip(familyLocation) : null);
+const METERS_PER_MILE = 1609.34;
+const MAX_SEARCH_MILES = 60;     // hard cap so the index query stays bounded
+
+// Bayesian-adjusted rating: shrink low-review caregivers toward the global mean so a
+// single 5★ review doesn't outrank a long track record. C = prior weight, m = prior mean.
+function bayesianRating(avg: number, n: number, C = 8, m = 4.4): number {
+  const a = Number(avg) || 0;
+  const count = Number(n) || 0;
+  return (C * m + a * count) / (C + count);
+}
+function distanceDecay(miles: number | null): number {
+  if (miles == null) return 0.4;             // unknown distance → neutral
+  return Math.exp(-miles / 15);              // ~1 nearby, ~0.5 at ~10mi, ~0.13 at 30mi
+}
+function budgetFit(budget: { min: number; max: number } | null, lo?: number, hi?: number): number {
+  if (!budget || !lo || !hi) return 0.5;     // unknown → neutral
+  if (Math.min(budget.max, hi) >= Math.max(budget.min, lo)) return 1;          // overlap
+  const diff = Math.min(Math.abs(lo - budget.max), Math.abs(hi - budget.min));
+  return diff <= 5 ? 0.5 : 0.1;              // within $5 → partial
+}
+
+export interface FindMatchesOptions {
+  careType: string;
+  reqLat?: number | null;
+  reqLng?: number | null;
+  familyLocation?: string; // legacy fallback (text)
+  familyZip?: string;      // legacy fallback (zip)
+  budgetStr?: string;
+  limit?: number;
+}
+
+/**
+ * Geo-aware matching.
+ *  1. SQL filters by specialty (GIN) and, when the request has coordinates, by a bounded
+ *     radius using ST_DWithin on the GiST geo index — returning distance + only the top
+ *     candidates (LIMIT 60), instead of scanning the whole table in JS.
+ *  2. JS computes a principled, weighted score over that small set:
+ *       distance decay · budget fit · Bayesian rating · experience (+ verified bonus).
+ *  3. Caregivers without coordinates yet are still included (legacy fallback) so the
+ *     transition to geo doesn't drop anyone; they rank on the non-distance factors.
+ */
+export async function findMatches(opts: FindMatchesOptions): Promise<MatchCandidate[]> {
+  const { careType, reqLat, reqLng, familyLocation, familyZip, budgetStr, limit = 10 } = opts;
   const budget = parseBudget(budgetStr || '');
+  const zip = familyZip || (familyLocation ? extractZip(familyLocation) : null);
+  const hasReqGeo = Number.isFinite(reqLat as number) && Number.isFinite(reqLng as number);
 
-  // Fetch ALL potentially relevant caregivers (same specialty)
-  // We filter dummy caregivers by ensuring they have a valid hourly_rate_min
-  const result = await query(`
-    SELECT
-      u.id, u.name, u.email, u.photo_url,
-      cp.bio, cp.specialties, cp.hourly_rate_min, cp.hourly_rate_max,
-      cp.rating, cp.review_count, cp.location, cp.service_zips,
-      cp.verified, cp.background_checked, cp.years_experience, cp.availability
-    FROM users u
-    JOIN caregiver_profiles cp ON cp.user_id = u.id
-    WHERE u.status = 'active'
-      AND u.role = 'caregiver'
-      AND ($1 = ANY(cp.specialties) OR $1 = '')
-      AND cp.hourly_rate_min IS NOT NULL
-    ORDER BY cp.rating DESC, cp.review_count DESC
-  `, [careType || '']);
+  const params: any[] = [careType || ''];
+  let distanceSelect = 'NULL::float8 AS distance_meters';
+  let geoFilter = '';
+  let orderBy = 'cp.rating DESC NULLS LAST, cp.review_count DESC';
 
-  // Strictly filter candidates whose location tallies (exact ZIP, exact name, or geographic proximity)
-  const candidates: MatchCandidate[] = result.rows
-    .map((row: any) => {
-      let isNear = false;
-      const zips = row.service_zips || [];
-      if (zip && zips.length > 0) {
-        if (zips.includes(zip)) {
-          isNear = true;
-        } else {
-          const reqZipNum = parseInt(zip, 10);
-          if (!isNaN(reqZipNum)) {
-            isNear = zips.some((z: string) => {
-              const cgZipNum = parseInt(z, 10);
-              return !isNaN(cgZipNum) && Math.abs(reqZipNum - cgZipNum) <= 10;
-            });
-          }
-        }
-      }
-      return {
-        ...row,
-        near_you: isNear,
-      };
-    })
-    .filter((row: any) => {
-      return locationsTally(familyLocation, zip || undefined, row.location, row.service_zips || []);
-    });
+  if (hasReqGeo) {
+    params.push(reqLng, reqLat); // ST_MakePoint(lng, lat)
+    const geoExpr = `ST_SetSRID(ST_MakePoint($${params.length - 1}, $${params.length}), 4326)::geography`;
+    params.push(MAX_SEARCH_MILES * METERS_PER_MILE);
+    distanceSelect = `CASE WHEN cp.geo IS NOT NULL THEN ST_Distance(cp.geo, ${geoExpr}) END AS distance_meters`;
+    // Include geo-near caregivers OR those without coordinates yet (legacy fallback).
+    geoFilter = `AND ( (cp.geo IS NOT NULL AND ST_DWithin(cp.geo, ${geoExpr}, $${params.length})) OR cp.geo IS NULL )`;
+    orderBy = '(distance_meters IS NULL), distance_meters ASC NULLS LAST, cp.rating DESC NULLS LAST';
+  }
 
-  // Scoring/Tiering logic
-  const scored = candidates.map(c => {
-    let score = 0;
-    
-    // Tier 1: Location Match (Most important)
-    if (c.near_you) score += 1000;
-    
-    // Tier 2: Budget Match
-    if (budget && c.hourly_rate_min && c.hourly_rate_max) {
-      const overlapMin = Math.max(budget.min, c.hourly_rate_min);
-      const overlapMax = Math.min(budget.max, c.hourly_rate_max);
-      
-      if (overlapMax >= overlapMin) {
-        // Exact overlap
-        score += 500;
-      } else {
-        // Slight difference check
-        const diff = Math.min(
-          Math.abs(c.hourly_rate_min - budget.max),
-          Math.abs(c.hourly_rate_max - budget.min)
-        );
-        if (diff <= 5) score += 200; // Within $5/hr
-      }
+  const result = await query(
+    `SELECT u.id, u.name, u.email, u.photo_url,
+            cp.bio, cp.specialties, cp.hourly_rate_min, cp.hourly_rate_max,
+            cp.rating, cp.review_count, cp.location, cp.service_zips,
+            cp.verified, cp.background_checked, cp.years_experience, cp.availability,
+            cp.service_radius_miles, ${distanceSelect}
+     FROM users u
+     JOIN caregiver_profiles cp ON cp.user_id = u.id
+     WHERE u.status = 'active' AND u.role = 'caregiver'
+       AND ($1 = ANY(cp.specialties) OR $1 = '')
+       AND cp.hourly_rate_min IS NOT NULL
+       ${geoFilter}
+     ORDER BY ${orderBy}
+     LIMIT 60`,
+    params
+  );
+
+  const scored = result.rows.map((row: any) => {
+    const distMiles = row.distance_meters != null ? row.distance_meters / METERS_PER_MILE : null;
+
+    // near_you: inside the caregiver's own service radius (geo), else legacy tally
+    let nearYou: boolean;
+    if (distMiles != null) {
+      nearYou = distMiles <= (row.service_radius_miles || 25);
+    } else {
+      nearYou = locationsTally(familyLocation, zip || undefined, row.location, row.service_zips || []);
     }
 
-    // Tier 3: Rating/Experience (Tie breakers)
-    score += (c.rating || 0) * 10;
-    score += (c.years_experience || 0);
+    const score =
+      0.45 * distanceDecay(distMiles) +
+      0.25 * budgetFit(budget, row.hourly_rate_min, row.hourly_rate_max) +
+      0.20 * (bayesianRating(row.rating, row.review_count) / 5) +
+      0.07 * Math.min((row.years_experience || 0) / 10, 1) +
+      0.03 * (row.background_checked ? 1 : 0);
 
-    return { ...c, matchScore: score };
+    return {
+      ...row,
+      near_you: nearYou,
+      distance_miles: distMiles,
+      matchScore: Math.round(score * 1000) / 10, // 0..100, one decimal
+    } as MatchCandidate & { matchScore: number };
   });
 
-  // Sort by score descending
-  scored.sort((a, b) => b.matchScore - a.matchScore);
+  // When we have geo, drop caregivers clearly outside their own radius unless we're short
+  // on results (keeps quality high but never returns an empty list if anyone is plausible).
+  let pool = scored;
+  if (hasReqGeo) {
+    const within = scored.filter((c: any) => c.distance_miles == null || c.near_you);
+    pool = within.length >= 3 ? within : scored;
+  }
 
-  return scored.slice(0, limit);
+  pool.sort((a: any, b: any) => b.matchScore - a.matchScore);
+  return pool.slice(0, limit);
 }
 
 export async function createMatchesForRequest(
@@ -211,11 +239,19 @@ export async function createMatchesForRequest(
   familyLocation?: string,
   familyZip?: string
 ): Promise<MatchCandidate[]> {
-  // Fetch the request details to get the budget
-  const reqRes = await query('SELECT details FROM care_requests WHERE id = $1', [requestId]);
-  const budgetStr = reqRes.rows[0]?.details?.budget || '';
+  // Fetch the request budget + coordinates
+  const reqRes = await query('SELECT details, latitude, longitude FROM care_requests WHERE id = $1', [requestId]);
+  const reqRow = reqRes.rows[0] || {};
+  const budgetStr = reqRow.details?.budget || '';
 
-  const candidates = await findMatches(careType, familyLocation, familyZip, budgetStr);
+  const candidates = await findMatches({
+    careType,
+    reqLat: reqRow.latitude,
+    reqLng: reqRow.longitude,
+    familyLocation,
+    familyZip,
+    budgetStr,
+  });
 
   for (const candidate of candidates.slice(0, 5)) {
     const refId = generateRefId('SES');

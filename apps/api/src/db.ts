@@ -70,6 +70,43 @@ pool.query(`
   CREATE INDEX IF NOT EXISTS idx_staffing_msg_conversation ON staffing_messages(conversation_id, created_at);
 `).catch(err => console.error('Staffing chat auto-migration failed', err));
 
+// Auto-migrate geospatial matching (PostGIS + normalized location fields + GiST index)
+pool.query(`CREATE EXTENSION IF NOT EXISTS postgis`)
+  .then(() => pool.query(`
+    ALTER TABLE caregiver_profiles
+      ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION,
+      ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION,
+      ADD COLUMN IF NOT EXISTS address TEXT,
+      ADD COLUMN IF NOT EXISTS city TEXT,
+      ADD COLUMN IF NOT EXISTS state TEXT,
+      ADD COLUMN IF NOT EXISTS zip_code TEXT,
+      ADD COLUMN IF NOT EXISTS country TEXT,
+      ADD COLUMN IF NOT EXISTS formatted_address TEXT,
+      ADD COLUMN IF NOT EXISTS location_source TEXT,
+      ADD COLUMN IF NOT EXISTS service_radius_miles INTEGER DEFAULT 25;
+    ALTER TABLE care_requests
+      ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION,
+      ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION,
+      ADD COLUMN IF NOT EXISTS address TEXT,
+      ADD COLUMN IF NOT EXISTS city TEXT,
+      ADD COLUMN IF NOT EXISTS state TEXT,
+      ADD COLUMN IF NOT EXISTS zip_code TEXT,
+      ADD COLUMN IF NOT EXISTS country TEXT,
+      ADD COLUMN IF NOT EXISTS formatted_address TEXT,
+      ADD COLUMN IF NOT EXISTS location_source TEXT;
+  `))
+  .then(() => pool.query(`
+    ALTER TABLE caregiver_profiles ADD COLUMN IF NOT EXISTS geo geography(Point,4326)
+      GENERATED ALWAYS AS (CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL
+        THEN ST_SetSRID(ST_MakePoint(longitude, latitude),4326)::geography ELSE NULL END) STORED;
+    ALTER TABLE care_requests ADD COLUMN IF NOT EXISTS geo geography(Point,4326)
+      GENERATED ALWAYS AS (CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL
+        THEN ST_SetSRID(ST_MakePoint(longitude, latitude),4326)::geography ELSE NULL END) STORED;
+    CREATE INDEX IF NOT EXISTS idx_caregiver_geo ON caregiver_profiles USING GIST (geo);
+    CREATE INDEX IF NOT EXISTS idx_care_requests_geo ON care_requests USING GIST (geo);
+  `))
+  .catch(err => console.error('Geo matching auto-migration failed', err));
+
 // Auto-migrate withdrawals ledger (payout requests). Actual transfer is performed by
 // Stripe Connect payouts in production; this records and tracks each request.
 pool.query(`

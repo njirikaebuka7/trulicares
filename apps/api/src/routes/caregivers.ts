@@ -49,11 +49,16 @@ function formatCaregiver(row: any, includePrivate = false) {
     idVerificationStatus: row.id_verification_status || 'none', // status only
     resumeUrl: row.resume_url || '',
     resumes: row.resumes || [],
+    // Coarse location (safe to show families)
+    city: row.city || '',
+    state: row.state || '',
+    country: row.country || '',
+    serviceRadiusMiles: row.service_radius_miles ?? 25,
   };
 
   if (!includePrivate) return base;
 
-  // Owner/admin only — sensitive PII.
+  // Owner/admin only — sensitive PII + precise location.
   return {
     ...base,
     email: row.email,
@@ -62,6 +67,12 @@ function formatCaregiver(row: any, includePrivate = false) {
     idCardBack: row.id_card_back || '',
     idSelfie: row.id_selfie || '',
     backgroundCheckDetails: row.background_check_details || null,
+    latitude: row.latitude ?? null,
+    longitude: row.longitude ?? null,
+    address: row.address || '',
+    zipCode: row.zip_code || '',
+    formattedAddress: row.formatted_address || '',
+    locationSource: row.location_source || '',
   };
 }
 
@@ -119,6 +130,8 @@ router.get('/', requireAuth, searchLimiter, async (req, res) => {
               cp.id_card_number, cp.id_card_front, cp.id_card_back, cp.id_selfie,
               cp.id_verification_status, cp.background_check_status, cp.background_check_details,
               cp.resume_url, cp.resumes,
+              cp.latitude, cp.longitude, cp.address, cp.city, cp.state, cp.zip_code,
+              cp.country, cp.formatted_address, cp.location_source, cp.service_radius_miles,
               (SELECT status FROM verification_queue WHERE caregiver_id = u.id AND LOWER(COALESCE(background_check::text, 'false')) IN ('true', 't', '1', 'yes') AND status IN ('pending', 'awaiting_payment') LIMIT 1) as pending_status
        FROM users u
        JOIN caregiver_profiles cp ON cp.user_id = u.id
@@ -150,6 +163,8 @@ router.get('/profile/me', requireCaregiver, async (req: AuthRequest, res) => {
               cp.id_card_number, cp.id_card_front, cp.id_card_back, cp.id_selfie,
               cp.id_verification_status, cp.background_check_status, cp.background_check_details,
               cp.resume_url, cp.resumes,
+              cp.latitude, cp.longitude, cp.address, cp.city, cp.state, cp.zip_code,
+              cp.country, cp.formatted_address, cp.location_source, cp.service_radius_miles,
               (SELECT status FROM verification_queue WHERE caregiver_id = u.id AND LOWER(COALESCE(background_check::text, 'false')) IN ('true', 't', '1', 'yes') AND status IN ('pending', 'awaiting_payment') LIMIT 1) as pending_status
        FROM users u
        JOIN caregiver_profiles cp ON cp.user_id = u.id
@@ -182,6 +197,8 @@ router.get('/:id', requireAuth, async (req, res) => {
               cp.id_card_number, cp.id_card_front, cp.id_card_back, cp.id_selfie,
               cp.id_verification_status, cp.background_check_status, cp.background_check_details,
               cp.resume_url, cp.resumes,
+              cp.latitude, cp.longitude, cp.address, cp.city, cp.state, cp.zip_code,
+              cp.country, cp.formatted_address, cp.location_source, cp.service_radius_miles,
               (SELECT status FROM verification_queue WHERE caregiver_id = u.id AND LOWER(COALESCE(background_check::text, 'false')) IN ('true', 't', '1', 'yes') AND status IN ('pending', 'awaiting_payment') LIMIT 1) as pending_status
        FROM users u
        JOIN caregiver_profiles cp ON cp.user_id = u.id
@@ -228,7 +245,8 @@ router.put('/profile', requireCaregiver, async (req: AuthRequest, res) => {
       bio, specialties, hourlyRateMin, hourlyRateMax, yearsExperience,
       availability, location, serviceZips, jobTitle, languages, education, certifications,
       idCardNumber, idCardFront, idCardBack, idSelfie,
-      backgroundCheckDetails, resumeUrl, resumes
+      backgroundCheckDetails, resumeUrl, resumes,
+      locationData, serviceRadiusMiles
     } = req.body;
     // NOTE: idVerificationStatus / backgroundCheckStatus are intentionally NOT accepted
     // here — those are set only by admin review or the Checkr webhook, never by the
@@ -260,6 +278,28 @@ router.put('/profile', requireCaregiver, async (req: AuthRequest, res) => {
     if (resumeUrl !== undefined) { updates.push(`resume_url = $${idx++}`); params.push(resumeUrl); }
     if (resumes !== undefined) { updates.push(`resumes = $${idx++}`); params.push(JSON.stringify(resumes)); }
 
+    // Confirmed service location (from the location picker) → drives geo matching.
+    if (serviceRadiusMiles !== undefined) {
+      const r = Math.min(Math.max(parseInt(String(serviceRadiusMiles), 10) || 25, 1), 200);
+      updates.push(`service_radius_miles = $${idx++}`); params.push(r);
+    }
+    if (locationData && typeof locationData === 'object') {
+      const loc = locationData;
+      const lat = Number.isFinite(Number(loc.latitude)) ? Number(loc.latitude) : null;
+      const lng = Number.isFinite(Number(loc.longitude)) ? Number(loc.longitude) : null;
+      updates.push(`latitude = $${idx++}`); params.push(lat);
+      updates.push(`longitude = $${idx++}`); params.push(lng);
+      updates.push(`address = $${idx++}`); params.push(loc.address || null);
+      updates.push(`city = $${idx++}`); params.push(loc.city || null);
+      updates.push(`state = $${idx++}`); params.push(loc.state || null);
+      updates.push(`zip_code = $${idx++}`); params.push(loc.zipCode || null);
+      updates.push(`country = $${idx++}`); params.push(loc.country || null);
+      updates.push(`formatted_address = $${idx++}`); params.push(loc.formattedAddress || null);
+      updates.push(`location_source = $${idx++}`); params.push(loc.locationSource || null);
+      // keep the display `location` string in sync for legacy views
+      if (loc.formattedAddress) { updates.push(`location = $${idx++}`); params.push(loc.formattedAddress); }
+    }
+
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
     
     // Ensure profile exists for older accounts
@@ -277,6 +317,8 @@ router.put('/profile', requireCaregiver, async (req: AuthRequest, res) => {
               cp.id_card_number, cp.id_card_front, cp.id_card_back, cp.id_selfie,
               cp.id_verification_status, cp.background_check_status, cp.background_check_details,
               cp.resume_url, cp.resumes,
+              cp.latitude, cp.longitude, cp.address, cp.city, cp.state, cp.zip_code,
+              cp.country, cp.formatted_address, cp.location_source, cp.service_radius_miles,
               (SELECT status FROM verification_queue WHERE caregiver_id = u.id AND LOWER(COALESCE(background_check::text, 'false')) IN ('true', 't', '1', 'yes') AND status IN ('pending', 'awaiting_payment') LIMIT 1) as pending_status
        FROM users u JOIN caregiver_profiles cp ON cp.user_id = u.id WHERE u.id = $1`,
       [req.user!.id]

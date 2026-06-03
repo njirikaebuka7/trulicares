@@ -46,7 +46,7 @@ function formatRequest(row: any) {
 // POST /api/care-requests
 router.post('/', requireAuth, writeLimiter, async (req: AuthRequest, res) => {
   try {
-    const { careType, details, location, zip, caregiverId } = req.body;
+    const { careType, details, location, zip, caregiverId, locationData } = req.body;
     if (!careType) return res.status(400).json({ error: 'Care type is required' });
 
     const userCheck = await query('SELECT status FROM users WHERE id = $1', [req.user!.id]);
@@ -54,12 +54,25 @@ router.post('/', requireAuth, writeLimiter, async (req: AuthRequest, res) => {
       return res.status(403).json({ error: 'Your account is suspended. You cannot create new care requests.' });
     }
 
+    // Normalized, confirmed location (from the location picker). Coordinates drive geo matching.
+    const loc = locationData || {};
+    const lat = Number.isFinite(Number(loc.latitude)) ? Number(loc.latitude) : null;
+    const lng = Number.isFinite(Number(loc.longitude)) ? Number(loc.longitude) : null;
+    const locationStr = location || loc.formattedAddress || '';
+    const zipStr = zip || loc.zipCode || '';
+
     const refId = generateRefId('REQ');
     const result = await query(
-      `INSERT INTO care_requests (family_id, care_type, details, location, zip, status, ref_id)
-       VALUES ($1, $2, $3, $4, $5, 'matching', $6)
+      `INSERT INTO care_requests
+        (family_id, care_type, details, location, zip, status, ref_id,
+         latitude, longitude, address, city, state, zip_code, country, formatted_address, location_source)
+       VALUES ($1, $2, $3, $4, $5, 'matching', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING id, care_type, details, location, zip, status, created_at, ref_id`,
-      [req.user!.id, careType, details || {}, location || '', zip || '', refId]
+      [
+        req.user!.id, careType, details || {}, locationStr, zipStr, refId,
+        lat, lng, loc.address || null, loc.city || null, loc.state || null,
+        loc.zipCode || null, loc.country || null, loc.formattedAddress || null, loc.locationSource || null,
+      ]
     );
 
     const careRequest = result.rows[0];

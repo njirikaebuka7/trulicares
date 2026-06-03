@@ -15,6 +15,7 @@ import clientsRouter from './routes/clients.js';
 import staffingRouter from './routes/staffing/index.js';
 import checkrRouter from './routes/checkr.js';
 import cronRouter from './routes/cron.js';
+import geoRouter from './routes/geo.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
 import { redisHealthCheck } from './services/redis.js';
 
@@ -76,6 +77,7 @@ app.use('/api/admin', adminRouter);
 app.use('/api/clients', clientsRouter);
 app.use('/api/staffing', staffingRouter); // Independent staffing module
 app.use('/api/cron', cronRouter); // Vercel Cron maintenance jobs
+app.use('/api/geo', geoRouter); // geocoding (reverse/forward) for the location picker
 
 // ── 404 handler for unknown API routes ────────────────────────────────────────
 app.use('/api/*path', (_req, res) => {
