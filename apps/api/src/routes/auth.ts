@@ -20,11 +20,18 @@ const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])
 
 
 function detectRole(email: string, explicitRole?: string): 'family' | 'caregiver' | 'admin' | 'professional' | 'facility' {
-  if (explicitRole === 'admin' || email.includes('admin')) return 'admin';
+  // SECURITY: admin is granted ONLY via the server-side ADMIN_EMAILS allowlist.
+  // Never trust a user-supplied role of "admin" or an email merely containing "admin"
+  // (that allowed anyone to self-register as an administrator).
+  const adminEmails = (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  if (adminEmails.includes(email.toLowerCase())) return 'admin';
+
   if (explicitRole === 'professional') return 'professional';
   if (explicitRole === 'facility') return 'facility';
   if (explicitRole === 'caregiver' || email.includes('caregiver') || email.includes('provider')) return 'caregiver';
-  if (explicitRole === 'family') return 'family';
   return 'family';
 }
 
