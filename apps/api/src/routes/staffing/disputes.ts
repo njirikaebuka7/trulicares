@@ -3,6 +3,7 @@ import { query, getClient, supabase } from '../../db.js';
 import { requireAuth, AuthRequest } from '../../middleware/auth.js';
 import { getUncachableStripeClient } from '../../stripeClient.js';
 import { enqueueEmail } from '../../queues/queues.js';
+import { notifyAdmins } from '../../services/notify.js';
 
 const router = Router();
 
@@ -63,6 +64,14 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       `UPDATE shift_bookings SET status = 'disputed', updated_at = NOW() WHERE id = $1`,
       [bookingId]
     ).catch(() => {}); // Non-blocking
+
+    // Alert admins (before responding — serverless freezes after the response).
+    await notifyAdmins({
+      subject: `New dispute raised (${role})`,
+      heading: 'New shift dispute',
+      message: `A ${role} raised a dispute (reason: ${reason}) on a booking. Review and resolve it in the admin dashboard.`,
+      details: [['Reason', String(reason)], ['Raised by', role]],
+    });
 
     res.status(201).json({ dispute: result.rows[0], message: 'Dispute submitted. Our team will review within 24 hours.' });
   } catch (err) {

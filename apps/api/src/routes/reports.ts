@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
 import { generateRefId } from '../services/utils.js';
+import { notifyAdmins } from '../services/notify.js';
 
 const router = Router();
 
@@ -38,8 +39,20 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       [reporterId, reportedUserId, internalRequestId, internalMatchId, type, description, priority, reportRefId]
     );
 
-    res.status(201).json({ 
-      success: true, 
+    // Alert admins by email (before responding — serverless freezes after the response).
+    await notifyAdmins({
+      subject: `New report: ${type}`,
+      heading: 'New user report submitted',
+      message: `A ${priority}-priority report (${type}) was filed and needs review.`,
+      details: [
+        ['Reference', result.rows[0].ref_id],
+        ['Type', String(type)],
+        ['Priority', String(priority)],
+      ],
+    });
+
+    res.status(201).json({
+      success: true,
       reportId: result.rows[0].id,
       message: 'Your report has been submitted and will be reviewed by our team.'
     });

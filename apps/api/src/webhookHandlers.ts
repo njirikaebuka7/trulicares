@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import { getClient, query, supabase } from './db.js';
 import { orderBackgroundCheck } from './services/backgroundCheck.js';
 import { enqueueEmail } from './queues/queues.js';
+import { notifyAdmins } from './services/notify.js';
 
 async function broadcastStaffingUpdate(bookingId: string, event: string, payload: Record<string, unknown> = {}) {
   const bookingRes = await query(
@@ -83,6 +84,30 @@ async function markStaffingBookingPaid(session: Stripe.Checkout.Session) {
     status: 'paid',
     stripeSessionId: session.id,
   });
+
+  // Email the facility a payment confirmation for the shift booking.
+  try {
+    const info = await query(
+      `SELECT sb.ref_id, sb.total_charged, u.email, u.name, s.role
+       FROM shift_bookings sb
+       JOIN facility_profiles fp ON fp.id = sb.facility_id
+       JOIN users u ON u.id = fp.user_id
+       JOIN shifts s ON s.id = sb.shift_id
+       WHERE sb.id = $1`,
+      [bookingId]
+    );
+    if (info.rows[0]) {
+      const b = info.rows[0];
+      await enqueueEmail('payment-confirmation', b.email, {
+        name: b.name,
+        description: `${b.role} shift booking`,
+        amount: `$${parseFloat(b.total_charged).toFixed(2)}`,
+        refId: b.ref_id,
+      });
+    }
+  } catch (e: any) {
+    console.error('Staffing payment-confirmation email failed:', e?.message);
+  }
 }
 
 async function expireStaffingBooking(session: Stripe.Checkout.Session) {
@@ -251,6 +276,13 @@ export class WebhookHandlers {
 
           // Kick off the real Checkr background check (no-op fallback if Checkr is off).
           await orderBackgroundCheck(userId).catch((e) => console.error('orderBackgroundCheck failed:', e?.message));
+
+          // Alert admins there's a new verification to review.
+          await notifyAdmins({
+            subject: 'New background check / verification',
+            heading: 'New verification submitted',
+            message: 'A user paid for a background check. Review their verification in the admin queue.',
+          });
 
           // Payment confirmation email.
           const payer = await query('SELECT name, email FROM users WHERE id = $1', [userId]);

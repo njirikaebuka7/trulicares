@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query, getClient, supabase } from '../../db.js';
 import { requireAuth, AuthRequest } from '../../middleware/auth.js';
 import { getUncachableStripeClient } from '../../stripeClient.js';
+import { enqueueEmail } from '../../queues/queues.js';
 
 const router = Router();
 
@@ -62,18 +63,34 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       [shiftId, pro.id, coverNote || null]
     );
 
-    // Broadcast to facility
-    const shiftInfo = await query('SELECT facility_id, fp.user_id FROM shifts s JOIN facility_profiles fp ON fp.id = s.facility_id WHERE s.id = $1', [shiftId]);
+    // Broadcast + email the facility about the new applicant
+    const shiftInfo = await query(
+      `SELECT s.role, s.ref_id, fp.user_id, u.email AS facility_email, u.name AS facility_contact
+       FROM shifts s
+       JOIN facility_profiles fp ON fp.id = s.facility_id
+       JOIN users u ON u.id = fp.user_id
+       WHERE s.id = $1`,
+      [shiftId]
+    );
     if (shiftInfo.rows.length > 0) {
-      await supabase.channel(`facility:${shiftInfo.rows[0].user_id}`).send({
+      const fac = shiftInfo.rows[0];
+      await supabase.channel(`facility:${fac.user_id}`).send({
         type: 'broadcast',
         event: 'new_application',
-        payload: { shiftId, professionalName: proRes.rows[0].name || 'A professional' },
+        payload: { shiftId, professionalName: req.user!.name || 'A professional' },
       }).catch(() => {});
-      await supabase.channel(`facility:${shiftInfo.rows[0].user_id}`).send({
+      await supabase.channel(`facility:${fac.user_id}`).send({
         type: 'broadcast',
         event: 'shift_status_change',
         payload: { shiftId, reason: 'application_submitted' },
+      }).catch(() => {});
+
+      await enqueueEmail('care-request', fac.facility_email, {
+        name: fac.facility_contact,
+        heading: 'New applicant for your shift',
+        message: `${req.user!.name} applied for your ${fac.role} shift (${fac.ref_id}). Review their profile and accept if they're a fit.`,
+        cta: 'Review Applicants',
+        url: `${process.env.APP_URL || ''}/facility-dashboard/shifts`,
       }).catch(() => {});
     }
 
@@ -355,6 +372,15 @@ router.put('/:id/accept', requireAuth, async (req: AuthRequest, res) => {
       payload: { bookingId: booking.id, shiftId: app.shift_id, status: 'awaiting_payment' },
     }).catch(() => {});
 
+    // Email the hired professional
+    const proUser = await query('SELECT email, name FROM users WHERE id = $1', [app.pro_user_id]);
+    if (proUser.rows[0]) {
+      await enqueueEmail('account-approval', proUser.rows[0].email, {
+        name: proUser.rows[0].name,
+        message: 'your application was accepted — you’re hired for the shift!',
+      }).catch(() => {});
+    }
+
     res.json({
       booking: { ...booking, stripe_session_id: session.id },
       checkoutUrl: session.url,
@@ -391,13 +417,24 @@ router.put('/:id/reject', requireAuth, async (req: AuthRequest, res) => {
 
     const appRow = result.rows[0];
 
-    // Notify professional
+    // Notify professional (in-app + email)
     const notifRes = await query(
       `INSERT INTO notifications (user_id, type, title, content)
        VALUES ($1, 'shift_application_rejected', 'Application Not Selected', 'The facility has declined your application for this shift.')
        RETURNING *`,
       [appRow.user_id]
     );
+    const rejUser = await query('SELECT email, name FROM users WHERE id = $1', [appRow.user_id]);
+    if (rejUser.rows[0]) {
+      await enqueueEmail('generic-notification', rejUser.rows[0].email, {
+        name: rejUser.rows[0].name,
+        subject: 'Update on your shift application',
+        heading: 'Application not selected',
+        message: 'The facility chose another candidate for this shift. Keep browsing — new shifts are posted regularly.',
+        cta: 'Browse Shifts',
+        url: `${process.env.APP_URL || ''}/professional-dashboard/browse`,
+      }).catch(() => {});
+    }
     await supabase.channel(`notifications:${appRow.user_id}`).send({
       type: 'broadcast',
       event: 'new_notification',

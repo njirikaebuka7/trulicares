@@ -31,6 +31,13 @@ pool.query(`
     ADD COLUMN IF NOT EXISTS checkr_report_id TEXT;
 `).catch(err => console.error('Auto-migration failed', err));
 
+// Auto-migrate password-reset columns on users (required by forgot/reset-password)
+pool.query(`
+  ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS reset_token TEXT,
+    ADD COLUMN IF NOT EXISTS reset_token_expires TIMESTAMPTZ;
+`).catch(err => console.error('users reset-token auto-migration failed', err));
+
 // Auto-migrate Checkr columns for caregivers
 pool.query(`
   ALTER TABLE caregiver_profiles
