@@ -168,6 +168,12 @@ export const payments = {
   setDefaultPaymentMethod: (id: string) => put(`/payments/payment-method/${id}/default`),
 };
 
+// ── Geocoding (location picker) ─────────────────────────────────────────────────
+export const geo = {
+  reverse: (lat: number, lng: number) => post('/geo/reverse', { lat, lng }),
+  forward: (query: string) => post('/geo/forward', { query }),
+};
+
 // ── Notifications ─────────────────────────────────────────────────────────────
 export const notifications = {
   list: () => get('/notifications'),

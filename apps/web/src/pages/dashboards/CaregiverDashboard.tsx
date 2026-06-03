@@ -10,7 +10,7 @@ import {
 import Button from '@/components/ui/Button';
 import ReportModal from '@/components/ReportModal';
 import { useAuth } from '@/context/AuthContext';
-import { detectLocationWithZip } from '@/utils/geolocation';
+import LocationPicker from '@/components/ui/LocationPicker';
 import { auth as authApi, get, post, put } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import { sameDay, dayLabel, listStamp } from '@/utils/chatTime';
@@ -82,6 +82,8 @@ export default function CaregiverDashboard() {
   const [cgBio, setCgBio] = useState('');
   const [cgRate, setCgRate] = useState({ min: 15, max: 30 });
   const [cgLocation, setCgLocation] = useState('');
+  const [cgLocationData, setCgLocationData] = useState<any>(null);
+  const [cgServiceRadius, setCgServiceRadius] = useState(25);
   const [cgServiceZips, setCgServiceZips] = useState<string[]>([]);
   const [cgZipInput, setCgZipInput] = useState('');
   const [cgLocating, setCgLocating] = useState(false);
@@ -228,6 +230,15 @@ export default function CaregiverDashboard() {
             if (cg.hourlyRate) setCgRate({ min: cg.hourlyRate[0], max: cg.hourlyRate[1] });
             setCgLocation(cg.location || '');
             setCgServiceZips(cg.serviceZips || []);
+            setCgServiceRadius(cg.serviceRadiusMiles || 25);
+            if (cg.latitude && cg.longitude) {
+              setCgLocationData({
+                latitude: cg.latitude, longitude: cg.longitude, address: cg.address || '',
+                city: cg.city || '', state: cg.state || '', zipCode: cg.zipCode || '',
+                country: cg.country || '', formattedAddress: cg.formattedAddress || cg.location || '',
+                locationSource: cg.locationSource || 'geocoded',
+              });
+            }
             setCgSpecialties((cg.specialties || []).map((s: string) => SPECIALTY_MAP[s] || s));
             setCgExperience(cg.yearsExperience || 0);
             setPhotoUrl(cg.photoUrl || null);
@@ -3234,13 +3245,18 @@ export default function CaregiverDashboard() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Primary Service Location</label>
-                <input
-                  type="text"
-                  value={cgLocation}
-                  onChange={e => setCgLocation(e.target.value)}
-                  placeholder="e.g. Brooklyn, NY"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none text-sm"
+                <LocationPicker
+                  accent="emerald"
+                  initial={cgLocationData}
+                  onConfirm={(str, data) => { setCgLocation(str); setCgLocationData(data); }}
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Service radius: <span className="text-emerald-700 font-bold">{cgServiceRadius} miles</span></label>
+                <input type="range" min={1} max={100} value={cgServiceRadius}
+                  onChange={e => setCgServiceRadius(Number(e.target.value))} className="w-full accent-emerald-600" />
+                <p className="text-xs text-gray-400 mt-1">You'll be matched with families within this distance of your location.</p>
               </div>
 
               {/* Current zip chips */}
@@ -3291,33 +3307,19 @@ export default function CaregiverDashboard() {
               </div>
               <p className="text-xs text-gray-400 -mt-2">Press Enter or comma to add. Add as many as you cover.</p>
 
-              {/* Use my location */}
-              <button
-                onClick={async () => {
-                  setCgLocating(true);
-                  try {
-                    const { address, zip } = await detectLocationWithZip();
-                    const label = zip || address;
-                    if (address) setCgLocation(address);
-                    if (label && !cgServiceZips.includes(label)) setCgServiceZips(prev => [...prev, label]);
-                  } catch {
-                    // User denied or unavailable
-                  } finally {
-                    setCgLocating(false);
-                  }
-                }}
-                disabled={cgLocating}
-                className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-emerald-50 text-emerald-700 font-medium text-sm hover:bg-emerald-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {cgLocating ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
-                {cgLocating ? 'Detecting your location…' : 'Add my current location'}
-              </button>
-
               <div className="flex gap-3 pt-2">
                 <Button variant="secondary" fullWidth onClick={() => setCgModal(null)}>Cancel</Button>
                 <Button variant="primary" fullWidth disabled={cgSaving} onClick={async () => {
                   setCgSaving(true);
-                  try { await put('/caregivers/profile', { location: cgLocation, serviceZips: cgServiceZips }); showToast('Service area saved!'); setCgModal(null); fetchData(true); } catch { showToast('Failed to save.'); }
+                  try {
+                    await put('/caregivers/profile', {
+                      location: cgLocation,
+                      serviceZips: cgServiceZips,
+                      locationData: cgLocationData,
+                      serviceRadiusMiles: cgServiceRadius,
+                    });
+                    showToast('Service area saved!'); setCgModal(null); fetchData(true);
+                  } catch { showToast('Failed to save.'); }
                   finally { setCgSaving(false); }
                 }} className="bg-emerald-600 hover:bg-emerald-700">{cgSaving ? 'Saving…' : 'Save Area'}</Button>
               </div>

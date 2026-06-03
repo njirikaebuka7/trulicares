@@ -83,6 +83,7 @@ export default function FindCare() {
       const payload: any = {
         careType: careCategory,
         location: (careData.location as string) || '',
+        locationData: (careData.locationData as any) || null,
         details: careData,
       };
 

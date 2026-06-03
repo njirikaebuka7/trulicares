@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import StepContainer from '@/components/ui/StepContainer';
 import SelectCard from '@/components/ui/SelectCard';
-import { MapPin, Loader2 } from 'lucide-react';
-import { detectLocationWithZip } from '@/utils/geolocation';
+import LocationPicker, { type LocationData } from '@/components/ui/LocationPicker';
 
 interface Props {
   onComplete: (data: Record<string, unknown>) => void;
@@ -28,11 +27,11 @@ export default function CleaningFlow({ onComplete, onBack, onCancel }: Props) {
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [location, setLocation] = useState('');
   const [payRange, setPayRange] = useState(35);
-  const [locating, setLocating] = useState(false);
+  const [locationData, setLocationData] = useState<LocationData | null>(null);
 
   const goNext = () => {
     if (step < totalSteps - 1) setStep(step + 1);
-    else onComplete({ propertyType, bedrooms, bathrooms, sqft, cleaningType, frequency, areas, suppliesProvided, pets, preferredDate, timeWindow, specialInstructions, location, payRange: [20, payRange] });
+    else onComplete({ propertyType, bedrooms, bathrooms, sqft, cleaningType, frequency, areas, suppliesProvided, pets, preferredDate, timeWindow, specialInstructions, location, locationData, payRange: [20, payRange] });
   };
   const goBack = () => { if (step > 0) setStep(step - 1); else onBack(); };
   const toggleArea = (a: string) => setAreas(p => p.includes(a) ? p.filter(x => x !== a) : [...p, a]);
@@ -169,29 +168,10 @@ export default function CleaningFlow({ onComplete, onBack, onCancel }: Props) {
     />,
     // Location
     <>
-      <div className="bg-white rounded-2xl border border-gray-200 p-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">City or ZIP code</label>
-        <input type="text" value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g. Jersey City, NJ"
-          className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none" />
-      </div>
-      <button
-        onClick={async () => {
-          setLocating(true);
-          try {
-            const { address } = await detectLocationWithZip();
-            setLocation(address);
-          } catch {
-            // User denied or unavailable — they can type manually
-          } finally {
-            setLocating(false);
-          }
-        }}
-        disabled={locating}
-        className="flex items-center gap-2 px-4 py-3 rounded-xl bg-brand-50 text-brand-700 font-medium text-sm hover:bg-brand-100 transition-colors w-full disabled:opacity-60 disabled:cursor-not-allowed"
-      >
-        {locating ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
-        {locating ? 'Detecting your location…' : 'Use my current location'}
-      </button>
+      <LocationPicker
+        initial={locationData}
+        onConfirm={(str, data) => { setLocation(str); setLocationData(data); }}
+      />
     </>,
     // Pay range
     <div className="bg-white rounded-2xl border border-gray-200 p-6">
