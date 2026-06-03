@@ -45,20 +45,38 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
 // POST /api/reviews
 router.post('/', requireAuth, async (req: AuthRequest, res) => {
   try {
+    const { id: userId, role } = req.user!;
     const { caregiverId, rating, text, service } = req.body;
 
+    // Only families can review, and only caregivers they've actually engaged with.
+    if (role !== 'family') {
+      return res.status(403).json({ error: 'Only families can leave reviews' });
+    }
     if (!caregiverId || !rating) {
       return res.status(400).json({ error: 'caregiverId and rating are required' });
     }
-    if (rating < 1 || rating > 5) {
-      return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+    const ratingNum = Number(rating);
+    if (!Number.isInteger(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+      return res.status(400).json({ error: 'Rating must be an integer between 1 and 5' });
     }
 
+    // Eligibility: there must be an accepted match between this family and caregiver.
+    const rel = await query(
+      `SELECT 1 FROM matches WHERE family_id = $1 AND caregiver_id = $2 AND status = 'accepted' LIMIT 1`,
+      [userId, caregiverId]
+    );
+    if (rel.rows.length === 0) {
+      return res.status(403).json({ error: 'You can only review a caregiver you have worked with.' });
+    }
+
+    // One review per family↔caregiver — update the existing one instead of erroring/stuffing.
     const result = await query(
       `INSERT INTO reviews (caregiver_id, family_id, rating, text, service)
        VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (caregiver_id, family_id) DO UPDATE
+         SET rating = EXCLUDED.rating, text = EXCLUDED.text, service = EXCLUDED.service, created_at = NOW()
        RETURNING id, rating, text, service, created_at`,
-      [caregiverId, req.user!.id, rating, text || '', service || '']
+      [caregiverId, userId, ratingNum, text || '', service || '']
     );
 
     // Update caregiver's average rating
