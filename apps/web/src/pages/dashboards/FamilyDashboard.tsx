@@ -15,6 +15,7 @@ import { get, post, put, auth as authApi, payments as paymentsApi, notifications
 import { cn } from '@/utils/cn';
 import { sameDay, dayLabel, listStamp } from '@/utils/chatTime';
 import { TrustBadges, DistanceChip } from '@/components/ui/CaregiverTrust';
+import EmptyState from '@/components/ui/EmptyState';
 import { supabase } from '@/lib/supabase';
 import logoImg from '@/assets/logo.png';
 
@@ -177,6 +178,7 @@ export default function FamilyDashboard() {
   const [conversations, setConversations] = useState<any[]>([]);
   const [apiNotifications, setApiNotifications] = useState<any[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const loadMessages = async (convId: string) => {
     try {
@@ -222,10 +224,18 @@ export default function FamilyDashboard() {
       if (payRes.status === 'fulfilled') setPayments((payRes.value as any).payments || []);
       if (convRes.status === 'fulfilled') setConversations((convRes.value as any).conversations || []);
       if (notifRes.status === 'fulfilled') setApiNotifications((notifRes.value as any).notifications || []);
+      // Surface a retry affordance only on a total failure (e.g. network/outage).
+      setLoadError([matRes, reqRes, schedRes, payRes, convRes, notifRes].every((r) => r.status === 'rejected'));
     }).finally(() => {
       setDataLoading(false);
     });
   }, []);
+
+  const retryLoad = useCallback(() => {
+    setLoadError(false);
+    setDataLoading(true);
+    fetchData();
+  }, [fetchData]);
 
   useEffect(() => {
     setDataLoading(true);
@@ -819,8 +829,17 @@ export default function FamilyDashboard() {
             </div>
           )}
 
+          {/* ── TOTAL LOAD FAILURE ── */}
+          {!dataLoading && loadError && (
+            <EmptyState
+              title="We couldn't load your dashboard"
+              subtitle="Please check your connection and try again."
+              action={{ label: 'Retry', onClick: retryLoad }}
+            />
+          )}
+
           {/* ── OVERVIEW ── */}
-          {!dataLoading && activeTab === 'Overview' && (
+          {!dataLoading && !loadError && activeTab === 'Overview' && (
             <div className="space-y-6">
               <div className="bg-gradient-to-br from-brand-600 to-brand-800 rounded-3xl p-6 text-white relative overflow-hidden">
                 <div className="absolute -right-8 -top-8 w-40 h-40 bg-white/5 rounded-full" />
@@ -868,6 +887,12 @@ export default function FamilyDashboard() {
                     <button onClick={() => setActiveTab('Schedule')} className="text-sm text-brand-600 font-medium hover:underline">View all</button>
                   </div>
                   <div className="divide-y divide-gray-50">
+                    {schedule.length === 0 && (
+                      <div className="px-5 py-8 text-center text-sm text-gray-400">
+                        <Calendar className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                        No upcoming sessions yet. Book one with a matched caregiver.
+                      </div>
+                    )}
                     {schedule.slice(0, 3).map((session: any) => (
                       <div key={session.id} className="flex items-center gap-3 px-5 py-3.5">
                         <div className={cn('w-2 h-10 rounded-full shrink-0', session.colorClass)} />
@@ -1058,7 +1083,7 @@ export default function FamilyDashboard() {
                                 })}
                                 className="text-xs text-gray-400 hover:text-red-500 font-medium px-2 py-1 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1.5"
                               >
-                                <Flag className="w-3 h-3" /> Dispute
+                                <Flag className="w-3 h-3" /> Report
                               </button>
                             </div>
                           </div>
