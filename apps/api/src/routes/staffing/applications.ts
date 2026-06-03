@@ -25,6 +25,15 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Professional profile not found. Please complete onboarding.' });
     }
     const pro = proRes.rows[0];
+
+    // Compliance: only verified professionals can apply to / book shifts.
+    if (pro.verification_status !== 'approved') {
+      return res.status(403).json({
+        error: 'Your profile must be verified before you can apply to shifts. Our team is reviewing your credentials.',
+        code: 'PRO_NOT_VERIFIED',
+      });
+    }
+
     const allLicenses = [pro.license_type, ...(pro.extra_licenses || [])].filter(Boolean);
 
     const { shiftId, coverNote } = req.body;

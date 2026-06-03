@@ -295,14 +295,18 @@ router.post('/background-check', requireAuth, async (req: AuthRequest, res) => {
       return res.status(403).json({ error: 'Professional access only' });
     }
     const { details } = req.body;
+    // SECURITY: never persist a raw SSN. The real identity/SSN check is performed by our
+    // screening partner (Checkr) on its hosted form — TruliCares never stores it.
+    const { ssn: _ssn, socialSecurityNumber: _ssn2, ...safeDetails } = details || {};
 
     try {
       await query(
         `UPDATE professional_profiles SET
            background_check_details = $1,
+           background_check_status = 'pending',
            updated_at = NOW()
          WHERE user_id = $2`,
-        [JSON.stringify(details), req.user!.id]
+        [JSON.stringify(safeDetails), req.user!.id]
       );
     } catch {
       // Column may not exist — ignore
@@ -315,16 +319,16 @@ router.post('/background-check', requireAuth, async (req: AuthRequest, res) => {
     if (proResult.rows.length > 0) {
       const proId = proResult.rows[0].id;
       const summaryDocs = [
-        details.legalName ? `Legal Name: ${details.legalName}` : null,
-        details.dob ? `Date of Birth: ${details.dob}` : null,
-        details.currentAddress ? `Address: ${details.currentAddress}` : null,
+        safeDetails.legalName ? `Legal Name: ${safeDetails.legalName}` : null,
+        safeDetails.dob ? `Date of Birth: ${safeDetails.dob}` : null,
+        safeDetails.currentAddress ? `Address: ${safeDetails.currentAddress}` : null,
       ].filter(Boolean) as string[];
 
       await query(
         `INSERT INTO staffing_verification_queue (entity_type, entity_id, user_id, specialty, documents, background_check_details)
          VALUES ('professional', $1, $2, 'Background Check', $3, $4)
          ON CONFLICT DO NOTHING`,
-        [proId, req.user!.id, summaryDocs, JSON.stringify(details)]
+        [proId, req.user!.id, summaryDocs, JSON.stringify(safeDetails)]
       ).catch(() => {});
     }
 
@@ -335,15 +339,17 @@ router.post('/background-check', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// ── GET /api/staffing/professionals/:id — Public profile ───────
+// ── GET /api/staffing/professionals/:id — Public profile (no PII) ───────
+// Returns only non-sensitive fields. License NUMBERS, email, phone and ID/background
+// docs are never exposed here — the owner uses /me; facilities see applicant details
+// for THEIR shifts via the applications endpoint.
 router.get('/:id', requireAuth, async (req: AuthRequest, res) => {
   try {
     const result = await query(
-      `SELECT pp.id, pp.license_type, pp.license_number, pp.license_state,
+      `SELECT pp.id, pp.license_type, pp.license_state,
               pp.specialties, pp.years_experience, pp.bio, pp.location,
               pp.verification_status, pp.background_check_status,
-              pp.cert_doc_urls, pp.license_doc_url,
-              u.name, u.email, u.photo_url, u.phone
+              u.name, u.photo_url
        FROM professional_profiles pp
        JOIN users u ON u.id = pp.user_id
        WHERE pp.id = $1`,

@@ -126,12 +126,14 @@ router.put('/profile', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// ── GET /api/staffing/facilities/:id — public profile ──────────
+// ── GET /api/staffing/facilities/:id — public profile (no contact PII) ──────────
+// EIN, phone and exact street address are owner-only; pros get facility contact
+// in-app after they're booked.
 router.get('/:id', requireAuth, async (req: AuthRequest, res) => {
   try {
     const result = await query(
-      `SELECT fp.id, fp.facility_name, fp.facility_type, fp.address, fp.city,
-              fp.state, fp.zip, fp.phone, fp.website, fp.verification_status,
+      `SELECT fp.id, fp.facility_name, fp.facility_type, fp.city,
+              fp.state, fp.website, fp.verification_status,
               u.name, u.photo_url
        FROM facility_profiles fp
        JOIN users u ON u.id = fp.user_id

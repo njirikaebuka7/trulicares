@@ -21,9 +21,12 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Facility profile not found. Please complete onboarding.' });
     }
     const facility = facilityRes.rows[0];
-    // if (facility.verification_status !== 'approved') {
-    //   return res.status(403).json({ error: 'Your facility must be verified before posting shifts.' });
-    // }
+    if (facility.verification_status !== 'approved') {
+      return res.status(403).json({
+        error: 'Your facility must be verified before posting shifts. Our team is reviewing your account.',
+        code: 'FACILITY_NOT_VERIFIED',
+      });
+    }
 
     const {
       role, specialty, description, payRate, durationHours,
@@ -310,7 +313,7 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res) => {
   try {
     const result = await query(
       `SELECT s.*, fp.facility_name, fp.facility_type, fp.city AS facility_city,
-              fp.phone AS facility_phone, fp.verification_status AS facility_verified
+              fp.verification_status AS facility_verified
        FROM shifts s
        JOIN facility_profiles fp ON fp.id = s.facility_id
        WHERE s.id = $1`,

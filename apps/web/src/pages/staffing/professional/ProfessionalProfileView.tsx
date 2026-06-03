@@ -922,13 +922,12 @@ export default function ProfessionalProfileView() {
                 <div className="space-y-5">
                   <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 flex gap-3">
                     <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                    <p className="text-xs text-amber-700 font-medium leading-relaxed">This information is used solely for background screening and is encrypted.</p>
+                    <p className="text-xs text-amber-700 font-medium leading-relaxed">Your SSN is collected directly by our accredited screening partner on their secure portal — TruliCares never stores it. Other details are used solely for verification.</p>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-4">
                     {[
                       { label: 'Legal Full Name', key: 'legalName', placeholder: 'As it appears on ID' },
                       { label: 'Date of Birth', key: 'dob', type: 'date', placeholder: '' },
-                      { label: 'Social Security Number', key: 'ssn', placeholder: 'XXX-XX-XXXX' },
                       { label: 'Current Address', key: 'currentAddress', placeholder: '123 Main St, City, State ZIP' },
                       { label: 'Previous Address (if any)', key: 'previousAddress', placeholder: 'Optional' },
                     ].map(field => (
