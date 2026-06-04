@@ -164,6 +164,20 @@ pool.query(`
   );
 `).catch(err => console.error('platform_settings auto-migration failed', err));
 
+// Background-check event history — one row per Turn webhook/status change (timeline).
+pool.query(`
+  CREATE TABLE IF NOT EXISTS background_check_events (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    check_id TEXT,
+    status TEXT,
+    raw_status TEXT,
+    source TEXT DEFAULT 'turn_webhook',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_bgevents_user ON background_check_events(user_id, created_at DESC);
+`).catch(err => console.error('background_check_events auto-migration failed', err));
+
 // Admin audit log — records consequential admin actions for accountability.
 pool.query(`
   CREATE TABLE IF NOT EXISTS admin_audit_logs (

@@ -135,13 +135,22 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleStaffingVerify = async (id: string, status: 'approved' | 'rejected') => {
+  const handleStaffingVerify = async (id: string, status: 'approved' | 'rejected' | 'needs_review') => {
     // optimistic remove from the list
     setProfessionalVerifications((prev) => prev.filter((v: any) => v.id !== id));
     try {
       await put(`/admin/staffing-verification/${id}`, { status });
     } catch {
       refreshAllData(); // restore on failure
+    }
+  };
+
+  const handleResendBgLink = async (userId: string) => {
+    try {
+      const r: any = await post(`/admin/background-check/${userId}/resend`, {});
+      if (r?.url) { window.open(r.url, '_blank'); }
+    } catch (e) {
+      console.error('Resend bg link failed', e);
     }
   };
 
@@ -1135,15 +1144,40 @@ export default function AdminDashboard() {
                                 <p className="text-xs text-gray-500 truncate">{subtitle}</p>
                               </div>
                             </div>
-                            <div className="flex gap-2">
+                            {/* Background-check status (professionals) */}
+                            {!isFacility && (
+                              <div className="flex flex-wrap items-center gap-1.5 mb-3 text-[10px] font-bold">
+                                <span className={cn('px-1.5 py-0.5 rounded uppercase',
+                                  v.background_check_status === 'passed' ? 'bg-emerald-50 text-emerald-700' :
+                                  v.background_check_status === 'failed' || v.background_check_status === 'needs_review' ? 'bg-red-50 text-red-700' :
+                                  'bg-amber-50 text-amber-700')}>
+                                  BG: {(v.background_check_status || 'not started').replace('_', ' ')}
+                                </span>
+                                <span className={cn('px-1.5 py-0.5 rounded uppercase',
+                                  v.background_check_payment_status === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500')}>
+                                  Pay: {v.background_check_payment_status || 'unpaid'}
+                                </span>
+                              </div>
+                            )}
+                            <div className="flex flex-wrap gap-2">
                               <button onClick={() => handleStaffingVerify(v.id, 'approved')}
                                 className="flex-1 px-3 py-1.5 bg-blue-600 text-white text-[10px] font-black uppercase rounded-lg hover:bg-blue-700 transition-all active:scale-95">
                                 Approve
+                              </button>
+                              <button onClick={() => handleStaffingVerify(v.id, 'needs_review')}
+                                className="flex-1 px-3 py-1.5 bg-amber-100 text-amber-700 text-[10px] font-black uppercase rounded-lg hover:bg-amber-200 transition-all active:scale-95">
+                                Needs Review
                               </button>
                               <button onClick={() => handleStaffingVerify(v.id, 'rejected')}
                                 className="flex-1 px-3 py-1.5 bg-gray-100 text-gray-600 text-[10px] font-black uppercase rounded-lg hover:bg-gray-200 transition-all active:scale-95">
                                 Reject
                               </button>
+                              {!isFacility && v.user_id && (
+                                <button onClick={() => handleResendBgLink(v.user_id)}
+                                  className="w-full px-3 py-1.5 border border-gray-200 text-gray-600 text-[10px] font-black uppercase rounded-lg hover:bg-gray-50 transition-all active:scale-95">
+                                  Resend Background-Check Link
+                                </button>
+                              )}
                             </div>
                           </div>
                         );

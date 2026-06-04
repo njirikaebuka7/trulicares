@@ -9,6 +9,7 @@ import { getPricing, setSetting, PRICING_DEFAULTS } from '../services/settings.j
 import { cacheAside, cacheDel } from '../services/cache.js';
 import { isConnectEnabled } from '../services/connect.js';
 import { getUncachableStripeClient } from '../stripeClient.js';
+import { resendBackgroundCheckLink } from '../services/backgroundCheck.js';
 
 const router = Router();
 
@@ -522,11 +523,12 @@ router.get('/staffing-verification-queue', requireAdmin, async (_req, res) => {
   try {
     const result = await query(
       `SELECT vq.id, vq.entity_type, vq.entity_id, vq.status, vq.created_at,
-              vq.documents,
+              vq.documents, vq.user_id,
               u.name, u.email, u.photo_url,
               pp.license_type, pp.specialties, pp.years_experience, pp.bio,
               pp.location AS pro_location, pp.verification_status AS pro_status,
-              pp.background_check_status,
+              pp.background_check_status, pp.background_check_payment_status,
+              pp.turn_check_id, pp.background_check_started_at, pp.background_check_completed_at,
               (SELECT json_agg(pl.* ORDER BY pl.created_at) FROM professional_licenses pl WHERE pl.professional_id = pp.id) AS licenses,
               fp.facility_name, fp.facility_type, fp.city AS fac_city, fp.state AS fac_state,
               fp.ein, fp.verification_status AS fac_status
@@ -554,8 +556,8 @@ router.get('/staffing-verification-queue', requireAdmin, async (_req, res) => {
 router.put('/staffing-verification/:id', requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { status, notes } = req.body;
-    if (!['approved', 'rejected', 'under_review'].includes(status)) {
-      return res.status(400).json({ error: 'Status must be approved, rejected, or under_review' });
+    if (!['approved', 'rejected', 'under_review', 'needs_review'].includes(status)) {
+      return res.status(400).json({ error: 'Status must be approved, rejected, under_review, or needs_review' });
     }
 
     const vqRes = await query(
@@ -635,6 +637,36 @@ router.put('/settings/pricing', requireAdmin, async (req: AuthRequest, res) => {
   } catch (err) {
     console.error('Update pricing error:', err);
     res.status(500).json({ error: 'Failed to update pricing' });
+  }
+});
+
+// GET /api/admin/background-check/:userId/timeline — Turn status history
+router.get('/background-check/:userId/timeline', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const events = await query(
+      `SELECT id, check_id, status, raw_status, source, created_at
+       FROM background_check_events WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50`,
+      [req.params.userId]
+    );
+    res.json({ events: events.rows });
+  } catch (err) {
+    console.error('BG timeline error:', err);
+    res.status(500).json({ error: 'Failed to fetch timeline' });
+  }
+});
+
+// POST /api/admin/background-check/:userId/resend — resurface the Turn hosted link
+router.post('/background-check/:userId/resend', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const uRes = await query('SELECT role FROM users WHERE id = $1', [req.params.userId]);
+    if (uRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    const url = await resendBackgroundCheckLink(String(req.params.userId), uRes.rows[0].role);
+    if (!url) return res.status(404).json({ error: 'No active background check link found' });
+    await auditFromReq(req, 'background_check.resend', 'user', req.params.userId);
+    res.json({ url });
+  } catch (err) {
+    console.error('BG resend (admin) error:', err);
+    res.status(500).json({ error: 'Failed to resend link' });
   }
 });
 

@@ -125,6 +125,13 @@ export async function applyTurnResult(opts: {
     if (res.rows.length === 0) continue;
     const userId = res.rows[0].user_id;
 
+    // Append to the bg-check timeline (audit/webhook history).
+    await query(
+      `INSERT INTO background_check_events (user_id, check_id, status, raw_status, source)
+       VALUES ($1, $2, $3, $4, 'turn_webhook')`,
+      [userId, opts.checkId || null, mapped, opts.status || opts.result || null]
+    ).catch(() => {});
+
     await supabase.channel(`profile:${userId}`).send({
       type: 'broadcast', event: 'verification_update', payload: { background_check_status: mapped },
     }).catch(() => {});
