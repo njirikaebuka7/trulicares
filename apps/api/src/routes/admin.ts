@@ -2,9 +2,17 @@ import { Router } from 'express';
 import { query, supabase } from '../db.js';
 import { requireAdmin, AuthRequest } from '../middleware/auth.js';
 import { sendVerificationStatusEmail } from '../services/email.js';
-import { decryptPII, decryptArray } from '../services/pii.js';
+import { decryptArray } from '../services/pii.js';
+import { auditFromReq } from '../services/audit.js';
+import { writeLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
+
+// Rate-limit all admin mutations (40/min/admin). Reads are unaffected.
+router.use((req, res, next) => {
+  if (req.method === 'GET') return next();
+  return writeLimiter(req, res, next);
+});
 
 // GET /api/admin/stats
 router.get('/stats', requireAdmin, async (_req, res) => {
@@ -17,7 +25,7 @@ router.get('/stats', requireAdmin, async (_req, res) => {
                COUNT(CASE WHEN role = 'professional' THEN 1 END) as professionals,
                COUNT(CASE WHEN role = 'facility' THEN 1 END) as facilities,
                COUNT(CASE WHEN created_at >= NOW() - INTERVAL '30 days' THEN 1 END) as new_this_month
-             FROM users WHERE role != 'admin'`),
+             FROM users WHERE role != 'admin' AND deleted_at IS NULL`),
       query(`SELECT
                COUNT(*) as total,
                COUNT(CASE WHEN verified = true THEN 1 END) as verified,
@@ -89,7 +97,7 @@ router.get('/users', requireAdmin, async (req: AuthRequest, res) => {
     const limit = 20;
     const offset = (pageNum - 1) * limit;
 
-    const conditions: string[] = ["u.role != 'admin'"];
+    const conditions: string[] = ["u.role != 'admin'", 'u.deleted_at IS NULL'];
     const params: any[] = [];
     let idx = 1;
 
@@ -178,6 +186,7 @@ router.put('/users/:id', requireAdmin, async (req: AuthRequest, res) => {
     );
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    await auditFromReq(req, 'user.update', 'user', req.params.id, { fields: { name, email, role, status } });
     res.json({ user: result.rows[0] });
   } catch (err) {
     console.error('Admin update user error:', err);
@@ -185,11 +194,16 @@ router.put('/users/:id', requireAdmin, async (req: AuthRequest, res) => {
   }
 });
 
-// DELETE /api/admin/users/:id
+// DELETE /api/admin/users/:id — SOFT delete (archive). Data is retained + auditable.
 router.delete('/users/:id', requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const result = await query('DELETE FROM users WHERE id = $1 RETURNING id', [req.params.id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    const result = await query(
+      `UPDATE users SET status = 'deleted', deleted_at = NOW(), updated_at = NOW()
+       WHERE id = $1 AND deleted_at IS NULL RETURNING id, name, email, role`,
+      [req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found or already deleted' });
+    await auditFromReq(req, 'user.delete', 'user', req.params.id, { archived: result.rows[0] });
     res.json({ success: true, deleted: req.params.id });
   } catch (err) {
     console.error('Admin delete user error:', err);
@@ -214,6 +228,7 @@ router.put('/users/:id/suspend', requireAdmin, async (req: AuthRequest, res) => 
       [req.params.id, `Your account has been suspended by an administrator. Reason: ${reason || 'No specific reason provided'}. Please contact support if you believe this is an error.`]
     );
 
+    await auditFromReq(req, 'user.suspend', 'user', req.params.id, { reason: reason || null });
     res.json({ user: result.rows[0] });
   } catch (err) {
     console.error('Suspend user error:', err);
@@ -237,6 +252,7 @@ router.put('/users/:id/restore', requireAdmin, async (req: AuthRequest, res) => 
       [req.params.id]
     );
 
+    await auditFromReq(req, 'user.restore', 'user', req.params.id);
     res.json({ user: result.rows[0] });
   } catch (err) {
     console.error('Restore user error:', err);
@@ -251,8 +267,7 @@ router.get('/verification-queue', requireAdmin, async (_req, res) => {
       `SELECT vq.id, vq.caregiver_id, vq.specialty, vq.experience, vq.documents,
               vq.background_check, vq.status, vq.created_at,
               u.name, u.email, u.photo_url,
-              cp.location, cp.specialties, cp.years_experience,
-              cp.id_card_number, cp.background_check_details
+              cp.location, cp.specialties, cp.years_experience
        FROM verification_queue vq
        JOIN users u ON u.id = vq.caregiver_id
        LEFT JOIN caregiver_profiles cp ON cp.user_id = vq.caregiver_id
@@ -273,8 +288,6 @@ router.get('/verification-queue', requireAdmin, async (_req, res) => {
         documents: row.documents || [],
         backgroundCheck: row.background_check,
         status: row.status,
-        idCardNumber: row.id_card_number,
-        backgroundCheckDetails: row.background_check_details,
         submittedAt: new Date(row.created_at).toLocaleDateString('en-US', {
           month: 'short', day: 'numeric', year: 'numeric',
         }),
@@ -347,6 +360,7 @@ router.put('/verification/:id', requireAdmin, async (req: AuthRequest, res) => {
       }).catch(() => {});
     }
 
+    await auditFromReq(req, 'verification.update', 'caregiver', entry.caregiver_id, { status, kind: entry.specialty });
     res.json({ entry: result.rows[0] });
   } catch (err) {
     console.error('Update verification error:', err);
@@ -410,6 +424,7 @@ router.put('/reports/:id', requireAdmin, async (req: AuthRequest, res) => {
     );
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Report not found' });
+    await auditFromReq(req, 'report.update', 'report', req.params.id, { status });
     res.json({ report: result.rows[0] });
   } catch (err) {
     console.error('Update report error:', err);
@@ -456,7 +471,7 @@ router.get('/staffing-verification-queue', requireAdmin, async (_req, res) => {
   try {
     const result = await query(
       `SELECT vq.id, vq.entity_type, vq.entity_id, vq.status, vq.created_at,
-              vq.documents, vq.background_check_details, vq.id_card_number,
+              vq.documents,
               u.name, u.email, u.photo_url,
               pp.license_type, pp.specialties, pp.years_experience, pp.bio,
               pp.location AS pro_location, pp.verification_status AS pro_status,
@@ -472,12 +487,10 @@ router.get('/staffing-verification-queue', requireAdmin, async (_req, res) => {
        ORDER BY vq.created_at ASC`
     );
 
-    // Decrypt identity PII for admin review (transparent for legacy plaintext rows).
+    // Decrypt any encrypted document blobs for admin review (legacy/govt-ID uploads).
     const queue = result.rows.map((row: any) => ({
       ...row,
       documents: decryptArray(row.documents),
-      id_card_number: decryptPII(row.id_card_number),
-      background_check_details: decryptPII(row.background_check_details),
     }));
     res.json({ queue });
   } catch (err) {
@@ -529,10 +542,45 @@ router.put('/staffing-verification/:id', requireAdmin, async (req: AuthRequest, 
       }).catch(() => {});
     }
 
+    await auditFromReq(req, 'staffing_verification.update', entry.entity_type, entry.entity_id, { status, notes: notes || null });
     res.json({ message: `Verification ${status}`, entityType: entry.entity_type });
   } catch (err) {
     console.error('Staffing verification update error:', err);
     res.status(500).json({ error: 'Failed to update staffing verification' });
+  }
+});
+
+// GET /api/admin/audit-logs — paginated admin action history
+router.get('/audit-logs', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { page = '1', action } = req.query as any;
+    const pageNum = Math.max(1, parseInt(page, 10));
+    const limit = 30;
+    const offset = (pageNum - 1) * limit;
+
+    const conditions: string[] = [];
+    const params: any[] = [];
+    let idx = 1;
+    if (action) { conditions.push(`action = $${idx++}`); params.push(action); }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const countRes = await query(`SELECT COUNT(*) FROM admin_audit_logs ${where}`, params);
+    params.push(limit, offset);
+    const result = await query(
+      `SELECT id, admin_email, action, entity_type, entity_id, metadata, created_at
+       FROM admin_audit_logs ${where}
+       ORDER BY created_at DESC
+       LIMIT $${idx} OFFSET $${idx + 1}`,
+      params
+    );
+    const total = parseInt(countRes.rows[0].count);
+    res.json({
+      logs: result.rows,
+      pagination: { total, page: pageNum, pages: Math.ceil(total / limit), limit },
+    });
+  } catch (err) {
+    console.error('Audit logs error:', err);
+    res.status(500).json({ error: 'Failed to fetch audit logs' });
   }
 });
 

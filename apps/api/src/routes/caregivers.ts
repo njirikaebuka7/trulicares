@@ -62,11 +62,9 @@ function formatCaregiver(row: any, includePrivate = false) {
   return {
     ...base,
     email: row.email,
-    idCardNumber: row.id_card_number || '',
     idCardFront: row.id_card_front || '',
     idCardBack: row.id_card_back || '',
     idSelfie: row.id_selfie || '',
-    backgroundCheckDetails: row.background_check_details || null,
     latitude: row.latitude ?? null,
     longitude: row.longitude ?? null,
     address: row.address || '',
@@ -127,8 +125,8 @@ router.get('/', requireAuth, searchLimiter, async (req, res) => {
               cp.rating, cp.review_count, cp.location, cp.service_zips,
               cp.verified, cp.background_checked, cp.years_experience, cp.availability,
               cp.job_title, cp.languages, cp.education, cp.certifications,
-              cp.id_card_number, cp.id_card_front, cp.id_card_back, cp.id_selfie,
-              cp.id_verification_status, cp.background_check_status, cp.background_check_details,
+              cp.id_card_front, cp.id_card_back, cp.id_selfie,
+              cp.id_verification_status, cp.background_check_status,
               cp.resume_url, cp.resumes,
               cp.latitude, cp.longitude, cp.address, cp.city, cp.state, cp.zip_code,
               cp.country, cp.formatted_address, cp.location_source, cp.service_radius_miles,
@@ -160,8 +158,8 @@ router.get('/profile/me', requireCaregiver, async (req: AuthRequest, res) => {
               cp.rating, cp.review_count, cp.location, cp.service_zips,
               cp.verified, cp.background_checked, cp.years_experience, cp.availability,
               cp.job_title, cp.languages, cp.education, cp.certifications,
-              cp.id_card_number, cp.id_card_front, cp.id_card_back, cp.id_selfie,
-              cp.id_verification_status, cp.background_check_status, cp.background_check_details,
+              cp.id_card_front, cp.id_card_back, cp.id_selfie,
+              cp.id_verification_status, cp.background_check_status,
               cp.resume_url, cp.resumes,
               cp.latitude, cp.longitude, cp.address, cp.city, cp.state, cp.zip_code,
               cp.country, cp.formatted_address, cp.location_source, cp.service_radius_miles,
@@ -194,8 +192,8 @@ router.get('/:id', requireAuth, async (req, res) => {
               cp.rating, cp.review_count, cp.location, cp.service_zips,
               cp.verified, cp.background_checked, cp.years_experience, cp.availability,
               cp.job_title, cp.languages, cp.education, cp.certifications,
-              cp.id_card_number, cp.id_card_front, cp.id_card_back, cp.id_selfie,
-              cp.id_verification_status, cp.background_check_status, cp.background_check_details,
+              cp.id_card_front, cp.id_card_back, cp.id_selfie,
+              cp.id_verification_status, cp.background_check_status,
               cp.resume_url, cp.resumes,
               cp.latitude, cp.longitude, cp.address, cp.city, cp.state, cp.zip_code,
               cp.country, cp.formatted_address, cp.location_source, cp.service_radius_miles,
@@ -244,8 +242,8 @@ router.put('/profile', requireCaregiver, async (req: AuthRequest, res) => {
     const {
       bio, specialties, hourlyRateMin, hourlyRateMax, yearsExperience,
       availability, location, serviceZips, jobTitle, languages, education, certifications,
-      idCardNumber, idCardFront, idCardBack, idSelfie,
-      backgroundCheckDetails, resumeUrl, resumes,
+      idCardFront, idCardBack, idSelfie,
+      resumeUrl, resumes,
       locationData, serviceRadiusMiles
     } = req.body;
     // NOTE: idVerificationStatus / backgroundCheckStatus are intentionally NOT accepted
@@ -269,12 +267,11 @@ router.put('/profile', requireCaregiver, async (req: AuthRequest, res) => {
     if (education !== undefined) { updates.push(`education = $${idx++}`); params.push(education); }
     if (certifications) { updates.push(`certifications = $${idx++}`); params.push(certifications); }
     
-    // New Profile Fields updates
-    if (idCardNumber !== undefined) { updates.push(`id_card_number = $${idx++}`); params.push(idCardNumber); }
+    // New Profile Fields updates (ID number + raw bg-check details are no longer stored —
+    // Turn.ai handles all sensitive identity/background data on its hosted flow).
     if (idCardFront !== undefined) { updates.push(`id_card_front = $${idx++}`); params.push(idCardFront); }
     if (idCardBack !== undefined) { updates.push(`id_card_back = $${idx++}`); params.push(idCardBack); }
     if (idSelfie !== undefined) { updates.push(`id_selfie = $${idx++}`); params.push(idSelfie); }
-    if (backgroundCheckDetails !== undefined) { updates.push(`background_check_details = $${idx++}`); params.push(JSON.stringify(backgroundCheckDetails)); }
     if (resumeUrl !== undefined) { updates.push(`resume_url = $${idx++}`); params.push(resumeUrl); }
     if (resumes !== undefined) { updates.push(`resumes = $${idx++}`); params.push(JSON.stringify(resumes)); }
 
@@ -314,8 +311,8 @@ router.put('/profile', requireCaregiver, async (req: AuthRequest, res) => {
               cp.rating, cp.review_count, cp.location, cp.service_zips,
               cp.verified, cp.background_checked, cp.years_experience, cp.availability,
               cp.job_title, cp.languages, cp.education, cp.certifications,
-              cp.id_card_number, cp.id_card_front, cp.id_card_back, cp.id_selfie,
-              cp.id_verification_status, cp.background_check_status, cp.background_check_details,
+              cp.id_card_front, cp.id_card_back, cp.id_selfie,
+              cp.id_verification_status, cp.background_check_status,
               cp.resume_url, cp.resumes,
               cp.latitude, cp.longitude, cp.address, cp.city, cp.state, cp.zip_code,
               cp.country, cp.formatted_address, cp.location_source, cp.service_radius_miles,
@@ -343,12 +340,12 @@ router.post('/verify-id', requireCaregiver, async (req: AuthRequest, res) => {
     // Ensure profile exists
     await query(`INSERT INTO caregiver_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, [req.user!.id]);
 
-    // Save details on caregiver profile
+    // Save details on caregiver profile (ID number is no longer stored).
     await query(
       `UPDATE caregiver_profiles
-       SET id_card_number = $1, id_card_front = $2, id_card_back = $3, id_selfie = $4, id_verification_status = 'pending'
-       WHERE user_id = $5`,
-      [idCardNumber, idCardFront, idCardBack, idSelfie, req.user!.id]
+       SET id_card_front = $1, id_card_back = $2, id_selfie = $3, id_verification_status = 'pending'
+       WHERE user_id = $4`,
+      [idCardFront, idCardBack, idSelfie, req.user!.id]
     );
 
     // documents column is text[] — store each document as a readable string
@@ -377,57 +374,15 @@ router.post('/verify-id', requireCaregiver, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/caregivers/apply-background-check
-router.post('/apply-background-check', requireCaregiver, async (req: AuthRequest, res) => {
-  try {
-    const { details } = req.body;
-    if (!details || !details.legalName || !details.dob) {
-      return res.status(400).json({ error: 'Missing required background check details.' });
-    }
-
-    // SECURITY: never persist a raw SSN. The real identity/SSN check is performed by
-    // Checkr on its hosted form (PII never touches our DB). Strip any SSN the client
-    // sends before storing the (non-sensitive) details for the manual-review fallback.
-    const { ssn: _ssn, socialSecurityNumber: _ssn2, ...safeDetails } = details;
-
-    // Ensure profile exists
-    await query(`INSERT INTO caregiver_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, [req.user!.id]);
-
-    // Save NON-sensitive details on caregiver profile
-    await query(
-      `UPDATE caregiver_profiles
-       SET background_check_status = 'pending', background_check_details = $1
-       WHERE user_id = $2`,
-      [JSON.stringify(safeDetails), req.user!.id]
-    );
-
-    // documents column is text[] — store each piece of info as a readable string
-    const documents = [
-      `Legal Name: ${details.legalName}`,
-      `Date of Birth: ${details.dob}`,
-      `Current Address: ${details.currentAddress}`,
-      ...(details.previousAddress ? [`Previous Address: ${details.previousAddress}`] : []),
-      `Offers Transport: ${details.offersTransport ? 'Yes' : 'No'}`,
-      ...(details.driversLicense ? [`Driver's License: ${details.driversLicense}`] : [])
-    ];
-
-    // Remove any previous pending entry for this caregiver + specialty, then insert fresh
-    await query(
-      `DELETE FROM verification_queue WHERE caregiver_id = $1 AND specialty = $2`,
-      [req.user!.id, 'Background Check']
-    );
-    await query(
-      `INSERT INTO verification_queue (caregiver_id, specialty, experience, documents, background_check, status)
-       VALUES ($1, $2, $3, $4, 'true', 'pending')`,
-      [req.user!.id, 'Background Check', 'N/A', documents]
-    );
-
-    invalidateCache('caregivers:');
-    res.json({ success: true, message: 'Background check application submitted successfully' });
-  } catch (err) {
-    console.error('Apply background check error:', err);
-    res.status(500).json({ error: 'Failed to submit background check' });
-  }
+// POST /api/caregivers/apply-background-check  (DEPRECATED)
+// Replaced by the payment-first Turn.ai flow: POST /api/background-check/start.
+// Kept as a stub so old clients get a clear redirect and we never store bg-check PII.
+router.post('/apply-background-check', requireCaregiver, async (_req: AuthRequest, res) => {
+  return res.status(410).json({
+    error: 'This flow has moved. Start your background check from your dashboard.',
+    code: 'USE_BACKGROUND_CHECK_START',
+    endpoint: '/api/background-check/start',
+  });
 });
 
 // POST /api/caregivers/background-check

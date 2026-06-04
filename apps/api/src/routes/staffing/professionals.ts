@@ -23,11 +23,11 @@ router.get('/me', requireAuth, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Professional profile not found' });
     }
     // Don't ship encrypted identity blobs back to the client — expose booleans instead.
-    const { govt_id_docs, govt_id_number, background_check_details, ...safe } = result.rows[0];
+    const { govt_id_docs, govt_id_number, ...safe } = result.rows[0];
     res.json({
       ...safe,
       govt_id_submitted: !!(Array.isArray(govt_id_docs) ? govt_id_docs.length : govt_id_docs) || !!govt_id_number,
-      background_check_submitted: !!background_check_details,
+      background_check_submitted: (safe.background_check_status && safe.background_check_status !== 'not_started') || false,
     });
   } catch (err) {
     console.error('Professional me error:', err);
@@ -139,7 +139,7 @@ router.put('/profile', requireAuth, async (req: AuthRequest, res) => {
       specialties, yearsExperience, bio, location, preferredRadiusMiles,
       licenseDocUrl, certDocUrls,
       // New extended fields
-      workExperience, certifications, govtIdDocs, govtIdNumber, backgroundCheckDetails,
+      workExperience, certifications, govtIdDocs, govtIdNumber,
       roles,
     } = req.body;
 
@@ -185,10 +185,7 @@ router.put('/profile', requireAuth, async (req: AuthRequest, res) => {
       setClauses.push(`govt_id_number = $${idx++}`);
       values.push(encryptPII(govtIdNumber));
     }
-    if (backgroundCheckDetails !== undefined) {
-      setClauses.push(`background_check_details = $${idx++}`);
-      values.push(encryptPII(JSON.stringify(backgroundCheckDetails)));
-    }
+    // (background_check_details is no longer stored — Turn.ai handles all bg-check PII.)
 
     // Confirmed base location (from the location picker) → drives geo shift matching.
     const loc = (req.body as any).locationData;
@@ -300,10 +297,10 @@ router.post('/govt-id', requireAuth, async (req: AuthRequest, res) => {
     if (proResult.rows.length > 0) {
       const proId = proResult.rows[0].id;
       await query(
-        `INSERT INTO staffing_verification_queue (entity_type, entity_id, user_id, specialty, documents, id_card_number)
-         VALUES ('professional', $1, $2, 'Government ID', $3, $4)
+        `INSERT INTO staffing_verification_queue (entity_type, entity_id, user_id, specialty, documents)
+         VALUES ('professional', $1, $2, 'Government ID', $3)
          ON CONFLICT DO NOTHING`,
-        [proId, req.user!.id, encDocs, encIdNumber]
+        [proId, req.user!.id, encDocs]
       ).catch(() => {});
     }
 
@@ -314,58 +311,15 @@ router.post('/govt-id', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// ── POST /api/staffing/professionals/background-check ────────
-router.post('/background-check', requireAuth, async (req: AuthRequest, res) => {
-  try {
-    if (req.user!.role !== 'professional') {
-      return res.status(403).json({ error: 'Professional access only' });
-    }
-    const { details } = req.body;
-    // SECURITY: never persist a raw SSN. The real identity/SSN check is performed by our
-    // screening partner (Checkr) on its hosted form — TruliCares never stores it.
-    const { ssn: _ssn, socialSecurityNumber: _ssn2, ...safeDetails } = details || {};
-
-    // Encrypt the detail blob at rest (contains DOB, legal name, address).
-    const encDetails = encryptPII(JSON.stringify(safeDetails));
-
-    try {
-      await query(
-        `UPDATE professional_profiles SET
-           background_check_details = $1,
-           background_check_status = 'pending',
-           updated_at = NOW()
-         WHERE user_id = $2`,
-        [encDetails, req.user!.id]
-      );
-    } catch {
-      // Column may not exist — ignore
-    }
-
-    const proResult = await query(
-      `SELECT id FROM professional_profiles WHERE user_id = $1`,
-      [req.user!.id]
-    );
-    if (proResult.rows.length > 0) {
-      const proId = proResult.rows[0].id;
-      const summaryDocs = [
-        safeDetails.legalName ? `Legal Name: ${safeDetails.legalName}` : null,
-        safeDetails.dob ? `Date of Birth: ${safeDetails.dob}` : null,
-        safeDetails.currentAddress ? `Address: ${safeDetails.currentAddress}` : null,
-      ].filter(Boolean) as string[];
-
-      await query(
-        `INSERT INTO staffing_verification_queue (entity_type, entity_id, user_id, specialty, documents, background_check_details)
-         VALUES ('professional', $1, $2, 'Background Check', $3, $4)
-         ON CONFLICT DO NOTHING`,
-        [proId, req.user!.id, encryptArray(summaryDocs) ?? summaryDocs, encDetails]
-      ).catch(() => {});
-    }
-
-    res.json({ success: true, message: 'Background check submitted for review' });
-  } catch (err) {
-    console.error('Professional background-check error:', err);
-    res.status(500).json({ error: 'Failed to submit background check' });
-  }
+// ── POST /api/staffing/professionals/background-check  (DEPRECATED) ────────
+// Replaced by the payment-first Turn.ai flow: POST /api/background-check/start.
+// Returns a redirect so old clients move over; we never store bg-check PII here.
+router.post('/background-check', requireAuth, async (_req: AuthRequest, res) => {
+  return res.status(410).json({
+    error: 'This flow has moved. Start your background check from your dashboard.',
+    code: 'USE_BACKGROUND_CHECK_START',
+    endpoint: '/api/background-check/start',
+  });
 });
 
 // ── GET /api/staffing/professionals/:id — Public profile (no PII) ───────

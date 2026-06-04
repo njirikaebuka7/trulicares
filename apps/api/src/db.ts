@@ -24,11 +24,7 @@ pool.query(`
     ADD COLUMN IF NOT EXISTS work_experience JSONB DEFAULT '[]'::jsonb,
     ADD COLUMN IF NOT EXISTS certifications JSONB DEFAULT '[]'::jsonb,
     ADD COLUMN IF NOT EXISTS govt_id_docs JSONB DEFAULT '[]'::jsonb,
-    ADD COLUMN IF NOT EXISTS govt_id_number TEXT,
-    ADD COLUMN IF NOT EXISTS background_check_details JSONB,
-    ADD COLUMN IF NOT EXISTS checkr_candidate_id TEXT,
-    ADD COLUMN IF NOT EXISTS checkr_invitation_id TEXT,
-    ADD COLUMN IF NOT EXISTS checkr_report_id TEXT;
+    ADD COLUMN IF NOT EXISTS govt_id_number TEXT;
 `).catch(err => console.error('Auto-migration failed', err));
 
 // Auto-migrate password-reset + saved-location columns on users
@@ -157,6 +153,44 @@ pool.query(`
   );
   CREATE INDEX IF NOT EXISTS idx_withdrawals_user ON withdrawals(user_id, created_at);
 `).catch(err => console.error('Withdrawals auto-migration failed', err));
+
+// Admin audit log — records consequential admin actions for accountability.
+pool.query(`
+  CREATE TABLE IF NOT EXISTS admin_audit_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    admin_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    admin_email TEXT,
+    action TEXT NOT NULL,
+    entity_type TEXT,
+    entity_id TEXT,
+    metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_audit_created ON admin_audit_logs(created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_audit_action ON admin_audit_logs(action);
+`).catch(err => console.error('Admin audit log auto-migration failed', err));
+
+// Soft-delete for users (archive instead of hard delete).
+pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;`)
+  .catch(err => console.error('users.deleted_at auto-migration failed', err));
+
+// Drop legacy plaintext PII columns — Turn.ai now handles all sensitive bg-check data.
+pool.query(`
+  ALTER TABLE caregiver_profiles DROP COLUMN IF EXISTS id_card_number;
+  ALTER TABLE caregiver_profiles DROP COLUMN IF EXISTS background_check_details;
+  ALTER TABLE professional_profiles DROP COLUMN IF EXISTS background_check_details;
+  ALTER TABLE verification_queue DROP COLUMN IF EXISTS id_card_number;
+  ALTER TABLE verification_queue DROP COLUMN IF EXISTS background_check_details;
+  ALTER TABLE staffing_verification_queue DROP COLUMN IF EXISTS id_card_number;
+  ALTER TABLE staffing_verification_queue DROP COLUMN IF EXISTS background_check_details;
+`).catch(err => console.error('Legacy PII drop auto-migration failed', err));
+
+// Helpful admin-filter indexes (avoid full scans on common admin queries).
+pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_users_role_status_created ON users(role, status, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_reports_status_priority ON reports(status, priority);
+  CREATE INDEX IF NOT EXISTS idx_payments_status_created ON payments(status, created_at DESC);
+`).catch(err => console.error('Admin index auto-migration failed', err));
 
 // Turn.ai background checks — payment-first flow. Provider pays the platform a single
 // processing fee; only after payment does the backend create a Turn check. We store ONLY
