@@ -3,7 +3,6 @@ import { query } from '../db.js';
 import { requireAuth, requireCaregiver, AuthRequest } from '../middleware/auth.js';
 import { cacheGet, cacheSet, invalidateCache } from '../services/cache.js';
 import { searchLimiter } from '../middleware/rateLimiter.js';
-import { uploadIdDocument } from '../services/storage.js';
 
 const router = Router();
 
@@ -330,54 +329,15 @@ router.put('/profile', requireCaregiver, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/caregivers/verify-id
-router.post('/verify-id', requireCaregiver, async (req: AuthRequest, res) => {
-  try {
-    const { idCardFront, idCardBack, idSelfie } = req.body; // idCardNumber accepted but never stored
-    if (!idCardFront || !idCardBack || !idSelfie) {
-      return res.status(400).json({ error: 'Please upload your ID front, ID back, and a selfie.' });
-    }
-
-    // Ensure profile exists
-    await query(`INSERT INTO caregiver_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, [req.user!.id]);
-
-    // Upload each document to the PRIVATE id-documents bucket; store only the paths.
-    const [frontPath, backPath, selfiePath] = await Promise.all([
-      uploadIdDocument(req.user!.id, idCardFront, 'id-front'),
-      uploadIdDocument(req.user!.id, idCardBack, 'id-back'),
-      uploadIdDocument(req.user!.id, idSelfie, 'selfie'),
-    ]);
-
-    if (!frontPath || !backPath || !selfiePath) {
-      return res.status(502).json({ error: 'We couldn’t securely store your documents. Please try again.' });
-    }
-
-    await query(
-      `UPDATE caregiver_profiles
-       SET id_card_front = $1, id_card_back = $2, id_selfie = $3, id_verification_status = 'pending'
-       WHERE user_id = $4`,
-      [frontPath, backPath, selfiePath, req.user!.id]
-    );
-
-    // Queue stores only non-sensitive labels — the images live (private) on the profile.
-    const documents = ['ID Front (on file)', 'ID Back (on file)', 'Selfie (on file)'];
-
-    await query(
-      `DELETE FROM verification_queue WHERE caregiver_id = $1 AND specialty = $2`,
-      [req.user!.id, 'Government ID Verification']
-    );
-    await query(
-      `INSERT INTO verification_queue (caregiver_id, specialty, experience, documents, background_check, status)
-       VALUES ($1, $2, $3, $4, 'false', 'pending')`,
-      [req.user!.id, 'Government ID Verification', 'N/A', documents]
-    );
-
-    invalidateCache('caregivers:');
-    res.json({ success: true, message: 'ID verification request submitted successfully' });
-  } catch (err) {
-    console.error('Verify ID error:', err);
-    res.status(500).json({ error: 'Failed to submit ID verification' });
-  }
+// POST /api/caregivers/verify-id  (DEPRECATED)
+// Identity is now verified by our screening partner (Turn) as part of the background
+// check — we no longer collect or store government-ID documents in the app.
+router.post('/verify-id', requireCaregiver, async (_req: AuthRequest, res) => {
+  return res.status(410).json({
+    error: 'Identity is now verified through your background check. Start it from your dashboard.',
+    code: 'IDENTITY_VIA_BACKGROUND_CHECK',
+    endpoint: '/api/background-check/start',
+  });
 });
 
 // POST /api/caregivers/apply-background-check  (DEPRECATED)

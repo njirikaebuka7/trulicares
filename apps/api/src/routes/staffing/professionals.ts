@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { query } from '../../db.js';
 import { requireAuth, AuthRequest } from '../../middleware/auth.js';
 import { encryptPII } from '../../services/pii.js';
-import { uploadIdDocument } from '../../services/storage.js';
 
 const router = Router();
 
@@ -255,59 +254,15 @@ router.put('/profile', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// ── POST /api/staffing/professionals/govt-id ─────────────────
-// Submit government ID documents for verification
-router.post('/govt-id', requireAuth, async (req: AuthRequest, res) => {
-  try {
-    if (req.user!.role !== 'professional') {
-      return res.status(403).json({ error: 'Professional access only' });
-    }
-    const { idFrontUrl, idBackUrl, selfieUrl, idNumber } = req.body;
-
-    // Upload each provided image to the PRIVATE id-documents bucket; store only paths.
-    const docs: { kind: string; path: string }[] = [];
-    for (const [kind, val] of [['front', idFrontUrl], ['back', idBackUrl], ['selfie', selfieUrl]] as [string, string][]) {
-      if (!val) continue;
-      const path = await uploadIdDocument(req.user!.id, val, `gov-${kind}`);
-      if (path) docs.push({ kind, path });
-    }
-    // The ID number stays encrypted at rest (small, not an image).
-    const encIdNumber = encryptPII(idNumber || null);
-
-    try {
-      await query(
-        `UPDATE professional_profiles SET
-           govt_id_docs = $1,
-           govt_id_number = $2,
-           updated_at = NOW()
-         WHERE user_id = $3`,
-        [JSON.stringify(docs), encIdNumber, req.user!.id]
-      );
-    } catch {
-      // Columns may not exist yet — ignore
-    }
-
-    const proResult = await query(
-      `SELECT id FROM professional_profiles WHERE user_id = $1`,
-      [req.user!.id]
-    );
-    if (proResult.rows.length > 0) {
-      const proId = proResult.rows[0].id;
-      // Queue stores only non-sensitive labels — the images live (private) on the profile.
-      const labels = docs.map((d) => `${d.kind === 'front' ? 'ID Front' : d.kind === 'back' ? 'ID Back' : 'Selfie'} (on file)`);
-      await query(
-        `INSERT INTO staffing_verification_queue (entity_type, entity_id, user_id, specialty, documents)
-         VALUES ('professional', $1, $2, 'Government ID', $3)
-         ON CONFLICT DO NOTHING`,
-        [proId, req.user!.id, labels]
-      ).catch(() => {});
-    }
-
-    res.json({ success: true, message: 'Government ID submitted for review' });
-  } catch (err) {
-    console.error('Professional govt-id error:', err);
-    res.status(500).json({ error: 'Failed to submit government ID' });
-  }
+// ── POST /api/staffing/professionals/govt-id  (DEPRECATED) ────
+// Identity is now verified by our screening partner (Turn) as part of the background
+// check — we no longer collect or store government-ID documents in the app.
+router.post('/govt-id', requireAuth, async (_req: AuthRequest, res) => {
+  return res.status(410).json({
+    error: 'Identity is now verified through your background check. Start it from your profile.',
+    code: 'IDENTITY_VIA_BACKGROUND_CHECK',
+    endpoint: '/api/background-check/start',
+  });
 });
 
 // ── POST /api/staffing/professionals/background-check  (DEPRECATED) ────────

@@ -857,8 +857,7 @@ export default function CaregiverDashboard() {
                   { label: 'Pick specialties', done: cgSpecialties.length > 0 },
                   { label: 'Set your rate', done: cgRate.min > 0 },
                   { label: 'Set service area', done: !!(cgLocationData || cgLocation) },
-                  { label: 'Verify your ID', done: idVerificationStatus === 'approved' },
-                  { label: 'Background check', done: bgCheckStatus === 'approved' },
+                  { label: 'Background check (verifies identity)', done: bgCheckStatus === 'approved' || bgCheckStatus === 'passed' },
                 ];
                 const done = checks.filter((c) => c.done).length;
                 const pct = Math.round((done / checks.length) * 100);
@@ -1493,21 +1492,7 @@ export default function CaregiverDashboard() {
                         <Check className="w-3.5 h-3.5" /> Caregiver Account
                       </div>
                       
-                      {idVerificationStatus === 'approved' ? (
-                        <div className="flex items-center justify-center gap-1.5 py-1 px-3 rounded-xl bg-blue-50 text-blue-800 border border-blue-100 text-xs font-bold">
-                          <Shield className="w-3.5 h-3.5" /> ID Verified
-                        </div>
-                      ) : idVerificationStatus === 'pending' ? (
-                        <div className="flex items-center justify-center gap-1.5 py-1 px-3 rounded-xl bg-amber-50 text-amber-800 border border-amber-100 text-xs font-bold">
-                          <Clock className="w-3.5 h-3.5 animate-pulse" /> ID Verification Pending
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center gap-1.5 py-1 px-3 rounded-xl bg-gray-50 text-gray-500 border border-gray-100 text-xs font-bold">
-                          <Shield className="w-3.5 h-3.5 text-gray-400" /> ID Unverified
-                        </div>
-                      )}
-
-                      {bgCheckStatus === 'approved' ? (
+                      {(bgCheckStatus === 'approved' || bgCheckStatus === 'passed') ? (
                         <div className="flex items-center justify-center gap-1.5 py-1 px-3 rounded-xl bg-green-50 text-green-800 border border-green-100 text-xs font-bold">
                           <CheckCircle className="w-3.5 h-3.5" /> Background Checked
                         </div>
@@ -1531,7 +1516,6 @@ export default function CaregiverDashboard() {
                     <nav className="divide-y divide-gray-50">
                       {[
                         { id: 'bio', label: 'Bio & Specialties', icon: <User className="w-4 h-4" /> },
-                        { id: 'id_verification', label: 'Government ID', icon: <Shield className="w-4 h-4" />, status: idVerificationStatus },
                         { id: 'background_check', label: 'Background Check', icon: <CheckCircle className="w-4 h-4" />, status: bgCheckStatus },
                         { id: 'services', label: 'Rates & Areas', icon: <MapPin className="w-4 h-4" /> },
                         { id: 'resumes', label: 'Resumes', icon: <Briefcase className="w-4 h-4" />, count: resumes.length },
@@ -1590,12 +1574,8 @@ export default function CaregiverDashboard() {
                         <span>{cgBio ? '✓' : '✖'}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span>ID Verification</span>
-                        <span>{idVerificationStatus === 'approved' ? '✓' : idVerificationStatus === 'pending' ? '⏳' : '✖'}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Background Check</span>
-                        <span>{bgCheckStatus === 'approved' ? '✓' : bgCheckStatus === 'pending' ? '⏳' : '✖'}</span>
+                        <span>Background Check (verifies identity)</span>
+                        <span>{bgCheckStatus === 'approved' || bgCheckStatus === 'passed' ? '✓' : bgCheckStatus === 'pending' ? '⏳' : '✖'}</span>
                       </div>
                     </div>
                   </div>
@@ -1610,8 +1590,7 @@ export default function CaregiverDashboard() {
                       <div className="divide-y divide-gray-100 bg-white rounded-xl border border-gray-150 overflow-hidden shadow-2xs">
                         {[
                           { id: 'bio', label: 'Bio & Specialties', desc: 'Personal details & care types', icon: <User className="w-4.5 h-4.5" />, color: 'bg-emerald-50 text-emerald-600', status: null },
-                          { id: 'id_verification', label: 'Government ID', desc: 'Verify passport or license', icon: <Shield className="w-4.5 h-4.5" />, color: 'bg-blue-50 text-blue-600', status: idVerificationStatus === 'approved' ? 'Approved' : idVerificationStatus === 'pending' ? 'Pending' : 'Incomplete' },
-                          { id: 'background_check', label: 'Background Check', desc: 'Safety screening credentials', icon: <CheckCircle className="w-4.5 h-4.5" />, color: 'bg-purple-50 text-purple-600', status: bgCheckStatus === 'approved' ? 'Approved' : bgCheckStatus === 'pending' ? 'Pending' : 'Incomplete' },
+                          { id: 'background_check', label: 'Background Check', desc: 'Identity & safety screening', icon: <CheckCircle className="w-4.5 h-4.5" />, color: 'bg-purple-50 text-purple-600', status: bgCheckStatus === 'approved' || bgCheckStatus === 'passed' ? 'Approved' : bgCheckStatus === 'pending' ? 'Pending' : 'Incomplete' },
                           { id: 'services', label: 'Rates & Areas', desc: 'Hourly pricing & ZIP codes', icon: <MapPin className="w-4.5 h-4.5" />, color: 'bg-amber-50 text-amber-600', status: null },
                           { id: 'resumes', label: 'Resumes', desc: 'Upload professional CV files', icon: <Briefcase className="w-4.5 h-4.5" />, color: 'bg-sky-50 text-sky-600', status: resumes.length > 0 ? `${resumes.length} uploaded` : 'None' },
                           { id: 'certifications', label: 'Certifications', desc: 'Add credentials & skills', icon: <Award className="w-4.5 h-4.5" />, color: 'bg-rose-50 text-rose-600', status: certifications.length > 0 ? `${certifications.length} added` : 'None' },

@@ -44,7 +44,6 @@ const SPECIALTIES_LIST = [
 const TABS = [
   { id: 'profile', label: 'My Profile', icon: UserCircle },
   { id: 'certifications', label: 'Certifications', icon: Award },
-  { id: 'govt-id', label: 'Government ID', icon: Shield },
   { id: 'background', label: 'Background Check', icon: Activity },
   { id: 'security', label: 'Account Security', icon: Lock },
 ];
@@ -341,8 +340,7 @@ export default function ProfessionalProfileView() {
     { label: 'List your specialties', ok: (profile?.specialties?.length || 0) > 0, tab: 'profile' },
     { label: 'Add work experience', ok: (workExps?.length || 0) > 0, tab: 'profile' },
     { label: 'Upload a certification', ok: (certifications?.length || 0) > 0, tab: 'certifications' },
-    { label: 'Verify your government ID', ok: govtIdStep === 'submitted' || !!profile?.govt_id_submitted, tab: 'govt-id' },
-    { label: 'Complete a background check', ok: ['approved', 'pending'].includes(profile?.background_check_status), tab: 'background' },
+    { label: 'Complete a background check', ok: ['passed', 'pending', 'processing', 'approved'].includes(profile?.background_check_status), tab: 'background' },
   ];
   const completionDone = completionItems.filter((i) => i.ok).length;
   const completionPct = Math.round((completionDone / completionItems.length) * 100);
