@@ -450,4 +450,80 @@ router.get('/payments', requireAdmin, async (_req, res) => {
   }
 });
 
+// ── GET /api/admin/staffing-verification-queue — pending pros + facilities ──
+router.get('/staffing-verification-queue', requireAdmin, async (_req, res) => {
+  try {
+    const result = await query(
+      `SELECT vq.id, vq.entity_type, vq.entity_id, vq.status, vq.created_at,
+              u.name, u.email, u.photo_url,
+              pp.license_type, pp.specialties, pp.years_experience, pp.bio,
+              pp.location AS pro_location, pp.verification_status AS pro_status,
+              pp.background_check_status,
+              (SELECT json_agg(pl.* ORDER BY pl.created_at) FROM professional_licenses pl WHERE pl.professional_id = pp.id) AS licenses,
+              fp.facility_name, fp.facility_type, fp.city AS fac_city, fp.state AS fac_state,
+              fp.ein, fp.verification_status AS fac_status
+       FROM staffing_verification_queue vq
+       JOIN users u ON u.id = vq.user_id
+       LEFT JOIN professional_profiles pp ON vq.entity_type = 'professional' AND pp.id = vq.entity_id
+       LEFT JOIN facility_profiles fp ON vq.entity_type = 'facility' AND fp.id = vq.entity_id
+       WHERE vq.status IN ('pending', 'under_review')
+       ORDER BY vq.created_at ASC`
+    );
+    res.json({ queue: result.rows });
+  } catch (err) {
+    console.error('Staffing verification queue error:', err);
+    res.status(500).json({ error: 'Failed to fetch staffing verification queue' });
+  }
+});
+
+// ── PUT /api/admin/staffing-verification/:id — approve/reject an entity ──
+router.put('/staffing-verification/:id', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { status, notes } = req.body;
+    if (!['approved', 'rejected', 'under_review'].includes(status)) {
+      return res.status(400).json({ error: 'Status must be approved, rejected, or under_review' });
+    }
+
+    const vqRes = await query(
+      `UPDATE staffing_verification_queue
+       SET status = $1, notes = $2, reviewed_by = $3, updated_at = NOW()
+       WHERE id = $4 RETURNING entity_type, entity_id, user_id`,
+      [status, notes || null, req.user!.id, req.params.id]
+    );
+    if (vqRes.rows.length === 0) return res.status(404).json({ error: 'Verification entry not found' });
+    const entry = vqRes.rows[0];
+
+    // Reflect the decision on the entity's verification_status.
+    if (entry.entity_type === 'professional') {
+      await query(`UPDATE professional_profiles SET verification_status = $1, updated_at = NOW() WHERE id = $2`, [status, entry.entity_id]);
+    } else if (entry.entity_type === 'facility') {
+      await query(`UPDATE facility_profiles SET verification_status = $1, updated_at = NOW() WHERE id = $2`, [status, entry.entity_id]);
+    }
+
+    // Notify the user (in-app + email).
+    const uRes = await query('SELECT name, email FROM users WHERE id = $1', [entry.user_id]);
+    if (uRes.rows[0]) {
+      const { name, email } = uRes.rows[0];
+      await query(
+        `INSERT INTO notifications (user_id, type, title, content)
+         VALUES ($1, $2, $3, $4)`,
+        [entry.user_id, status === 'approved' ? 'verification_approved' : 'verification_rejected',
+         status === 'approved' ? 'You are verified!' : 'Verification update',
+         status === 'approved'
+           ? 'Your account has been approved — you can now ' + (entry.entity_type === 'facility' ? 'post shifts.' : 'apply to shifts.')
+           : 'Your verification needs attention. ' + (notes || 'Please review your submitted details.')]
+      ).catch(() => {});
+      sendVerificationStatusEmail(email, name, status === 'approved', notes).catch(console.error);
+      await supabase.channel(`profile:${entry.user_id}`).send({
+        type: 'broadcast', event: 'verification_update', payload: { status },
+      }).catch(() => {});
+    }
+
+    res.json({ message: `Verification ${status}`, entityType: entry.entity_type });
+  } catch (err) {
+    console.error('Staffing verification update error:', err);
+    res.status(500).json({ error: 'Failed to update staffing verification' });
+  }
+});
+
 export default router;

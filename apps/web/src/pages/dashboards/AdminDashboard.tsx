@@ -96,9 +96,19 @@ export default function AdminDashboard() {
       get('/admin/reports').then((d: any) => setAdminReports(d.reports || [])).catch(() => {}),
       get('/admin/payments').then((d: any) => setAdminPayments(d.payments || [])).catch(() => {}),
       get('/notifications').then((d: any) => setDbNotifications(d.notifications || [])).catch(() => {}),
-      get('/api/staffing/disputes').then((d: any) => setStaffingDisputes(d.disputes || [])).catch(() => {}),
-      get('/api/staffing/professionals/pending').then((d: any) => setProfessionalVerifications(d.professionals || [])).catch(() => {}),
+      get('/staffing/disputes').then((d: any) => setStaffingDisputes(d.disputes || [])).catch(() => {}),
+      get('/admin/staffing-verification-queue').then((d: any) => setProfessionalVerifications(d.queue || [])).catch(() => {}),
     ]).catch(console.error);
+  };
+
+  const handleStaffingVerify = async (id: string, status: 'approved' | 'rejected') => {
+    // optimistic remove from the list
+    setProfessionalVerifications((prev) => prev.filter((v: any) => v.id !== id));
+    try {
+      await put(`/admin/staffing-verification/${id}`, { status });
+    } catch {
+      refreshAllData(); // restore on failure
+    }
   };
 
   useEffect(() => {
@@ -1035,7 +1045,7 @@ export default function AdminDashboard() {
                     {staffingDisputes.length} Disputes
                   </span>
                   <span className="text-xs px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 font-bold">
-                    {professionalVerifications.length} New Professionals
+                    {professionalVerifications.length} Pending Verifications
                   </span>
                 </div>
               </div>
@@ -1058,7 +1068,7 @@ export default function AdminDashboard() {
                 {/* Professional Verification Queue */}
                 <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
                   <div className="p-6 border-b border-gray-50 flex items-center justify-between">
-                    <h3 className="font-bold text-gray-900">Professional Verifications</h3>
+                    <h3 className="font-bold text-gray-900">Pending Verifications</h3>
                     <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center font-bold text-xs">
                       {professionalVerifications.length}
                     </div>
@@ -1067,27 +1077,43 @@ export default function AdminDashboard() {
                     {professionalVerifications.length === 0 ? (
                       <div className="p-12 text-center text-gray-400 text-sm">No pending professional verifications.</div>
                     ) : (
-                      professionalVerifications.map((pro) => (
-                        <div key={pro.id} className="p-4 hover:bg-gray-50 transition-colors">
-                          <div className="flex items-center gap-4 mb-3">
-                            <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
-                              {pro.name.charAt(0)}
+                      professionalVerifications.map((v) => {
+                        const isFacility = v.entity_type === 'facility';
+                        const title = isFacility ? v.facility_name : v.name;
+                        const subtitle = isFacility
+                          ? `${v.facility_type || 'Facility'} · ${[v.fac_city, v.fac_state].filter(Boolean).join(', ')}`
+                          : `${v.license_type || 'Professional'} · ${v.pro_location || v.location || '—'}`;
+                        return (
+                          <div key={v.id} className="p-4 hover:bg-gray-50 transition-colors">
+                            <div className="flex items-center gap-4 mb-3">
+                              <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center font-bold',
+                                isFacility ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600')}>
+                                {(title || '?').charAt(0)}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <p className="font-bold text-sm text-gray-900 truncate">{title}</p>
+                                  <span className={cn('text-[9px] font-black uppercase px-1.5 py-0.5 rounded',
+                                    isFacility ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600')}>
+                                    {isFacility ? 'Facility' : 'Pro'}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-gray-500 truncate">{subtitle}</p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-bold text-sm text-gray-900">{pro.name}</p>
-                              <p className="text-xs text-gray-500">{pro.license_type} · {pro.location}</p>
+                            <div className="flex gap-2">
+                              <button onClick={() => handleStaffingVerify(v.id, 'approved')}
+                                className="flex-1 px-3 py-1.5 bg-blue-600 text-white text-[10px] font-black uppercase rounded-lg hover:bg-blue-700 transition-all active:scale-95">
+                                Approve
+                              </button>
+                              <button onClick={() => handleStaffingVerify(v.id, 'rejected')}
+                                className="flex-1 px-3 py-1.5 bg-gray-100 text-gray-600 text-[10px] font-black uppercase rounded-lg hover:bg-gray-200 transition-all active:scale-95">
+                                Reject
+                              </button>
                             </div>
                           </div>
-                          <div className="flex gap-2">
-                            <button className="flex-1 px-3 py-1.5 bg-blue-600 text-white text-[10px] font-black uppercase rounded-lg hover:bg-blue-700 transition-all">
-                              Approve
-                            </button>
-                            <button className="flex-1 px-3 py-1.5 bg-gray-100 text-gray-600 text-[10px] font-black uppercase rounded-lg hover:bg-gray-200 transition-all">
-                              Reject
-                            </button>
-                          </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </div>
