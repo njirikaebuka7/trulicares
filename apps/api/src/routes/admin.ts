@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { query, supabase } from '../db.js';
 import { requireAdmin, AuthRequest } from '../middleware/auth.js';
 import { sendVerificationStatusEmail } from '../services/email.js';
-import { decryptArray } from '../services/pii.js';
+import { decryptArray, decryptPII } from '../services/pii.js';
 import { auditFromReq } from '../services/audit.js';
 import { writeLimiter } from '../middleware/rateLimiter.js';
 import { getPricing, getGeneral, setSetting, PRICING_DEFAULTS, GENERAL_DEFAULTS } from '../services/settings.js';
@@ -10,7 +10,7 @@ import { cacheAside, cacheDel } from '../services/cache.js';
 import { isConnectEnabled } from '../services/connect.js';
 import { getUncachableStripeClient } from '../stripeClient.js';
 import { resendBackgroundCheckLink } from '../services/backgroundCheck.js';
-import { getSignedIdUrl } from '../services/storage.js';
+import { getSignedIdUrl, uploadIdDocument } from '../services/storage.js';
 
 const router = Router();
 
@@ -887,20 +887,109 @@ router.delete('/blog/:id', requireAdmin, async (req: AuthRequest, res) => {
   }
 });
 
-// GET /api/admin/users/:id/id-documents — short-lived signed URLs for ID review
+// POST /api/admin/maintenance/backfill-id-docs — migrate legacy base64 ID images into
+// the private bucket. Idempotent + batched (already-migrated rows are skipped).
+router.post('/maintenance/backfill-id-docs', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    let caregiversMigrated = 0;
+    let professionalsMigrated = 0;
+
+    // ── Caregivers: id_card_front/back/selfie holding 'data:' base64 → paths ──
+    const cgs = await query(
+      `SELECT user_id, id_card_front, id_card_back, id_selfie FROM caregiver_profiles
+       WHERE id_card_front LIKE 'data:%' OR id_card_back LIKE 'data:%' OR id_selfie LIKE 'data:%'
+       LIMIT 25`
+    ).catch(() => ({ rows: [] as any[] }));
+    for (const r of cgs.rows) {
+      const front = r.id_card_front?.startsWith('data:') ? await uploadIdDocument(r.user_id, r.id_card_front, 'id-front') : r.id_card_front;
+      const back = r.id_card_back?.startsWith('data:') ? await uploadIdDocument(r.user_id, r.id_card_back, 'id-back') : r.id_card_back;
+      const selfie = r.id_selfie?.startsWith('data:') ? await uploadIdDocument(r.user_id, r.id_selfie, 'selfie') : r.id_selfie;
+      await query(
+        `UPDATE caregiver_profiles SET id_card_front = $1, id_card_back = $2, id_selfie = $3 WHERE user_id = $4`,
+        [front || null, back || null, selfie || null, r.user_id]
+      );
+      caregiversMigrated++;
+    }
+
+    // ── Professionals: govt_id_docs legacy string entries → [{kind, path}] ──
+    const pros = await query(
+      `SELECT user_id, govt_id_docs FROM professional_profiles
+       WHERE govt_id_docs IS NOT NULL AND jsonb_typeof(govt_id_docs) = 'array' AND jsonb_array_length(govt_id_docs) > 0
+       LIMIT 25`
+    ).catch(() => ({ rows: [] as any[] }));
+    for (const r of pros.rows) {
+      const arr = Array.isArray(r.govt_id_docs) ? r.govt_id_docs : [];
+      // Already migrated if entries are {kind, path} objects.
+      if (arr.every((d: any) => d && typeof d === 'object' && d.path)) continue;
+      const out: { kind: string; path: string }[] = [];
+      for (const entry of arr) {
+        const decoded = decryptPII(String(entry)) || '';
+        // Format: "ID Front: data:image/...". Extract label + data URL.
+        const colon = decoded.indexOf(': ');
+        if (colon === -1) continue;
+        const label = decoded.slice(0, colon).toLowerCase();
+        const val = decoded.slice(colon + 2);
+        if (!val.startsWith('data:')) continue;
+        const kind = label.includes('front') ? 'front' : label.includes('back') ? 'back' : 'selfie';
+        const path = await uploadIdDocument(r.user_id, val, `gov-${kind}`);
+        if (path) out.push({ kind, path });
+      }
+      if (out.length > 0) {
+        await query(`UPDATE professional_profiles SET govt_id_docs = $1 WHERE user_id = $2`, [JSON.stringify(out), r.user_id]);
+        professionalsMigrated++;
+      }
+    }
+
+    await auditFromReq(req, 'maintenance.backfill_id_docs', 'system', null, { caregiversMigrated, professionalsMigrated });
+    res.json({
+      caregiversMigrated,
+      professionalsMigrated,
+      moreRemaining: cgs.rows.length === 25 || pros.rows.length === 25,
+    });
+  } catch (err) {
+    console.error('Backfill ID docs error:', err);
+    res.status(500).json({ error: 'Backfill failed' });
+  }
+});
+
+// GET /api/admin/users/:id/id-documents — short-lived signed URLs for ID review.
+// Role-aware: caregivers store paths on caregiver_profiles; professionals on
+// professional_profiles.govt_id_docs as [{kind, path}].
 router.get('/users/:id/id-documents', requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const r = await query(
-      `SELECT id_card_front, id_card_back, id_selfie FROM caregiver_profiles WHERE user_id = $1`,
-      [req.params.id]
-    );
-    if (r.rows.length === 0) return res.status(404).json({ error: 'Profile not found' });
-    const row = r.rows[0];
-    const [front, back, selfie] = await Promise.all([
-      getSignedIdUrl(row.id_card_front || ''),
-      getSignedIdUrl(row.id_card_back || ''),
-      getSignedIdUrl(row.id_selfie || ''),
-    ]);
+    const uRes = await query('SELECT role FROM users WHERE id = $1', [req.params.id]);
+    if (uRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    const role = uRes.rows[0].role;
+
+    let front: string | null = null, back: string | null = null, selfie: string | null = null;
+
+    if (role === 'professional') {
+      const r = await query(`SELECT govt_id_docs FROM professional_profiles WHERE user_id = $1`, [req.params.id]);
+      const docs = r.rows[0]?.govt_id_docs;
+      const arr = Array.isArray(docs) ? docs : [];
+      const byKind: Record<string, string> = {};
+      for (const d of arr) {
+        if (d && typeof d === 'object' && d.kind && d.path) byKind[d.kind] = d.path;
+      }
+      [front, back, selfie] = await Promise.all([
+        getSignedIdUrl(byKind.front || ''),
+        getSignedIdUrl(byKind.back || ''),
+        getSignedIdUrl(byKind.selfie || ''),
+      ]);
+    } else {
+      const r = await query(
+        `SELECT id_card_front, id_card_back, id_selfie FROM caregiver_profiles WHERE user_id = $1`,
+        [req.params.id]
+      );
+      if (r.rows.length === 0) return res.status(404).json({ error: 'Profile not found' });
+      const row = r.rows[0];
+      [front, back, selfie] = await Promise.all([
+        getSignedIdUrl(row.id_card_front || ''),
+        getSignedIdUrl(row.id_card_back || ''),
+        getSignedIdUrl(row.id_selfie || ''),
+      ]);
+    }
+
     await auditFromReq(req, 'id_documents.view', 'user', req.params.id);
     res.json({ documents: { front, back, selfie } });
   } catch (err) {

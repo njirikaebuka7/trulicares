@@ -245,6 +245,8 @@ export const admin = {
   addNote: (entityType: string, entityId: string, note: string) => post('/admin/notes', { entityType, entityId, note }),
   // ID documents — short-lived signed view URLs (caregiver verification)
   idDocuments: (userId: string) => get(`/admin/users/${userId}/id-documents`),
+  // Maintenance: migrate legacy base64 ID images into private storage
+  backfillIdDocs: () => post('/admin/maintenance/backfill-id-docs', {}),
 };
 
 // ── Public resources / blog (CMS-backed) ──────────────────────────────────────

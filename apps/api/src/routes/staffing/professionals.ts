@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { query } from '../../db.js';
 import { requireAuth, AuthRequest } from '../../middleware/auth.js';
-import { encryptPII, encryptArray } from '../../services/pii.js';
+import { encryptPII } from '../../services/pii.js';
+import { uploadIdDocument } from '../../services/storage.js';
 
 const router = Router();
 
@@ -139,7 +140,7 @@ router.put('/profile', requireAuth, async (req: AuthRequest, res) => {
       specialties, yearsExperience, bio, location, preferredRadiusMiles,
       licenseDocUrl, certDocUrls,
       // New extended fields
-      workExperience, certifications, govtIdDocs, govtIdNumber,
+      workExperience, certifications, govtIdNumber,
       roles,
     } = req.body;
 
@@ -176,11 +177,8 @@ router.put('/profile', requireAuth, async (req: AuthRequest, res) => {
       setClauses.push(`certifications = $${idx++}`);
       values.push(certifications);
     }
-    if (govtIdDocs !== undefined) {
-      // Encrypt identity documents at rest (gov-ID images are sensitive PII).
-      setClauses.push(`govt_id_docs = $${idx++}`);
-      values.push(encryptArray(govtIdDocs) ?? govtIdDocs);
-    }
+    // govt_id_docs is written only by the dedicated /govt-id endpoint (private storage),
+    // never via the general profile update — so base64 can't be persisted here.
     if (govtIdNumber !== undefined) {
       setClauses.push(`govt_id_number = $${idx++}`);
       values.push(encryptPII(govtIdNumber));
@@ -266,16 +264,16 @@ router.post('/govt-id', requireAuth, async (req: AuthRequest, res) => {
     }
     const { idFrontUrl, idBackUrl, selfieUrl, idNumber } = req.body;
 
-    const docs: string[] = [];
-    if (idFrontUrl) docs.push(`ID Front: ${idFrontUrl}`);
-    if (idBackUrl) docs.push(`ID Back: ${idBackUrl}`);
-    if (selfieUrl) docs.push(`Selfie: ${selfieUrl}`);
-
-    // Encrypt the document blobs + ID number at rest. Admin review decrypts transparently.
-    const encDocs = encryptArray(docs) ?? docs;
+    // Upload each provided image to the PRIVATE id-documents bucket; store only paths.
+    const docs: { kind: string; path: string }[] = [];
+    for (const [kind, val] of [['front', idFrontUrl], ['back', idBackUrl], ['selfie', selfieUrl]] as [string, string][]) {
+      if (!val) continue;
+      const path = await uploadIdDocument(req.user!.id, val, `gov-${kind}`);
+      if (path) docs.push({ kind, path });
+    }
+    // The ID number stays encrypted at rest (small, not an image).
     const encIdNumber = encryptPII(idNumber || null);
 
-    // Try to update with new columns; fallback gracefully
     try {
       await query(
         `UPDATE professional_profiles SET
@@ -283,24 +281,25 @@ router.post('/govt-id', requireAuth, async (req: AuthRequest, res) => {
            govt_id_number = $2,
            updated_at = NOW()
          WHERE user_id = $3`,
-        [encDocs, encIdNumber, req.user!.id]
+        [JSON.stringify(docs), encIdNumber, req.user!.id]
       );
     } catch {
       // Columns may not exist yet — ignore
     }
 
-    // Get pro profile id for verification queue
     const proResult = await query(
       `SELECT id FROM professional_profiles WHERE user_id = $1`,
       [req.user!.id]
     );
     if (proResult.rows.length > 0) {
       const proId = proResult.rows[0].id;
+      // Queue stores only non-sensitive labels — the images live (private) on the profile.
+      const labels = docs.map((d) => `${d.kind === 'front' ? 'ID Front' : d.kind === 'back' ? 'ID Back' : 'Selfie'} (on file)`);
       await query(
         `INSERT INTO staffing_verification_queue (entity_type, entity_id, user_id, specialty, documents)
          VALUES ('professional', $1, $2, 'Government ID', $3)
          ON CONFLICT DO NOTHING`,
-        [proId, req.user!.id, encDocs]
+        [proId, req.user!.id, labels]
       ).catch(() => {});
     }
 

@@ -1220,11 +1220,39 @@ export default function AdminDashboard() {
                               </button>
                               {!isFacility && v.user_id && (
                                 <button onClick={() => handleResendBgLink(v.user_id)}
-                                  className="w-full px-3 py-1.5 border border-gray-200 text-gray-600 text-[10px] font-black uppercase rounded-lg hover:bg-gray-50 transition-all active:scale-95">
-                                  Resend Background-Check Link
+                                  className="flex-1 px-3 py-1.5 border border-gray-200 text-gray-600 text-[10px] font-black uppercase rounded-lg hover:bg-gray-50 transition-all active:scale-95">
+                                  Resend BG Link
+                                </button>
+                              )}
+                              {!isFacility && v.user_id && !idDocs[v.user_id] && (
+                                <button onClick={() => viewIdDocuments(v.user_id)}
+                                  className="flex-1 px-3 py-1.5 border border-gray-200 text-gray-600 text-[10px] font-black uppercase rounded-lg hover:bg-gray-50 transition-all active:scale-95">
+                                  View ID Docs
                                 </button>
                               )}
                             </div>
+                            {/* Signed ID documents (on demand) */}
+                            {!isFacility && idDocs[v.user_id] === 'loading' && (
+                              <p className="text-[11px] text-gray-400 mt-2">Loading secure documents…</p>
+                            )}
+                            {!isFacility && idDocs[v.user_id] && idDocs[v.user_id] !== 'loading' && (
+                              <div className="grid grid-cols-3 gap-2 mt-3">
+                                {([
+                                  ['Front', (idDocs[v.user_id] as any).front],
+                                  ['Back', (idDocs[v.user_id] as any).back],
+                                  ['Selfie', (idDocs[v.user_id] as any).selfie],
+                                ] as [string, string | null][]).map(([label, url]) => (
+                                  <div key={label} className="bg-gray-50 rounded-lg border border-gray-100 p-1.5">
+                                    <span className="text-[9px] font-bold uppercase text-gray-400 block mb-1">{label}</span>
+                                    <div className="aspect-video rounded bg-white overflow-hidden flex items-center justify-center border">
+                                      {url ? (
+                                        <a href={url} target="_blank" rel="noopener noreferrer"><img src={url} alt={label} className="w-full h-full object-contain" /></a>
+                                      ) : <span className="text-[9px] text-gray-400">N/A</span>}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         );
                       })

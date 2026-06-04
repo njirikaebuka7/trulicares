@@ -5,10 +5,17 @@ import { pool } from './db.js';
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
 async function verifyDatabase() {
+  // Best-effort connectivity check. A transient DB hiccup must NOT take the whole
+  // server down — we log and keep serving so it recovers automatically once the DB is back.
   try {
     await pool.query('SELECT 1');
-    
-    // Auto-migrate extended professional profile fields
+    console.log('✓ Database connected');
+  } catch (err: any) {
+    console.error('⚠ Database not reachable at startup (will retry on demand):', err.message);
+  }
+
+  // Auto-migrate extended professional profile fields (best-effort; never fatal).
+  try {
     await pool.query(`
       ALTER TABLE professional_profiles
         ADD COLUMN IF NOT EXISTS work_experience JSONB DEFAULT '[]'::jsonb,
@@ -16,11 +23,8 @@ async function verifyDatabase() {
         ADD COLUMN IF NOT EXISTS govt_id_docs JSONB DEFAULT '[]'::jsonb,
         ADD COLUMN IF NOT EXISTS govt_id_number TEXT;
     `);
-
-    console.log('✓ Database connected and migrated');
   } catch (err: any) {
-    console.error('✗ Database connection failed:', err.message);
-    throw err;
+    console.error('⚠ professional_profiles auto-migration skipped:', err.message);
   }
 }
 
