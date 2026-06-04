@@ -10,6 +10,17 @@ import { cacheGet, cacheSet, cacheDel } from './cache.js';
 const CACHE_KEY = 'platform_settings:all';
 const CACHE_TTL = 300; // 5 min
 
+// General platform settings (non-pricing).
+export const GENERAL_DEFAULTS: Record<string, { value: string; label: string }> = {
+  platform_name: { value: 'TruliCares', label: 'Platform Name' },
+  support_email: { value: process.env.SUPPORT_EMAIL || 'support@trulicares.com', label: 'Support Email' },
+  contact_phone: { value: '', label: 'Contact Phone' },
+  terms_url: { value: '/terms', label: 'Terms URL' },
+  privacy_url: { value: '/privacy-policy', label: 'Privacy Policy URL' },
+  default_search_radius_miles: { value: '25', label: 'Default Search Radius (miles)' },
+  default_service_area: { value: '', label: 'Default Service Area' },
+};
+
 // Canonical pricing keys + their defaults (USD amounts, or rates as decimals).
 export const PRICING_DEFAULTS: Record<string, { value: string; label: string; kind: 'usd' | 'rate' | 'percent' }> = {
   background_check_fee: { value: process.env.BACKGROUND_CHECK_FEE_AMOUNT || '39', label: 'Background Check Processing Fee', kind: 'usd' },
@@ -54,9 +65,19 @@ export async function getPricing(): Promise<Record<string, { value: string; labe
   return out;
 }
 
-/** Upsert a setting + invalidate cache. Only known pricing keys are accepted. */
+/** All general settings merged with defaults, for the admin UI. */
+export async function getGeneral(): Promise<Record<string, { value: string; label: string }>> {
+  const all = await loadAll();
+  const out: Record<string, { value: string; label: string }> = {};
+  for (const [key, def] of Object.entries(GENERAL_DEFAULTS)) {
+    out[key] = { value: all[key] ?? def.value, label: def.label };
+  }
+  return out;
+}
+
+/** Upsert a setting + invalidate cache. Only known (pricing or general) keys are accepted. */
 export async function setSetting(key: string, value: string, updatedBy?: string): Promise<void> {
-  if (!(key in PRICING_DEFAULTS)) throw new Error(`Unknown setting key: ${key}`);
+  if (!(key in PRICING_DEFAULTS) && !(key in GENERAL_DEFAULTS)) throw new Error(`Unknown setting key: ${key}`);
   await query(
     `INSERT INTO platform_settings (key, value, updated_by, updated_at)
      VALUES ($1, $2, $3, NOW())

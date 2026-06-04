@@ -14,8 +14,11 @@ import { supabase } from '@/lib/supabase';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
 import AdminContent from '@/components/admin/AdminContent';
+import AdminSettings from '@/components/admin/AdminSettings';
+import AdminSupport from '@/components/admin/AdminSupport';
+import AdminNotes from '@/components/admin/AdminNotes';
 
-type Tab = 'Overview' | 'Users' | 'Verification Queue' | 'Reports' | 'Staffing' | 'Analytics' | 'Pricing' | 'Finance' | 'Content' | 'Audit Log';
+type Tab = 'Overview' | 'Users' | 'Verification Queue' | 'Reports' | 'Staffing' | 'Analytics' | 'Pricing' | 'Finance' | 'Content' | 'Support' | 'Settings' | 'Audit Log';
 
 type AdminUser = {
   id: string; name: string; email: string; role: string;
@@ -52,7 +55,9 @@ const navItems: { id: Tab; label: string; mobileLabel: string; icon: React.React
   { id: 'Pricing', label: 'Pricing', mobileLabel: 'Pricing', icon: <DollarSign className="w-5 h-5" /> },
   { id: 'Finance', label: 'Finance', mobileLabel: 'Finance', icon: <Activity className="w-5 h-5" /> },
   { id: 'Content', label: 'Content', mobileLabel: 'Content', icon: <FileText className="w-5 h-5" /> },
+  { id: 'Support', label: 'Support', mobileLabel: 'Support', icon: <Mail className="w-5 h-5" /> },
   { id: 'Analytics', label: 'Analytics', mobileLabel: 'Analytics', icon: <BarChart2 className="w-5 h-5" /> },
+  { id: 'Settings', label: 'Settings', mobileLabel: 'Settings', icon: <Shield className="w-5 h-5" /> },
   { id: 'Audit Log', label: 'Audit Log', mobileLabel: 'Audit', icon: <Eye className="w-5 h-5" /> },
 ];
 
@@ -1330,6 +1335,12 @@ export default function AdminDashboard() {
           {/* ── CONTENT / CMS ── */}
           {activeTab === 'Content' && <AdminContent />}
 
+          {/* ── SUPPORT ── */}
+          {activeTab === 'Support' && <AdminSupport />}
+
+          {/* ── SETTINGS ── */}
+          {activeTab === 'Settings' && <AdminSettings />}
+
           {/* ── FINANCE ── */}
           {activeTab === 'Finance' && (
             <div className="space-y-6">
@@ -1562,6 +1573,9 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               )}
+              {/* Admin notes */}
+              <AdminNotes entityType="user" entityId={selectedUser.id} />
+
               {/* Actions */}
               <div className="grid grid-cols-2 gap-2">
                 <button onClick={() => openEdit(selectedUser)}

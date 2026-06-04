@@ -5,7 +5,7 @@ import { sendVerificationStatusEmail } from '../services/email.js';
 import { decryptArray } from '../services/pii.js';
 import { auditFromReq } from '../services/audit.js';
 import { writeLimiter } from '../middleware/rateLimiter.js';
-import { getPricing, setSetting, PRICING_DEFAULTS } from '../services/settings.js';
+import { getPricing, getGeneral, setSetting, PRICING_DEFAULTS, GENERAL_DEFAULTS } from '../services/settings.js';
 import { cacheAside, cacheDel } from '../services/cache.js';
 import { isConnectEnabled } from '../services/connect.js';
 import { getUncachableStripeClient } from '../stripeClient.js';
@@ -883,6 +883,111 @@ router.delete('/blog/:id', requireAdmin, async (req: AuthRequest, res) => {
   } catch (err) {
     console.error('Admin blog delete error:', err);
     res.status(500).json({ error: 'Failed to delete post' });
+  }
+});
+
+// ── Platform settings (general) ───────────────────────────────────────────────
+router.get('/settings/general', requireAdmin, async (_req, res) => {
+  try { res.json({ settings: await getGeneral() }); }
+  catch (err) { console.error('Get general settings error:', err); res.status(500).json({ error: 'Failed to fetch settings' }); }
+});
+
+router.put('/settings/general', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const updates = req.body?.settings || req.body || {};
+    const applied: Record<string, string> = {};
+    for (const [key, raw] of Object.entries(updates)) {
+      if (!(key in GENERAL_DEFAULTS)) continue;
+      await setSetting(key, String(raw ?? ''), req.user!.id);
+      applied[key] = String(raw ?? '');
+    }
+    if (Object.keys(applied).length === 0) return res.status(400).json({ error: 'No valid settings provided' });
+    await auditFromReq(req, 'settings.update', 'setting', null, applied);
+    res.json({ settings: await getGeneral() });
+  } catch (err) {
+    console.error('Update general settings error:', err);
+    res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
+
+// ── Support tickets ───────────────────────────────────────────────────────────
+router.get('/tickets', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { page = '1', status } = req.query as any;
+    const pageNum = Math.max(1, parseInt(page, 10));
+    const limit = 20;
+    const offset = (pageNum - 1) * limit;
+    const conditions: string[] = [];
+    const params: any[] = [];
+    let idx = 1;
+    if (status && status !== 'all') { conditions.push(`status = $${idx++}`); params.push(status); }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const countRes = await query(`SELECT COUNT(*) FROM support_tickets ${where}`, params);
+    params.push(limit, offset);
+    const result = await query(
+      `SELECT id, name, email, subject, message, category, status, created_at, updated_at
+       FROM support_tickets ${where} ORDER BY
+         CASE status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END, created_at DESC
+       LIMIT $${idx} OFFSET $${idx + 1}`,
+      params
+    );
+    res.json({
+      tickets: result.rows,
+      pagination: { total: parseInt(countRes.rows[0].count), page: pageNum, pages: Math.ceil(parseInt(countRes.rows[0].count) / limit), limit },
+    });
+  } catch (err) {
+    console.error('Admin tickets error:', err);
+    res.status(500).json({ error: 'Failed to fetch tickets' });
+  }
+});
+
+router.put('/tickets/:id', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { status } = req.body;
+    if (!['open', 'in_progress', 'resolved', 'closed'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+    const r = await query(
+      `UPDATE support_tickets SET status = $1, assigned_to = $2, updated_at = NOW() WHERE id = $3 RETURNING id, status`,
+      [status, req.user!.id, req.params.id]
+    );
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Ticket not found' });
+    await auditFromReq(req, 'ticket.update', 'support_ticket', req.params.id, { status });
+    res.json({ ticket: r.rows[0] });
+  } catch (err) {
+    console.error('Update ticket error:', err);
+    res.status(500).json({ error: 'Failed to update ticket' });
+  }
+});
+
+// ── Admin notes (on users, tickets, etc.) ─────────────────────────────────────
+router.get('/notes/:entityType/:entityId', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const r = await query(
+      `SELECT id, admin_name, note, created_at FROM admin_notes
+       WHERE entity_type = $1 AND entity_id = $2 ORDER BY created_at DESC`,
+      [req.params.entityType, req.params.entityId]
+    );
+    res.json({ notes: r.rows });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch notes' });
+  }
+});
+
+router.post('/notes', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { entityType, entityId, note } = req.body || {};
+    if (!entityType || !entityId || !note?.trim()) return res.status(400).json({ error: 'entityType, entityId and note are required' });
+    const r = await query(
+      `INSERT INTO admin_notes (entity_type, entity_id, admin_id, admin_name, note)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id, admin_name, note, created_at`,
+      [entityType, entityId, req.user!.id, req.user!.name, note.trim()]
+    );
+    await auditFromReq(req, 'note.add', entityType, entityId);
+    res.status(201).json({ note: r.rows[0] });
+  } catch (err) {
+    console.error('Add note error:', err);
+    res.status(500).json({ error: 'Failed to add note' });
   }
 });
 

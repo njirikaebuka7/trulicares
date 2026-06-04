@@ -154,6 +154,35 @@ pool.query(`
   CREATE INDEX IF NOT EXISTS idx_withdrawals_user ON withdrawals(user_id, created_at);
 `).catch(err => console.error('Withdrawals auto-migration failed', err));
 
+// Support tickets + admin notes (Phase G).
+pool.query(`
+  CREATE TABLE IF NOT EXISTS support_tickets (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    name TEXT,
+    email TEXT,
+    subject TEXT NOT NULL,
+    message TEXT NOT NULL,
+    category TEXT,
+    status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','in_progress','resolved','closed')),
+    assigned_to UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_tickets_status ON support_tickets(status, created_at DESC);
+
+  CREATE TABLE IF NOT EXISTS admin_notes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    admin_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    admin_name TEXT,
+    note TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_admin_notes_entity ON admin_notes(entity_type, entity_id, created_at DESC);
+`).catch(err => console.error('support/notes auto-migration failed', err));
+
 // Blog / resources CMS.
 pool.query(`
   CREATE TABLE IF NOT EXISTS blog_posts (

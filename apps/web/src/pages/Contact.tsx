@@ -1,18 +1,26 @@
 import { useState } from 'react';
 import { Mail, Phone, MapPin, MessageCircle, Send, Clock, Check } from 'lucide-react';
 import Button from '@/components/ui/Button';
+import { support } from '@/lib/api';
 
 export default function Contact() {
   const [formData, setFormData] = useState({ name: '', email: '', subject: '', message: '' });
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    await new Promise(r => setTimeout(r, 1000));
-    setLoading(false);
-    setSubmitted(true);
+    setError('');
+    try {
+      await support.createTicket(formData);
+      setSubmitted(true);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to send your message. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const contactInfo = [
@@ -162,6 +170,9 @@ export default function Contact() {
                       />
                     </div>
 
+                    {error && (
+                      <p className="text-sm text-red-600 font-medium">{error}</p>
+                    )}
                     <Button
                       type="submit"
                       variant="primary"

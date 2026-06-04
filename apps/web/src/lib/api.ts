@@ -229,10 +229,30 @@ export const admin = {
   blogCreate: (data: any) => post('/admin/blog', data),
   blogUpdate: (id: string, data: any) => put(`/admin/blog/${id}`, data),
   blogDelete: (id: string) => del(`/admin/blog/${id}`),
+  // Platform settings (Phase G)
+  generalSettings: () => get('/admin/settings/general'),
+  updateGeneralSettings: (settings: Record<string, string>) => put('/admin/settings/general', { settings }),
+  // Support tickets (Phase G)
+  tickets: (params?: { page?: number; status?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.status) q.set('status', params.status);
+    return get(`/admin/tickets?${q.toString()}`);
+  },
+  updateTicket: (id: string, status: string) => put(`/admin/tickets/${id}`, { status }),
+  // Admin notes (Phase G)
+  notes: (entityType: string, entityId: string) => get(`/admin/notes/${entityType}/${entityId}`),
+  addNote: (entityType: string, entityId: string, note: string) => post('/admin/notes', { entityType, entityId, note }),
 };
 
 // ── Public resources / blog (CMS-backed) ──────────────────────────────────────
 export const resources = {
   list: (category?: string) => get(`/resources${category && category !== 'All' ? `?category=${encodeURIComponent(category)}` : ''}`),
   get: (slug: string) => get(`/resources/${slug}`),
+};
+
+// ── Public support ────────────────────────────────────────────────────────────
+export const support = {
+  createTicket: (data: { name?: string; email: string; subject: string; message: string; category?: string }) =>
+    post('/support/tickets', data),
 };
