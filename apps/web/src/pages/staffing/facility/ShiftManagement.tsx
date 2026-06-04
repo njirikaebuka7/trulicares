@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from '@/components/ui/Toaster';
 import { 
   Briefcase, PlusCircle, Users, Clock, 
   MapPin, MoreVertical, Search,
@@ -23,7 +24,7 @@ export default function ShiftManagement() {
       await shiftApi.cancel(id);
       setShifts(prev => prev.map(s => s.id === id ? { ...s, status: 'cancelled' } : s));
     } catch (err: any) {
-      alert(err.message || 'Failed to cancel shift');
+      toast(err.message || 'Failed to cancel shift', 'error');
     } finally {
       setCancellingId(null);
       setActiveMenu(null);

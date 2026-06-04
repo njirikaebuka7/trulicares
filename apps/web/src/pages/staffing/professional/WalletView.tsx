@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from '@/components/ui/Toaster';
 import { 
   Wallet, ArrowUpRight, ArrowDownLeft, Clock, 
   ChevronRight, Building2, CreditCard, Banknote,
@@ -36,12 +37,12 @@ export default function WalletView() {
     setWithdrawing(true);
     try {
       await walletApi.withdraw(parseFloat(withdrawAmount));
-      alert('Withdrawal request submitted!');
+      toast('Withdrawal request submitted!');
       setShowWithdrawModal(false);
       setWithdrawAmount('');
       loadWallet();
     } catch (err: any) {
-      alert(err.message || 'Withdrawal failed');
+      toast(err.message || 'Withdrawal failed', 'error');
     } finally {
       setWithdrawing(false);
     }

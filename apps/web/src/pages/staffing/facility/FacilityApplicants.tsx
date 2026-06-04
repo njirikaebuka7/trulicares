@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from '@/components/ui/Toaster';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, User, CheckCircle, XCircle, Clock, MapPin, Briefcase, FileText, ChevronDown, ChevronUp, Stethoscope, GraduationCap, ShieldCheck } from 'lucide-react';
 import { applications as appApi, shifts as shiftApi } from '@/lib/staffingApi';
@@ -68,7 +69,7 @@ export default function FacilityApplicants() {
         setApplicants(apps => apps.map(a => a.id === appId ? { ...a, status: 'accepted' } : { ...a, status: 'rejected' }));
       }
     } catch (err: any) {
-      alert(err.message || 'Failed to accept applicant');
+      toast(err.message || 'Failed to accept applicant', 'error');
     } finally {
       setProcessing(null);
     }
@@ -80,7 +81,7 @@ export default function FacilityApplicants() {
       await appApi.reject(appId);
       setApplicants(apps => apps.map(a => a.id === appId ? { ...a, status: 'rejected' } : a));
     } catch (err: any) {
-      alert(err.message || 'Failed to reject applicant');
+      toast(err.message || 'Failed to reject applicant', 'error');
     } finally {
       setProcessing(null);
     }

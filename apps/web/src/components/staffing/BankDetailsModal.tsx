@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from '@/components/ui/Toaster';
 import { 
   Building2, X, Save, 
   CreditCard, Loader2, ShieldCheck, Info
@@ -24,11 +25,11 @@ export default function BankDetailsModal({ onClose, onSuccess }: BankDetailsModa
     setLoading(true);
     try {
       await walletApi.saveBankDetails(form);
-      alert('Bank details updated successfully!');
+      toast('Bank details updated successfully!');
       onSuccess();
       onClose();
     } catch (err) {
-      alert('Failed to save bank details');
+      toast('Failed to save bank details', 'error');
     } finally {
       setLoading(false);
     }

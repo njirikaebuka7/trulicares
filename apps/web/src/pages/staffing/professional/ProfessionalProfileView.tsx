@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { toast } from '@/components/ui/Toaster';
 import {
   UserCircle, Stethoscope, FileText, MapPin,
   Shield, CheckCircle, AlertCircle, Clock,
@@ -240,7 +241,7 @@ export default function ProfessionalProfileView() {
 
   const handleCertUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !certName.trim()) { alert('Please enter a certification name first.'); return; }
+    if (!file || !certName.trim()) { toast('Please enter a certification name first.', 'error'); return; }
     setUploadingCert(true);
     const reader = new FileReader();
     reader.onload = async () => {
@@ -283,20 +284,20 @@ export default function ProfessionalProfileView() {
       });
       setGovtIdStep('submitted');
     } catch (err: any) {
-      alert(err.message || 'Submission failed');
+      toast(err.message || 'Submission failed', 'error');
     } finally {
       setGovtSubmitting(false);
     }
   };
 
   const handleBgSubmit = async () => {
-    if (!bgForm.consent) { alert('You must acknowledge the consent notice.'); return; }
+    if (!bgForm.consent) { toast('You must acknowledge the consent notice.', 'error'); return; }
     setBgSubmitting(true);
     try {
       await proApi.submitBackgroundCheck(bgForm);
       setBgSubmitted(true);
     } catch (err: any) {
-      alert(err.message || 'Submission failed');
+      toast(err.message || 'Submission failed', 'error');
     } finally {
       setBgSubmitting(false);
     }
@@ -724,7 +725,7 @@ export default function ProfessionalProfileView() {
                 </div>
                 <input ref={certFileRef} type="file" accept="image/*,.pdf" className="hidden" onChange={handleCertUpload} />
                 <button
-                  onClick={() => { if (!certName.trim()) { alert('Enter a certification name first'); return; } certFileRef.current?.click(); }}
+                  onClick={() => { if (!certName.trim()) { toast('Enter a certification name first', 'error'); return; } certFileRef.current?.click(); }}
                   disabled={uploadingCert}
                   className="w-full py-3 border-2 border-dashed border-emerald-200 rounded-xl text-emerald-600 font-bold text-sm hover:bg-emerald-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >

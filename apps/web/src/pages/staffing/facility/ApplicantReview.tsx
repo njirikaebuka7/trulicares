@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from '@/components/ui/Toaster';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { 
   Users, CheckCircle, MapPin, Briefcase, Loader2,
@@ -44,7 +45,7 @@ export default function ApplicantReview() {
         window.location.href = res.checkoutUrl;
       }
     } catch (err: any) {
-      alert(err.message || 'Failed to accept applicant');
+      toast(err.message || 'Failed to accept applicant', 'error');
     } finally {
       setProcessingId(null);
     }
@@ -57,7 +58,7 @@ export default function ApplicantReview() {
       await appApi.reject(appId);
       setApplicants(prev => prev.filter(a => a.id !== appId));
     } catch (err) {
-      alert('Failed to reject applicant');
+      toast('Failed to reject applicant', 'error');
     } finally {
       setProcessingId(null);
     }

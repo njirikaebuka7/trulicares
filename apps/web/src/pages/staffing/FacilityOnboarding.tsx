@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { toast } from '@/components/ui/Toaster';
 import { useNavigate, Link } from 'react-router-dom';
 import { auth as authApi, setToken } from '@/lib/api';
 import { facility as facilityApi } from '@/lib/staffingApi';
@@ -395,7 +396,7 @@ export default function FacilityOnboarding() {
                               }));
                             } catch (err) {
                               console.error(err);
-                              alert('Failed to resolve location.');
+                              toast('Failed to resolve location.', 'error');
                             } finally {
                               setLocating(false);
                             }
@@ -403,13 +404,13 @@ export default function FacilityOnboarding() {
                           err => {
                             console.error(err);
                             setLocating(false);
-                            alert('Location access denied or timed out. Please ensure permissions are granted in your device settings.');
+                            toast('Location access denied or timed out. Please ensure permissions are granted in your device settings.', 'error');
                           },
                           { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
                         );
                       } else {
                         setLocating(false);
-                        alert('Geolocation is not supported by your browser.');
+                        toast('Geolocation is not supported by your browser.', 'error');
                       }
                     }}
                     className="mt-3 flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl bg-brand-50 text-brand-700 font-bold text-sm hover:bg-brand-100 transition-all disabled:opacity-50"

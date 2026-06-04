@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from '@/components/ui/Toaster';
 import { 
   Clock, Play, Square, CheckCircle, 
   AlertCircle, MapPin, Shield, Loader2
@@ -63,7 +64,7 @@ export default function CheckInTimer({ bookingId, status, startTime, endTime, on
       if (action === 'confirm-complete') await checkinApi.confirmComplete(bookingId);
       onUpdate();
     } catch (err: any) {
-      alert(err.message || `Failed to ${action}`);
+      toast(err.message || `Failed to ${action}`, 'error');
     } finally {
       setLoading(false);
     }

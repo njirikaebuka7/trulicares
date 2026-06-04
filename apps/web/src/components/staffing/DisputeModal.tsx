@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from '@/components/ui/Toaster';
 import { 
   AlertTriangle, X, Send, 
   MessageSquare, Loader2, Info 
@@ -22,11 +23,11 @@ export default function DisputeModal({ bookingId, onClose, onSuccess }: DisputeM
     setLoading(true);
     try {
       await disputeApi.raise(bookingId, reason);
-      alert('Dispute raised successfully. An admin will review it shortly.');
+      toast('Dispute raised successfully. An admin will review it shortly.');
       onSuccess();
       onClose();
     } catch (err: any) {
-      alert(err.message || 'Failed to raise dispute');
+      toast(err.message || 'Failed to raise dispute', 'error');
     } finally {
       setLoading(false);
     }

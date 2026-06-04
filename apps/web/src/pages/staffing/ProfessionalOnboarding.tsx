@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { toast } from '@/components/ui/Toaster';
 import { useNavigate, Link } from 'react-router-dom';
 import { auth as authApi } from '@/lib/api';
 import { professional as proApi } from '@/lib/staffingApi';
@@ -643,7 +644,7 @@ export default function ProfessionalOnboarding() {
                                 set('location', fullAddress || data.display_name || 'Current Location');
                               } catch (err) {
                                 console.error(err);
-                                alert('Failed to resolve location.');
+                                toast('Failed to resolve location.', 'error');
                               } finally {
                                 setLocatingZip(false);
                               }
@@ -651,13 +652,13 @@ export default function ProfessionalOnboarding() {
                             err => {
                               console.error(err);
                               setLocatingZip(false);
-                              alert('Location access denied or timed out. Please ensure permissions are granted in your device settings.');
+                              toast('Location access denied or timed out. Please ensure permissions are granted in your device settings.', 'error');
                             },
                             { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
                           );
                         } else {
                           setLocatingZip(false);
-                          alert('Geolocation is not supported by your browser.');
+                          toast('Geolocation is not supported by your browser.', 'error');
                         }
                       } catch (err) {
                         console.error(err);

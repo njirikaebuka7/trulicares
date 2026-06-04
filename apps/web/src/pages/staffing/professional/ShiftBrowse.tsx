@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from '@/components/ui/Toaster';
 import { Link } from 'react-router-dom';
 import { 
   Search, Filter, MapPin, Clock, DollarSign, 
@@ -66,10 +67,10 @@ export default function ShiftBrowse() {
     setApplyingId(shiftId);
     try {
       await appApi.apply(shiftId, "I am interested in this shift and available to work.");
-      alert('Application submitted successfully!');
+      toast('Application submitted successfully!');
       loadShifts(); // Refresh
     } catch (err: any) {
-      alert(err.message || 'Failed to apply');
+      toast(err.message || 'Failed to apply', 'error');
     } finally {
       setApplyingId(null);
     }
@@ -84,7 +85,7 @@ export default function ShiftBrowse() {
           <input 
             type="text"
             placeholder="Search by city or facility..."
-            className="w-full pl-12 pr-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-brand-500 transition-all"
+            className="w-full pl-12 pr-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 transition-all"
             value={filters.city}
             onChange={(e) => setFilters(f => ({ ...f, city: e.target.value }))}
             onKeyPress={(e) => e.key === 'Enter' && loadShifts()}
@@ -92,7 +93,7 @@ export default function ShiftBrowse() {
         </div>
         <div className="flex gap-4">
           <select 
-            className="px-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-brand-500 transition-all font-semibold text-gray-700"
+            className="px-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 transition-all font-semibold text-gray-700"
             value={filters.role}
             onChange={(e) => setFilters(f => ({ ...f, role: e.target.value }))}
           >
@@ -103,7 +104,7 @@ export default function ShiftBrowse() {
           </select>
           <button 
             onClick={loadShifts}
-            className="px-6 py-2.5 bg-brand-600 text-white font-semibold rounded-full hover:bg-brand-700 transition-all active:scale-95 shadow-sm text-sm"
+            className="px-6 py-2.5 bg-emerald-600 text-white font-semibold rounded-full hover:bg-emerald-700 transition-all active:scale-95 shadow-sm text-sm"
           >
             Search
           </button>
@@ -111,11 +112,11 @@ export default function ShiftBrowse() {
       </div>
 
       {/* Matching Toggle */}
-      <div className="flex items-center gap-3 bg-brand-50/50 p-2 pl-4 rounded-xl border border-brand-100 w-fit">
-        <span className="text-xs font-bold text-brand-700">Show Best Matches Only</span>
+      <div className="flex items-center gap-3 bg-emerald-50/50 p-2 pl-4 rounded-xl border border-emerald-100 w-fit">
+        <span className="text-xs font-bold text-emerald-700">Show Best Matches Only</span>
         <button 
           onClick={() => setFilters(f => ({ ...f, matchesOnly: !f.matchesOnly }))}
-          className={`w-12 h-6 rounded-full transition-all relative ${filters.matchesOnly ? 'bg-brand-600' : 'bg-gray-300'}`}
+          className={`w-12 h-6 rounded-full transition-all relative ${filters.matchesOnly ? 'bg-emerald-600' : 'bg-gray-300'}`}
         >
           <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${filters.matchesOnly ? 'left-7' : 'left-1'}`} />
         </button>
@@ -130,7 +131,7 @@ export default function ShiftBrowse() {
       {/* Shift List */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-100">
-          <Loader2 className="w-10 h-10 text-brand-600 animate-spin mb-4" />
+          <Loader2 className="w-10 h-10 text-emerald-600 animate-spin mb-4" />
           <p className="text-gray-500 font-medium">Finding available shifts...</p>
         </div>
       ) : shifts.length === 0 ? (
@@ -158,18 +159,18 @@ export default function ShiftBrowse() {
               return (
               <div 
                 key={shift.id} 
-                className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-brand-200 transition-all duration-300"
+                className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-emerald-200 transition-all duration-300"
               >
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
                   <div className="flex items-start gap-4">
-                    <div className="w-14 h-14 rounded-xl flex flex-col items-center justify-center font-bold border border-brand-100 bg-brand-50 text-brand-700">
+                    <div className="w-14 h-14 rounded-xl flex flex-col items-center justify-center font-bold border border-emerald-100 bg-emerald-50 text-emerald-700">
                       <span className="text-[9px] uppercase opacity-75">{startTime.toLocaleString('default', { month: 'short' })}</span>
                       <span className="text-lg leading-tight">{startTime.getDate()}</span>
                     </div>
                     <div>
                       <div className="flex flex-wrap items-center gap-2 mb-1.5">
                         <h3 className="text-lg font-bold text-gray-900 leading-none">{shift.facility_name}</h3>
-                        <span className="px-2.5 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-brand-50 text-brand-700">
+                        <span className="px-2.5 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700">
                           {shift.role}
                         </span>
                         {shift.is_match && (
@@ -200,7 +201,7 @@ export default function ShiftBrowse() {
                     <div className="flex items-center gap-2">
                       <Link 
                         to={`/professional-dashboard/shifts/${shift.id}`}
-                        className="px-5 py-2.5 bg-gray-900 text-white rounded-full font-semibold text-xs hover:bg-brand-600 transition-all flex items-center justify-center gap-1.5 active:scale-95 shadow-sm"
+                        className="px-5 py-2.5 bg-gray-900 text-white rounded-full font-semibold text-xs hover:bg-emerald-600 transition-all flex items-center justify-center gap-1.5 active:scale-95 shadow-sm"
                       >
                         View Details <ArrowRight className="w-3.5 h-3.5" />
                       </Link>
@@ -213,19 +214,19 @@ export default function ShiftBrowse() {
       )}
 
       {/* Info Card */}
-      <div className="bg-gradient-to-r from-brand-600 to-emerald-700 rounded-2xl p-6 text-white flex flex-col md:flex-row items-center gap-6 shadow-sm mt-12">
+      <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 rounded-2xl p-6 text-white flex flex-col md:flex-row items-center gap-6 shadow-sm mt-12">
         <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
           <Info className="w-8 h-8 text-white" />
         </div>
         <div className="flex-1 text-center md:text-left">
           <h3 className="text-xl font-bold mb-2">How it works</h3>
-          <p className="text-brand-55 text-sm leading-relaxed max-w-xl opacity-90">
+          <p className="text-emerald-55 text-sm leading-relaxed max-w-xl opacity-90">
             When you apply for a shift, the facility will review your profile and credentials. If accepted, the shift is locked in your schedule. You'll check in via the app when you arrive at the facility.
           </p>
         </div>
         <Link 
           to="/professional-dashboard/profile"
-          className="px-6 py-2.5 bg-white text-brand-700 font-semibold rounded-full hover:bg-brand-50 transition-colors whitespace-nowrap active:scale-95 text-sm"
+          className="px-6 py-2.5 bg-white text-emerald-700 font-semibold rounded-full hover:bg-emerald-50 transition-colors whitespace-nowrap active:scale-95 text-sm"
         >
           Check My Credentials
         </Link>
