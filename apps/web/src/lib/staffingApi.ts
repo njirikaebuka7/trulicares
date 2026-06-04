@@ -91,6 +91,9 @@ export const wallet = {
     accountType: 'checking' | 'savings';
   }) => post('/staffing/wallet/bank-account', data),
   getBankAccount: () => get('/staffing/wallet/bank-account'),
+  // Stripe Connect (Express) payouts
+  connectStatus: () => get('/staffing/wallet/connect/status'),
+  connectOnboard: () => post('/staffing/wallet/connect/onboard'),
 };
 
 // ── Disputes ───────────────────────────────────────────────────

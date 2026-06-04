@@ -1,6 +1,12 @@
 import { Router } from 'express';
 import { query, getClient } from '../../db.js';
 import { requireAuth, AuthRequest } from '../../middleware/auth.js';
+import {
+  isConnectEnabled,
+  createOnboardingLink,
+  refreshConnectStatus,
+  transferToProfessional,
+} from '../../services/connect.js';
 
 const router = Router();
 
@@ -11,7 +17,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
       return res.status(403).json({ error: 'Professional access only' });
     }
 
-    const [walletRes, txRes] = await Promise.all([
+    const [walletRes, txRes, connectRes] = await Promise.all([
       query(
         `SELECT pw.balance, pw.total_earned, pw.total_withdrawn, pw.updated_at
          FROM professional_wallets pw
@@ -27,15 +33,27 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
          LIMIT 50`,
         [req.user!.id]
       ),
+      query(
+        `SELECT stripe_connected_account_id, stripe_onboarding_status, stripe_payouts_enabled
+         FROM professional_profiles WHERE user_id = $1`,
+        [req.user!.id]
+      ),
     ]);
 
     const wallet = walletRes.rows[0] || { balance: 0, total_earned: 0, total_withdrawn: 0 };
+    const c = connectRes.rows[0] || {};
 
     res.json({
       balance: parseFloat(wallet.balance || 0),
       totalEarned: parseFloat(wallet.total_earned || 0),
       totalWithdrawn: parseFloat(wallet.total_withdrawn || 0),
       transactions: txRes.rows,
+      payouts: {
+        connectEnabled: isConnectEnabled(),
+        onboardingStatus: c.stripe_onboarding_status || 'not_started',
+        payoutsEnabled: !!c.stripe_payouts_enabled,
+        hasAccount: !!c.stripe_connected_account_id,
+      },
     });
   } catch (err) {
     console.error('Wallet fetch error:', err);
@@ -43,22 +61,79 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// ── POST /api/staffing/wallet/withdraw — Request withdrawal ──
-router.post('/withdraw', requireAuth, async (req: AuthRequest, res) => {
-  const client = await getClient();
+// ── GET /api/staffing/wallet/connect/status — Connect onboarding state ──
+router.get('/connect/status', requireAuth, async (req: AuthRequest, res) => {
   try {
     if (req.user!.role !== 'professional') {
       return res.status(403).json({ error: 'Professional access only' });
     }
-
-    const { amount } = req.body;
-    if (!amount || parseFloat(amount) <= 0) {
-      return res.status(400).json({ error: 'Valid withdrawal amount is required' });
+    if (!isConnectEnabled()) {
+      return res.json({
+        connectEnabled: false,
+        onboardingStatus: 'not_started',
+        payoutsEnabled: false,
+        message: 'Payouts are not yet enabled on this platform.',
+      });
     }
+    // Pull fresh state from Stripe (also persists it).
+    const state = await refreshConnectStatus(req.user!.id);
+    res.json({
+      connectEnabled: true,
+      onboardingStatus: state.status,
+      payoutsEnabled: state.payoutsEnabled,
+      detailsSubmitted: state.detailsSubmitted,
+    });
+  } catch (err) {
+    console.error('Connect status error:', err);
+    res.status(500).json({ error: 'Failed to fetch payout status' });
+  }
+});
 
+// ── POST /api/staffing/wallet/connect/onboard — Start/continue Connect onboarding ──
+router.post('/connect/onboard', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    if (req.user!.role !== 'professional') {
+      return res.status(403).json({ error: 'Professional access only' });
+    }
+    if (!isConnectEnabled()) {
+      return res.status(503).json({
+        error: 'Payouts are not yet enabled. Please check back soon.',
+        code: 'CONNECT_NOT_ENABLED',
+      });
+    }
+    const url = await createOnboardingLink(req.user!.id);
+    res.json({ url });
+  } catch (err: any) {
+    console.error('Connect onboard error:', err);
+    res.status(500).json({ error: err?.message || 'Failed to start payout onboarding' });
+  }
+});
+
+// ── POST /api/staffing/wallet/withdraw — Manual payout via Stripe Connect ──
+// Gated: real money only moves when Connect is enabled AND the pro is onboarded. We never
+// create fake withdrawals — if payouts aren't live, we return a clear, non-mutating error.
+router.post('/withdraw', requireAuth, async (req: AuthRequest, res) => {
+  if (req.user!.role !== 'professional') {
+    return res.status(403).json({ error: 'Professional access only' });
+  }
+
+  const { amount } = req.body;
+  if (!amount || parseFloat(amount) <= 0) {
+    return res.status(400).json({ error: 'Valid withdrawal amount is required' });
+  }
+  const withdrawAmount = parseFloat(amount);
+
+  if (!isConnectEnabled()) {
+    return res.status(503).json({
+      error: 'Payouts are not enabled yet. Your earnings are safe in your wallet and will be payable once payouts go live.',
+      code: 'CONNECT_NOT_ENABLED',
+    });
+  }
+
+  const client = await getClient();
+  try {
     await client.query('BEGIN');
 
-    // Check balance
     const walletRes = await client.query(
       'SELECT balance FROM professional_wallets WHERE user_id = $1 FOR UPDATE',
       [req.user!.id]
@@ -69,26 +144,27 @@ router.post('/withdraw', requireAuth, async (req: AuthRequest, res) => {
     }
 
     const balance = parseFloat(walletRes.rows[0].balance);
-    const withdrawAmount = parseFloat(amount);
-
     if (withdrawAmount > balance) {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Insufficient balance' });
     }
 
-    // Check bank account is saved
-    const bankRes = await client.query(
-      'SELECT id, bank_name, account_number_last4 FROM bank_accounts WHERE user_id = $1',
+    // Connect onboarding must be complete (payouts_enabled) before money can move.
+    const proRes = await client.query(
+      'SELECT stripe_payouts_enabled FROM professional_profiles WHERE user_id = $1',
       [req.user!.id]
     );
-    if (bankRes.rows.length === 0) {
+    if (!proRes.rows[0]?.stripe_payouts_enabled) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Please add your bank account details before withdrawing' });
+      return res.status(400).json({
+        error: 'Finish setting up payouts (identity & bank details) before withdrawing.',
+        code: 'ONBOARDING_INCOMPLETE',
+      });
     }
 
     const newBalance = parseFloat((balance - withdrawAmount).toFixed(2));
 
-    // Deduct from wallet
+    // Deduct optimistically inside the txn; if the transfer fails we roll back.
     await client.query(
       `UPDATE professional_wallets
        SET balance = $1, total_withdrawn = total_withdrawn + $2, updated_at = NOW()
@@ -96,35 +172,32 @@ router.post('/withdraw', requireAuth, async (req: AuthRequest, res) => {
       [newBalance, withdrawAmount, req.user!.id]
     );
 
-    const last4 = bankRes.rows[0].account_number_last4;
+    // Real Stripe Connect transfer. Throws on failure → rolls back the deduction.
+    const result = await transferToProfessional({
+      userId: req.user!.id,
+      amount: withdrawAmount,
+      type: 'manual',
+    });
 
-    // Log transaction
     await client.query(
       `INSERT INTO wallet_transactions (user_id, type, amount, balance_after, description)
        VALUES ($1, 'withdrawal', $2, $3, $4)`,
-      [req.user!.id, withdrawAmount, newBalance, `Withdrawal to ${bankRes.rows[0].bank_name} ****${last4}`]
+      [req.user!.id, withdrawAmount, newBalance, 'Payout to your bank via Stripe']
     );
-
-    // Record an auditable payout request (status tracked until the payout settles).
-    await client.query(
-      `INSERT INTO withdrawals (user_id, amount, status, bank_last4) VALUES ($1, $2, 'processing', $3)`,
-      [req.user!.id, withdrawAmount, last4]
-    ).catch(() => {});
 
     await client.query('COMMIT');
 
-    // NOTE: In production, trigger the Stripe Connect payout here and update the
-    // withdrawals row to 'paid'/'failed' from the payout webhook. See improvement.md §11.
     res.json({
-      message: 'Withdrawal request submitted. Funds will arrive in 1-3 business days.',
+      message: 'Payout sent. Funds typically arrive in 1-2 business days.',
       amount: withdrawAmount,
       newBalance,
-      status: 'processing',
+      status: 'paid',
+      transferId: result.transferId,
     });
-  } catch (err) {
+  } catch (err: any) {
     await client.query('ROLLBACK');
     console.error('Withdrawal error:', err);
-    res.status(500).json({ error: 'Failed to process withdrawal' });
+    res.status(500).json({ error: err?.message || 'Failed to process payout' });
   } finally {
     client.release();
   }

@@ -6,6 +6,152 @@ import { enqueueEmail } from '../../queues/queues.js';
 
 const router = Router();
 
+/**
+ * Instant Book: confirm the professional for an instant-book shift without a manual
+ * facility accept. Mirrors the accept flow — creates an accepted application + booking,
+ * marks the shift filled, opens a chat, and generates the facility's payment checkout.
+ * The professional is "booked, pending facility payment"; the facility is emailed the link.
+ */
+async function instantBook(
+  req: AuthRequest,
+  res: any,
+  ctx: { shift: any; pro: any; shiftId: string; coverNote?: string }
+) {
+  const { shift, pro, shiftId, coverNote } = ctx;
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+
+    // Re-check the shift is still open under a row lock to avoid double-booking races.
+    const lockRes = await client.query(
+      `SELECT s.status, s.total_pay, s.platform_fee_rate, fp.user_id AS facility_user_id,
+              u.email AS facility_email, u.name AS facility_contact
+       FROM shifts s
+       JOIN facility_profiles fp ON fp.id = s.facility_id
+       JOIN users u ON u.id = fp.user_id
+       WHERE s.id = $1 FOR UPDATE OF s`,
+      [shiftId]
+    );
+    if (lockRes.rows.length === 0 || lockRes.rows[0].status !== 'open') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'This shift was just filled. Try another open shift.' });
+    }
+    const fac = lockRes.rows[0];
+
+    const wageAmount = parseFloat(fac.total_pay);
+    const platformFeeAmount = parseFloat((wageAmount * parseFloat(fac.platform_fee_rate)).toFixed(2));
+    const totalCharged = parseFloat((wageAmount + platformFeeAmount).toFixed(2));
+
+    // Accepted application
+    const appRes = await client.query(
+      `INSERT INTO shift_applications (shift_id, professional_id, cover_note, status, reviewed_at)
+       VALUES ($1, $2, $3, 'accepted', NOW())
+       RETURNING *`,
+      [shiftId, pro.id, coverNote || null]
+    );
+    const application = appRes.rows[0];
+
+    // Booking awaiting the facility's payment
+    const bookingRes = await client.query(
+      `INSERT INTO shift_bookings
+         (ref_id, application_id, shift_id, professional_id, facility_id,
+          wage_amount, platform_fee_amount, total_charged, status)
+       VALUES ('', $1, $2, $3, $4, $5, $6, $7, 'awaiting_payment')
+       RETURNING *`,
+      [application.id, shiftId, pro.id, shift.facility_id, wageAmount, platformFeeAmount, totalCharged]
+    );
+    const booking = bookingRes.rows[0];
+
+    // Open the in-app chat thread
+    await client.query(
+      `INSERT INTO staffing_conversations (facility_id, professional_id, booking_id)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (facility_id, professional_id)
+         DO UPDATE SET booking_id = COALESCE(staffing_conversations.booking_id, EXCLUDED.booking_id), updated_at = NOW()`,
+      [fac.facility_user_id, req.user!.id, booking.id]
+    ).catch(() => {});
+
+    // Mark shift filled
+    await client.query(
+      `UPDATE shifts SET status = 'filled', slots_filled = slots_filled + 1, updated_at = NOW() WHERE id = $1`,
+      [shiftId]
+    );
+
+    let stripe: any;
+    try {
+      stripe = await getUncachableStripeClient();
+    } catch {
+      await client.query('ROLLBACK');
+      return res.status(503).json({ error: 'Payment service not configured' });
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      line_items: [{
+        price_data: {
+          currency: 'usd',
+          unit_amount: Math.round(totalCharged * 100),
+          product_data: {
+            name: `Shift Booking ${booking.ref_id}`,
+            description: `Wage: $${wageAmount} + Platform Fee: $${platformFeeAmount}`,
+          },
+        },
+        quantity: 1,
+      }],
+      metadata: { booking_id: booking.id, type: 'staffing_shift' },
+      success_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/facility-dashboard?payment=success&booking=${booking.id}`,
+      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/facility-dashboard?payment=cancelled`,
+    });
+
+    await client.query(`UPDATE shift_bookings SET stripe_session_id = $1 WHERE id = $2`, [session.id, booking.id]);
+    await client.query('COMMIT');
+
+    // Notify the facility — a pro instant-booked, payment needed to confirm.
+    const facNotif = await query(
+      `INSERT INTO notifications (user_id, type, title, content)
+       VALUES ($1, 'shift_instant_booked', 'Shift instantly booked', $2)
+       RETURNING *`,
+      [fac.facility_user_id, `${req.user!.name || 'A professional'} booked your ${shift.role} shift. Complete payment to confirm.`]
+    );
+    await supabase.channel(`notifications:${fac.facility_user_id}`).send({
+      type: 'broadcast', event: 'new_notification', payload: facNotif.rows[0],
+    }).catch(() => {});
+    await supabase.channel(`facility:${fac.facility_user_id}`).send({
+      type: 'broadcast', event: 'shift_status_change',
+      payload: { shiftId, bookingId: booking.id, status: 'awaiting_payment', reason: 'instant_booked' },
+    }).catch(() => {});
+    await enqueueEmail('care-request', fac.facility_email, {
+      name: fac.facility_contact,
+      heading: 'A professional booked your shift',
+      message: `${req.user!.name} instant-booked your ${shift.role} shift. Complete payment to lock it in.`,
+      cta: 'Complete Payment',
+      url: session.url || `${process.env.APP_URL || ''}/facility-dashboard`,
+    }).catch(() => {});
+
+    // Notify the professional — booked, pending facility payment.
+    await supabase.channel(`professional:${req.user!.id}`).send({
+      type: 'broadcast', event: 'booking_status_change',
+      payload: { bookingId: booking.id, shiftId, status: 'awaiting_payment' },
+    }).catch(() => {});
+
+    return res.status(201).json({
+      instantBooked: true,
+      booking,
+      message: 'You’re booked! The facility has been notified to confirm payment.',
+    });
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'You have already applied to this shift' });
+    }
+    console.error('Instant book error:', err);
+    return res.status(500).json({ error: 'Failed to instant-book this shift' });
+  } finally {
+    client.release();
+  }
+}
+
 // ── POST /api/staffing/applications — Apply to a shift ────────
 router.post('/', requireAuth, async (req: AuthRequest, res) => {
   try {
@@ -43,7 +189,8 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
 
     // Verify shift is open + matching credentials
     const shiftRes = await query(
-      "SELECT id, status, role, specialty FROM shifts WHERE id = $1",
+      `SELECT id, status, role, specialty, instant_book, total_pay, platform_fee_rate, facility_id
+       FROM shifts WHERE id = $1`,
       [shiftId]
     );
     if (shiftRes.rows.length === 0 || shiftRes.rows[0].status !== 'open') {
@@ -82,9 +229,18 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
 
     // SPECIALTY MATCHING (if required by shift)
     if (shift.specialty && (!pro.specialties || !pro.specialties.includes(shift.specialty))) {
-      return res.status(403).json({ 
-        error: `Certification required: This shift requires the ${shift.specialty} specialty, which is not listed on your profile.` 
+      return res.status(403).json({
+        error: `Certification required: This shift requires the ${shift.specialty} specialty, which is not listed on your profile.`
       });
+    }
+
+    // ── INSTANT BOOK (Phase 5) ────────────────────────────────────────────────
+    // For shifts the facility marked instant_book, the professional is confirmed
+    // immediately (no manual accept). We create the application as 'accepted', spin up
+    // the booking + the facility's payment checkout, and notify both sides.
+    if (shift.instant_book === true) {
+      const booked = await instantBook(req, res, { shift, pro, shiftId, coverNote });
+      return booked;
     }
 
     const result = await query(

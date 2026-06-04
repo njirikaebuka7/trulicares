@@ -105,6 +105,8 @@ export interface Shift {
   status: ShiftStatus;
   slots_total: number;
   slots_filled: number;
+  instant_book?: boolean;
+  distanceMiles?: number | null;
   is_match?: boolean;
   applicant_count?: number;
   pending_applicants?: number;
@@ -194,6 +196,12 @@ export interface ProfessionalWallet {
   totalEarned: number;
   totalWithdrawn: number;
   transactions: WalletTransaction[];
+  payouts?: {
+    connectEnabled: boolean;
+    onboardingStatus: 'not_started' | 'pending' | 'complete' | 'restricted';
+    payoutsEnabled: boolean;
+    hasAccount: boolean;
+  };
 }
 
 export interface WalletTransaction {

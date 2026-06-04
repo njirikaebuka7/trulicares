@@ -252,6 +252,7 @@ export default function PostShift() {
     reportingPerson: '',
     requirements:  [] as string[],
     instructions:  [] as string[],
+    instantBook:   false,
   });
 
   const set = (field: string, value: any) => setForm(prev => ({ ...prev, [field]: value }));
@@ -332,6 +333,7 @@ export default function PostShift() {
         instructions:    form.instructions,
         reportingPerson: form.reportingPerson,
         department:      form.department,
+        instantBook:     form.instantBook,
       });
       navigate('/facility-dashboard/shifts');
     } catch (err: any) {
@@ -742,9 +744,37 @@ export default function PostShift() {
                 </div>
               )}
 
+              {/* Instant Book toggle */}
+              <button
+                type="button"
+                onClick={() => set('instantBook', !form.instantBook)}
+                className={cn(
+                  'w-full flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-all',
+                  form.instantBook ? 'border-emerald-500 bg-emerald-50' : 'border-gray-100 hover:border-emerald-200',
+                )}
+              >
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+                  ⚡
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-gray-900">Enable Instant Book</p>
+                  <p className="text-xs text-gray-500 leading-snug">
+                    Let qualified professionals book this shift instantly — no manual review. You just confirm payment.
+                  </p>
+                </div>
+                <div className={cn(
+                  'w-11 h-6 rounded-full transition-all relative shrink-0',
+                  form.instantBook ? 'bg-emerald-600' : 'bg-gray-300',
+                )}>
+                  <div className={cn('absolute top-1 w-4 h-4 rounded-full bg-white transition-all', form.instantBook ? 'left-6' : 'left-1')} />
+                </div>
+              </button>
+
               <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
                 <p className="text-xs text-emerald-800 font-medium leading-relaxed">
-                  ✅ Once posted, qualified professionals in your area will be notified and can apply. You'll confirm each applicant before their shift begins.
+                  {form.instantBook
+                    ? '⚡ With Instant Book on, the first qualified professional to book is confirmed automatically — just complete payment to lock it in.'
+                    : "✅ Once posted, qualified professionals in your area will be notified and can apply. You'll confirm each applicant before their shift begins."}
                 </p>
               </div>
             </div>

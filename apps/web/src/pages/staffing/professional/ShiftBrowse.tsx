@@ -178,6 +178,11 @@ export default function ShiftBrowse() {
                             <CheckCircle className="w-3 h-3" /> Match
                           </span>
                         )}
+                        {shift.instant_book && (
+                          <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700">
+                            ⚡ Instant Book
+                          </span>
+                        )}
                         {shift.status === 'open' && (
                           <span className="px-2.5 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700">
                             Open

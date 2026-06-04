@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query, getClient, supabase } from '../../db.js';
 import { requireAuth, AuthRequest } from '../../middleware/auth.js';
+import { transferToProfessional } from '../../services/connect.js';
 
 const router = Router();
 
@@ -251,10 +252,48 @@ router.post('/confirm-complete/:bookingId', requireAuth, async (req: AuthRequest
 
     await client.query('COMMIT');
 
+    // ── Instant payout (Phase 6) ──────────────────────────────────────────────
+    // Timesheet approved → try a real Stripe Connect transfer of the wage to the pro's
+    // connected account (platform keeps its fee). If Connect is off or the pro isn't
+    // onboarded, transferToProfessional() returns { mode: 'wallet' } and the funds simply
+    // stay in the wallet (already credited above) for a later, gated withdrawal.
+    let payoutMode: 'transferred' | 'wallet' = 'wallet';
+    let balanceAfterPayout = newBalance;
+    try {
+      const payout = await transferToProfessional({
+        userId: booking.pro_user_id,
+        amount: wageAmount,
+        bookingId,
+        bookingRef: booking.ref_id,
+        sourcePaymentIntentId: booking.stripe_payment_intent_id,
+        type: 'instant',
+      });
+      if (payout.mode === 'transferred') {
+        payoutMode = 'transferred';
+        // Money has left to the pro — reflect it in the wallet ledger.
+        const after = await query(
+          `UPDATE professional_wallets
+           SET balance = GREATEST(balance - $1, 0), total_withdrawn = total_withdrawn + $1, updated_at = NOW()
+           WHERE user_id = $2
+           RETURNING balance`,
+          [wageAmount, booking.pro_user_id]
+        );
+        balanceAfterPayout = parseFloat(after.rows[0]?.balance ?? newBalance);
+        await query(
+          `INSERT INTO wallet_transactions (user_id, type, amount, balance_after, description, booking_id)
+           VALUES ($1, 'withdrawal', $2, $3, $4, $5)`,
+          [booking.pro_user_id, wageAmount, balanceAfterPayout, `Instant payout: ${booking.ref_id}`, bookingId]
+        );
+      }
+    } catch (e: any) {
+      // Transfer failed — funds remain safely in the wallet. Log and continue.
+      console.error('Instant payout failed (funds held in wallet):', e?.message);
+    }
+
     await broadcastShiftState(booking, bookingId, 'shift_completed', {
       status: 'completed',
       wageAmount,
-      newBalance,
+      newBalance: balanceAfterPayout,
       completedAt: new Date().toISOString(),
     });
 
@@ -262,13 +301,16 @@ router.post('/confirm-complete/:bookingId', requireAuth, async (req: AuthRequest
     await supabase.channel(`wallet:${booking.pro_user_id}`).send({
       type: 'broadcast',
       event: 'balance_updated',
-      payload: { newBalance, creditAmount: wageAmount, bookingRef: booking.ref_id },
+      payload: { newBalance: balanceAfterPayout, creditAmount: wageAmount, bookingRef: booking.ref_id, payoutMode },
     }).catch(() => {});
 
     res.json({
-      message: 'Shift completed. Funds released to professional wallet.',
+      message: payoutMode === 'transferred'
+        ? 'Shift completed. Payout sent to the professional.'
+        : 'Shift completed. Funds released to professional wallet.',
       wageReleased: wageAmount,
       platformFee: parseFloat(booking.platform_fee_amount),
+      payoutMode,
     });
   } catch (err) {
     await client.query('ROLLBACK');

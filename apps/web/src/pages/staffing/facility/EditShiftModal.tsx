@@ -32,7 +32,8 @@ export default function EditShiftModal({ shift, onClose, onSuccess }: EditShiftM
     city: shift.city || '',
     state: shift.state || '',
     zip: shift.zip || '',
-    slotsTotal: shift.slots_total?.toString() || '1'
+    slotsTotal: shift.slots_total?.toString() || '1',
+    instantBook: shift.instant_book ?? false,
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -147,6 +148,22 @@ export default function EditShiftModal({ shift, onClose, onSuccess }: EditShiftM
               <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Description</label>
               <textarea name="description" value={formData.description} onChange={handleChange} rows={4} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none transition-all resize-none"></textarea>
             </div>
+
+            {/* Instant Book toggle */}
+            <button
+              type="button"
+              onClick={() => setFormData(prev => ({ ...prev, instantBook: !prev.instantBook }))}
+              className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all ${formData.instantBook ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-emerald-200'}`}
+            >
+              <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">⚡</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-gray-900">Instant Book</p>
+                <p className="text-xs text-gray-500 leading-snug">Professionals book this shift instantly — no manual review.</p>
+              </div>
+              <div className={`w-11 h-6 rounded-full transition-all relative shrink-0 ${formData.instantBook ? 'bg-emerald-600' : 'bg-gray-300'}`}>
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${formData.instantBook ? 'left-6' : 'left-1'}`} />
+              </div>
+            </button>
           </form>
         </div>
 

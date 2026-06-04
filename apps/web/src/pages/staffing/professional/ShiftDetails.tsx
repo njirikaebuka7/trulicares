@@ -48,8 +48,13 @@ export default function ShiftDetails() {
     if (!shift) return;
     setApplying(true);
     try {
-      const newApp = await appApi.apply(shift.id, "I am interested in this shift and available to work.");
-      setApplication({ status: 'pending', ...newApp });
+      const res = await appApi.apply(shift.id, "I am interested in this shift and available to work.");
+      if (res?.instantBooked) {
+        // Instant Book: the pro is confirmed immediately, pending facility payment.
+        setApplication({ status: 'accepted', instantBooked: true, ...res });
+      } else {
+        setApplication({ status: 'pending', ...res });
+      }
     } catch (err: any) {
       setErrorModal(err.message || 'Failed to apply');
     } finally {
@@ -119,6 +124,11 @@ export default function ShiftDetails() {
               ) : (
                 <span className="px-3 py-1 bg-gray-500 rounded-lg text-xs font-bold uppercase tracking-widest text-white shadow-sm">
                   {shift.status}
+                </span>
+              )}
+              {shift.instant_book && shift.status === 'open' && (
+                <span className="px-3 py-1 bg-amber-400 rounded-lg text-xs font-bold uppercase tracking-widest text-amber-900 shadow-sm">
+                  ⚡ Instant Book
                 </span>
               )}
             </div>
@@ -193,8 +203,12 @@ export default function ShiftDetails() {
                       {application.status === 'accepted' ? (
                         <>
                           <CheckCircle className="w-6 h-6 text-emerald-500" />
-                          Application Accepted
-                          <span className="text-xs font-medium text-emerald-600/70 text-center">Facility has hired you for this shift!</span>
+                          {application.instantBooked ? 'Shift Booked!' : 'Application Accepted'}
+                          <span className="text-xs font-medium text-emerald-600/70 text-center">
+                            {application.instantBooked
+                              ? 'You’re confirmed. The facility has been notified to complete payment.'
+                              : 'Facility has hired you for this shift!'}
+                          </span>
                         </>
                       ) : application.status === 'rejected' ? (
                         <>
@@ -221,16 +235,20 @@ export default function ShiftDetails() {
                       className="w-full py-4 bg-brand-900 hover:bg-brand-800 text-white rounded-2xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 shadow-xl shadow-brand-900/20 disabled:opacity-70"
                     >
                       {applying ? (
-                        <><Loader2 className="w-5 h-5 animate-spin" /> Submitting...</>
+                        <><Loader2 className="w-5 h-5 animate-spin" /> {shift.instant_book ? 'Booking...' : 'Submitting...'}</>
+                      ) : shift.instant_book ? (
+                        <>⚡ Book This Shift Now <ChevronRight className="w-5 h-5" /></>
                       ) : (
                         <>Apply for Shift <ChevronRight className="w-5 h-5" /></>
                       )}
                     </button>
                   )}
-                  
+
                   {!application && shift.status === 'open' && (
                     <p className="text-xs text-center text-emerald-700/60 font-medium">
-                      By applying, you confirm you are available for the entirety of this shift.
+                      {shift.instant_book
+                        ? 'Instant Book: you’ll be confirmed immediately. Be sure you’re available for the entire shift.'
+                        : 'By applying, you confirm you are available for the entirety of this shift.'}
                     </p>
                   )}
                 </div>

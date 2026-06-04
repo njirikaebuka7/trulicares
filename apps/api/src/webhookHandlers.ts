@@ -3,6 +3,7 @@ import { getClient, query, supabase } from './db.js';
 import { orderBackgroundCheck } from './services/backgroundCheck.js';
 import { enqueueEmail } from './queues/queues.js';
 import { notifyAdmins, notifyAdminPayment } from './services/notify.js';
+import { persistAccountState } from './services/connect.js';
 
 async function broadcastStaffingUpdate(bookingId: string, event: string, payload: Record<string, unknown> = {}) {
   const bookingRes = await query(
@@ -317,6 +318,16 @@ export class WebhookHandlers {
           await markStaffingBookingPaid(session);
         }
         console.log('✓ Checkout completed:', session.id);
+        break;
+      }
+      case 'account.updated': {
+        // Stripe Connect: a professional's connected account changed (finished onboarding,
+        // payouts enabled/disabled, new requirements). Persist the latest state.
+        const account = event.data.object as Stripe.Account;
+        await persistAccountState(account).catch((e) =>
+          console.error('persistAccountState failed:', e?.message)
+        );
+        console.log('✓ Connect account updated:', account.id);
         break;
       }
       case 'checkout.session.expired': {

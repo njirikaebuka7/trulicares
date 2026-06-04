@@ -44,7 +44,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
 
     const {
       role, specialty, description, payRate, durationHours,
-      startTime, location, address, city, state, zip, slotsTotal,
+      startTime, location, address, city, state, zip, slotsTotal, instantBook,
     } = req.body;
 
     if (!role || !payRate || !durationHours || !startTime || !location) {
@@ -65,15 +65,15 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       `INSERT INTO shifts
          (facility_id, role, specialty, description, pay_rate, duration_hours,
           start_time, location, address, city, state, zip, platform_fee_rate, slots_total,
-          latitude, longitude)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+          latitude, longitude, instant_book)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        RETURNING *, (pay_rate * duration_hours) AS total_pay`,
       [
         facility.id, role, specialty || null, description || null,
         parseFloat(payRate), parseFloat(durationHours),
         startTime, location,
         address || null, city || null, state || null, zip || null,
-        feeRate, slotsTotal || 1, lat, lng,
+        feeRate, slotsTotal || 1, lat, lng, instantBook === true,
       ]
     );
 
@@ -164,7 +164,7 @@ router.get('/', requireAuth, searchLimiter, async (req: AuthRequest, res) => {
       `SELECT s.id, s.ref_id, s.role, s.specialty, s.description,
               s.pay_rate, s.duration_hours, s.total_pay, s.start_time, s.end_time,
               s.location, s.city, s.state, s.zip, s.status,
-              s.slots_total, s.slots_filled,
+              s.slots_total, s.slots_filled, s.instant_book,
               fp.facility_name, fp.facility_type,
               CASE WHEN s.geo IS NOT NULL THEN ST_Distance(s.geo, ${proGeoExpr}) END AS distance_meters,
               CASE
@@ -385,7 +385,7 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
 
     const {
       role, specialty, description, payRate, durationHours,
-      startTime, location, address, city, state, zip, slotsTotal,
+      startTime, location, address, city, state, zip, slotsTotal, instantBook,
     } = req.body;
 
     // We only allow editing if the shift is still 'open'
@@ -416,15 +416,17 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
            state = COALESCE($10, state),
            zip = COALESCE($11, zip),
            slots_total = COALESCE($12, slots_total),
+           instant_book = COALESCE($15, instant_book),
            updated_at = NOW()
        WHERE id = $13 AND facility_id = $14 AND status = 'open'
        RETURNING *, (pay_rate * duration_hours) AS total_pay`,
       [
-        role, specialty, description, 
-        payRate ? parseFloat(payRate) : null, 
+        role, specialty, description,
+        payRate ? parseFloat(payRate) : null,
         durationHours ? parseFloat(durationHours) : null,
         startTime, location, address, city, state, zip, slotsTotal,
-        req.params.id, facilityRes.rows[0].id
+        req.params.id, facilityRes.rows[0].id,
+        typeof instantBook === 'boolean' ? instantBook : null,
       ]
     );
 

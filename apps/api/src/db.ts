@@ -158,6 +158,45 @@ pool.query(`
   CREATE INDEX IF NOT EXISTS idx_withdrawals_user ON withdrawals(user_id, created_at);
 `).catch(err => console.error('Withdrawals auto-migration failed', err));
 
+// Phase 5 — Instant Book: a per-shift flag letting facilities allow professionals to
+// book the shift without a manual accept step (Clipboard Health style).
+pool.query(`
+  ALTER TABLE shifts
+    ADD COLUMN IF NOT EXISTS instant_book BOOLEAN NOT NULL DEFAULT FALSE;
+`).catch(err => console.error('Instant-book auto-migration failed', err));
+
+// Phase 6 — Stripe Connect Express: real payouts to professionals' connected accounts.
+// Fields are created regardless of whether Connect is enabled; real transfers stay
+// disabled until STRIPE_CONNECT_ENABLED=true and the pro completes onboarding.
+pool.query(`
+  ALTER TABLE professional_profiles
+    ADD COLUMN IF NOT EXISTS stripe_connected_account_id TEXT,
+    ADD COLUMN IF NOT EXISTS stripe_onboarding_status TEXT NOT NULL DEFAULT 'not_started',
+    ADD COLUMN IF NOT EXISTS stripe_payouts_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS stripe_charges_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS stripe_onboarded_at TIMESTAMPTZ;
+`).catch(err => console.error('Stripe Connect auto-migration failed', err));
+
+// Payouts ledger — one row per real Stripe Connect transfer (or attempt). Distinct from
+// the legacy `withdrawals` table; this tracks automatic instant payouts on shift completion.
+pool.query(`
+  CREATE TABLE IF NOT EXISTS payouts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    booking_id UUID REFERENCES shift_bookings(id) ON DELETE SET NULL,
+    amount NUMERIC(10,2) NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'usd',
+    type TEXT NOT NULL DEFAULT 'instant' CHECK (type IN ('instant','manual')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','paid','failed')),
+    stripe_transfer_id TEXT,
+    failure_reason TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    processed_at TIMESTAMPTZ
+  );
+  CREATE INDEX IF NOT EXISTS idx_payouts_user ON payouts(user_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_payouts_booking ON payouts(booking_id);
+`).catch(err => console.error('Payouts auto-migration failed', err));
+
 export async function query(text: string, params?: any[]) {
   const start = Date.now();
   const result = await pool.query(text, params);
