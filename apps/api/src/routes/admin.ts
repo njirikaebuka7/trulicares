@@ -10,6 +10,7 @@ import { cacheAside, cacheDel } from '../services/cache.js';
 import { isConnectEnabled } from '../services/connect.js';
 import { getUncachableStripeClient } from '../stripeClient.js';
 import { resendBackgroundCheckLink } from '../services/backgroundCheck.js';
+import { getSignedIdUrl } from '../services/storage.js';
 
 const router = Router();
 
@@ -883,6 +884,28 @@ router.delete('/blog/:id', requireAdmin, async (req: AuthRequest, res) => {
   } catch (err) {
     console.error('Admin blog delete error:', err);
     res.status(500).json({ error: 'Failed to delete post' });
+  }
+});
+
+// GET /api/admin/users/:id/id-documents — short-lived signed URLs for ID review
+router.get('/users/:id/id-documents', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const r = await query(
+      `SELECT id_card_front, id_card_back, id_selfie FROM caregiver_profiles WHERE user_id = $1`,
+      [req.params.id]
+    );
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Profile not found' });
+    const row = r.rows[0];
+    const [front, back, selfie] = await Promise.all([
+      getSignedIdUrl(row.id_card_front || ''),
+      getSignedIdUrl(row.id_card_back || ''),
+      getSignedIdUrl(row.id_selfie || ''),
+    ]);
+    await auditFromReq(req, 'id_documents.view', 'user', req.params.id);
+    res.json({ documents: { front, back, selfie } });
+  } catch (err) {
+    console.error('Get ID documents error:', err);
+    res.status(500).json({ error: 'Failed to load ID documents' });
   }
 });
 

@@ -3,6 +3,7 @@ import { query } from '../db.js';
 import { requireAuth, requireCaregiver, AuthRequest } from '../middleware/auth.js';
 import { cacheGet, cacheSet, invalidateCache } from '../services/cache.js';
 import { searchLimiter } from '../middleware/rateLimiter.js';
+import { uploadIdDocument } from '../services/storage.js';
 
 const router = Router();
 
@@ -59,12 +60,12 @@ function formatCaregiver(row: any, includePrivate = false) {
   if (!includePrivate) return base;
 
   // Owner/admin only — sensitive PII + precise location.
+  // ID document images are NOT returned here (they live in private storage). We expose only
+  // whether they've been submitted; admins fetch signed view URLs via a dedicated endpoint.
   return {
     ...base,
     email: row.email,
-    idCardFront: row.id_card_front || '',
-    idCardBack: row.id_card_back || '',
-    idSelfie: row.id_selfie || '',
+    idDocsSubmitted: !!(row.id_card_front && row.id_card_back && row.id_selfie),
     latitude: row.latitude ?? null,
     longitude: row.longitude ?? null,
     address: row.address || '',
@@ -332,30 +333,35 @@ router.put('/profile', requireCaregiver, async (req: AuthRequest, res) => {
 // POST /api/caregivers/verify-id
 router.post('/verify-id', requireCaregiver, async (req: AuthRequest, res) => {
   try {
-    const { idCardNumber, idCardFront, idCardBack, idSelfie } = req.body;
-    if (!idCardNumber || !idCardFront || !idCardBack || !idSelfie) {
-      return res.status(400).json({ error: 'Please provide all ID details and documents.' });
+    const { idCardFront, idCardBack, idSelfie } = req.body; // idCardNumber accepted but never stored
+    if (!idCardFront || !idCardBack || !idSelfie) {
+      return res.status(400).json({ error: 'Please upload your ID front, ID back, and a selfie.' });
     }
 
     // Ensure profile exists
     await query(`INSERT INTO caregiver_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, [req.user!.id]);
 
-    // Save details on caregiver profile (ID number is no longer stored).
+    // Upload each document to the PRIVATE id-documents bucket; store only the paths.
+    const [frontPath, backPath, selfiePath] = await Promise.all([
+      uploadIdDocument(req.user!.id, idCardFront, 'id-front'),
+      uploadIdDocument(req.user!.id, idCardBack, 'id-back'),
+      uploadIdDocument(req.user!.id, idSelfie, 'selfie'),
+    ]);
+
+    if (!frontPath || !backPath || !selfiePath) {
+      return res.status(502).json({ error: 'We couldn’t securely store your documents. Please try again.' });
+    }
+
     await query(
       `UPDATE caregiver_profiles
        SET id_card_front = $1, id_card_back = $2, id_selfie = $3, id_verification_status = 'pending'
        WHERE user_id = $4`,
-      [idCardFront, idCardBack, idSelfie, req.user!.id]
+      [frontPath, backPath, selfiePath, req.user!.id]
     );
 
-    // documents column is text[] — store each document as a readable string
-    const documents = [
-      `ID Front: ${idCardFront}`,
-      `ID Back: ${idCardBack}`,
-      `Selfie: ${idSelfie}`
-    ];
+    // Queue stores only non-sensitive labels — the images live (private) on the profile.
+    const documents = ['ID Front (on file)', 'ID Back (on file)', 'Selfie (on file)'];
 
-    // Remove any previous pending entry for this caregiver + specialty, then insert fresh
     await query(
       `DELETE FROM verification_queue WHERE caregiver_id = $1 AND specialty = $2`,
       [req.user!.id, 'Government ID Verification']

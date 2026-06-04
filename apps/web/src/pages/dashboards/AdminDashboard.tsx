@@ -102,6 +102,7 @@ export default function AdminDashboard() {
   const [savingPricing, setSavingPricing] = useState(false);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [finance, setFinance] = useState<any>(null);
+  const [idDocs, setIdDocs] = useState<Record<string, { front: string | null; back: string | null; selfie: string | null } | 'loading'>>({});
 
   const refreshAllData = () => {
     Promise.all([
@@ -149,6 +150,16 @@ export default function AdminDashboard() {
       await put(`/admin/staffing-verification/${id}`, { status });
     } catch {
       refreshAllData(); // restore on failure
+    }
+  };
+
+  const viewIdDocuments = async (caregiverId: string) => {
+    setIdDocs((p) => ({ ...p, [caregiverId]: 'loading' }));
+    try {
+      const r: any = await get(`/admin/users/${caregiverId}/id-documents`);
+      setIdDocs((p) => ({ ...p, [caregiverId]: r.documents || { front: null, back: null, selfie: null } }));
+    } catch {
+      setIdDocs((p) => ({ ...p, [caregiverId]: { front: null, back: null, selfie: null } }));
     }
   };
 
@@ -829,12 +840,40 @@ export default function AdminDashboard() {
                               <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                                 <Shield className="w-4 h-4 text-emerald-600" /> Government ID Documents
                               </h4>
-                              {item.idCardNumber && (
-                                <span className="text-2xs font-mono bg-white border border-gray-200 rounded px-2 py-0.5 text-gray-600 font-bold">
-                                  Doc ID: {item.idCardNumber}
-                                </span>
+                              {idDocs[item.caregiverId] !== 'loading' && !idDocs[item.caregiverId] && (
+                                <button onClick={() => viewIdDocuments(item.caregiverId)}
+                                  className="text-2xs font-bold bg-emerald-600 text-white rounded-lg px-3 py-1 hover:bg-emerald-700 transition-colors uppercase tracking-wider">
+                                  View ID Documents
+                                </button>
                               )}
                             </div>
+
+                            {/* Signed ID document images (fetched on demand, expire ~1h) */}
+                            {idDocs[item.caregiverId] === 'loading' && (
+                              <p className="text-xs text-gray-400">Loading secure documents…</p>
+                            )}
+                            {idDocs[item.caregiverId] && idDocs[item.caregiverId] !== 'loading' && (
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+                                {([
+                                  ['ID Front', (idDocs[item.caregiverId] as any).front],
+                                  ['ID Back', (idDocs[item.caregiverId] as any).back],
+                                  ['Selfie', (idDocs[item.caregiverId] as any).selfie],
+                                ] as [string, string | null][]).map(([label, url]) => (
+                                  <div key={label} className="bg-white p-3 rounded-xl border border-gray-200 space-y-2">
+                                    <span className="text-2xs font-extrabold uppercase text-slate-400 tracking-wider block">{label}</span>
+                                    <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center border">
+                                      {url ? (
+                                        <a href={url} target="_blank" rel="noopener noreferrer">
+                                          <img src={url} alt={label} className="w-full h-full object-contain hover:scale-105 transition-transform" />
+                                        </a>
+                                      ) : (
+                                        <span className="text-2xs text-gray-400">Not available</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                             
                             {/* Images Render grid */}
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
