@@ -4,6 +4,7 @@ import { requireAuth, AuthRequest } from '../middleware/auth.js';
 import { getUncachableStripeClient } from '../stripeClient.js';
 import { resendBackgroundCheckLink } from '../services/backgroundCheck.js';
 import { turnEnabled } from '../services/turn.js';
+import { getNumberSetting } from '../services/settings.js';
 
 const router = Router();
 
@@ -12,19 +13,10 @@ function tableForRole(role: string) {
   return role === 'professional' ? 'professional_profiles' : 'caregiver_profiles';
 }
 
-/** Single platform background-check processing fee (USD). Configurable via env / settings. */
+/** Single platform background-check processing fee (USD → cents). Admin-configurable + cached. */
 async function getFeeCents(): Promise<number> {
-  // Prefer an admin-configured platform setting, then env, then default.
-  try {
-    const s = await query("SELECT value FROM platform_settings WHERE key = 'background_check_fee'", []);
-    if (s.rows[0]?.value) {
-      const dollars = parseFloat(s.rows[0].value);
-      if (Number.isFinite(dollars) && dollars > 0) return Math.round(dollars * 100);
-    }
-  } catch { /* table/row may not exist */ }
-  const env = parseFloat(process.env.BACKGROUND_CHECK_FEE_AMOUNT || '');
-  if (Number.isFinite(env) && env > 0) return Math.round(env * 100);
-  return 3900; // $39.00 default
+  const dollars = await getNumberSetting('background_check_fee', 39);
+  return Math.round((dollars > 0 ? dollars : 39) * 100);
 }
 
 // ── GET /api/background-check/status — current payment + check state ──

@@ -154,6 +154,16 @@ pool.query(`
   CREATE INDEX IF NOT EXISTS idx_withdrawals_user ON withdrawals(user_id, created_at);
 `).catch(err => console.error('Withdrawals auto-migration failed', err));
 
+// Platform settings (key/value) — admin-configurable pricing & config.
+pool.query(`
+  CREATE TABLE IF NOT EXISTS platform_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT,
+    updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  );
+`).catch(err => console.error('platform_settings auto-migration failed', err));
+
 // Admin audit log — records consequential admin actions for accountability.
 pool.query(`
   CREATE TABLE IF NOT EXISTS admin_audit_logs (

@@ -3,6 +3,7 @@ import { query, supabase } from '../../db.js';
 import { requireAuth, AuthRequest } from '../../middleware/auth.js';
 import { searchLimiter } from '../../middleware/rateLimiter.js';
 import { forwardGeocode } from '../../services/geocode.js';
+import { getNumberSetting } from '../../services/settings.js';
 
 const router = Router();
 
@@ -51,12 +52,8 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Role, pay rate, duration, start time, and location are required' });
     }
 
-    // Get current platform fee rate
-    const settingsRes = await query(
-      "SELECT value FROM platform_settings WHERE key = 'staffing_platform_fee_rate'",
-      []
-    );
-    const feeRate = parseFloat(settingsRes.rows[0]?.value || '0.20');
+    // Get current platform fee rate (admin-configurable + cached)
+    const feeRate = await getNumberSetting('staffing_platform_fee_rate', 0.20);
 
     // Geocode the shift location so professionals can be matched/ranked by distance.
     const { lat, lng } = await geocodeShift({ address, city, state, zip, location });

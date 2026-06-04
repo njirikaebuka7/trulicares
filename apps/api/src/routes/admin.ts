@@ -5,6 +5,7 @@ import { sendVerificationStatusEmail } from '../services/email.js';
 import { decryptArray } from '../services/pii.js';
 import { auditFromReq } from '../services/audit.js';
 import { writeLimiter } from '../middleware/rateLimiter.js';
+import { getPricing, setSetting, PRICING_DEFAULTS } from '../services/settings.js';
 
 const router = Router();
 
@@ -547,6 +548,42 @@ router.put('/staffing-verification/:id', requireAdmin, async (req: AuthRequest, 
   } catch (err) {
     console.error('Staffing verification update error:', err);
     res.status(500).json({ error: 'Failed to update staffing verification' });
+  }
+});
+
+// GET /api/admin/settings/pricing — current pricing config (merged with defaults)
+router.get('/settings/pricing', requireAdmin, async (_req, res) => {
+  try {
+    res.json({ pricing: await getPricing() });
+  } catch (err) {
+    console.error('Get pricing error:', err);
+    res.status(500).json({ error: 'Failed to fetch pricing' });
+  }
+});
+
+// PUT /api/admin/settings/pricing — update one or more pricing keys
+router.put('/settings/pricing', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const updates = req.body?.pricing || req.body || {};
+    const applied: Record<string, string> = {};
+    for (const [key, raw] of Object.entries(updates)) {
+      if (!(key in PRICING_DEFAULTS)) continue;
+      const value = String(raw);
+      const num = parseFloat(value);
+      if (!Number.isFinite(num) || num < 0) {
+        return res.status(400).json({ error: `Invalid value for ${key}` });
+      }
+      await setSetting(key, value, req.user!.id);
+      applied[key] = value;
+    }
+    if (Object.keys(applied).length === 0) {
+      return res.status(400).json({ error: 'No valid pricing keys provided' });
+    }
+    await auditFromReq(req, 'pricing.update', 'setting', null, applied);
+    res.json({ pricing: await getPricing() });
+  } catch (err) {
+    console.error('Update pricing error:', err);
+    res.status(500).json({ error: 'Failed to update pricing' });
   }
 });
 

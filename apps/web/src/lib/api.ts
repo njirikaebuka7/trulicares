@@ -208,4 +208,10 @@ export const admin = {
   reports: () => get('/admin/reports'),
   updateReport: (id: string, status: 'resolved' | 'dismissed' | 'under_review') =>
     put(`/admin/reports/${id}`, { status }),
+  // Pricing config (Phase B)
+  pricing: () => get('/admin/settings/pricing'),
+  updatePricing: (pricing: Record<string, string>) => put('/admin/settings/pricing', { pricing }),
+  // Audit log (Phase A)
+  auditLogs: (page = 1, action?: string) =>
+    get(`/admin/audit-logs?page=${page}${action ? `&action=${action}` : ''}`),
 };

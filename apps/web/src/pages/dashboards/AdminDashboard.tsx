@@ -14,7 +14,7 @@ import { supabase } from '@/lib/supabase';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
 
-type Tab = 'Overview' | 'Users' | 'Verification Queue' | 'Reports' | 'Staffing' | 'Analytics';
+type Tab = 'Overview' | 'Users' | 'Verification Queue' | 'Reports' | 'Staffing' | 'Analytics' | 'Pricing' | 'Audit Log';
 
 type AdminUser = {
   id: string; name: string; email: string; role: string;
@@ -48,7 +48,9 @@ const navItems: { id: Tab; label: string; mobileLabel: string; icon: React.React
   { id: 'Verification Queue', label: 'Verifications', mobileLabel: 'Verify', icon: <UserCheck className="w-5 h-5" /> },
   { id: 'Staffing', label: 'Staffing', mobileLabel: 'Staff', icon: <Briefcase className="w-5 h-5" /> },
   { id: 'Reports', label: 'Reports', mobileLabel: 'Reports', icon: <Flag className="w-5 h-5" /> },
+  { id: 'Pricing', label: 'Pricing', mobileLabel: 'Pricing', icon: <DollarSign className="w-5 h-5" /> },
   { id: 'Analytics', label: 'Analytics', mobileLabel: 'Analytics', icon: <BarChart2 className="w-5 h-5" /> },
+  { id: 'Audit Log', label: 'Audit Log', mobileLabel: 'Audit', icon: <FileText className="w-5 h-5" /> },
 ];
 
 const PAGE_SIZE = 8;
@@ -87,6 +89,10 @@ export default function AdminDashboard() {
   const [dbNotifications, setDbNotifications] = useState<any[]>([]);
   const [staffingDisputes, setStaffingDisputes] = useState<any[]>([]);
   const [professionalVerifications, setProfessionalVerifications] = useState<any[]>([]);
+  const [pricing, setPricing] = useState<Record<string, { value: string; label: string; kind: string }>>({});
+  const [pricingDraft, setPricingDraft] = useState<Record<string, string>>({});
+  const [savingPricing, setSavingPricing] = useState(false);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
 
   const refreshAllData = () => {
     Promise.all([
@@ -98,7 +104,24 @@ export default function AdminDashboard() {
       get('/notifications').then((d: any) => setDbNotifications(d.notifications || [])).catch(() => {}),
       get('/staffing/disputes').then((d: any) => setStaffingDisputes(d.disputes || [])).catch(() => {}),
       get('/admin/staffing-verification-queue').then((d: any) => setProfessionalVerifications(d.queue || [])).catch(() => {}),
+      get('/admin/settings/pricing').then((d: any) => {
+        setPricing(d.pricing || {});
+        setPricingDraft(Object.fromEntries(Object.entries(d.pricing || {}).map(([k, v]: any) => [k, v.value])));
+      }).catch(() => {}),
+      get('/admin/audit-logs').then((d: any) => setAuditLogs(d.logs || [])).catch(() => {}),
     ]).catch(console.error);
+  };
+
+  const handleSavePricing = async () => {
+    setSavingPricing(true);
+    try {
+      const d: any = await put('/admin/settings/pricing', { pricing: pricingDraft });
+      setPricing(d.pricing || {});
+    } catch (e) {
+      console.error('Save pricing failed', e);
+    } finally {
+      setSavingPricing(false);
+    }
   };
 
   const handleStaffingVerify = async (id: string, status: 'approved' | 'rejected') => {
@@ -1218,6 +1241,74 @@ export default function AdminDashboard() {
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── PRICING ── */}
+          {activeTab === 'Pricing' && (
+            <div className="max-w-2xl space-y-6">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Pricing Configuration</h2>
+                <p className="text-sm text-gray-500">Set platform fees. Changes apply immediately (cached for 5 min).</p>
+              </div>
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
+                {Object.entries(pricing).map(([key, cfg]) => (
+                  <div key={key} className="flex items-center justify-between gap-4 p-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900">{cfg.label}</p>
+                      <p className="text-xs text-gray-400">
+                        {cfg.kind === 'usd' ? 'US Dollars ($)' : cfg.kind === 'percent' ? 'Percent (%)' : 'Rate (0–1, e.g. 0.20 = 20%)'}
+                      </p>
+                    </div>
+                    <div className="relative shrink-0 w-36">
+                      {cfg.kind === 'usd' && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>}
+                      <input
+                        type="number" step="0.01" min="0"
+                        value={pricingDraft[key] ?? cfg.value}
+                        onChange={(e) => setPricingDraft((p) => ({ ...p, [key]: e.target.value }))}
+                        className={cn('w-full py-2 pr-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-red-400', cfg.kind === 'usd' ? 'pl-7' : 'pl-3')}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <Button onClick={handleSavePricing} disabled={savingPricing}
+                className="bg-red-600 hover:bg-red-700 text-white font-semibold rounded-full px-6">
+                {savingPricing ? 'Saving…' : 'Save Pricing'}
+              </Button>
+            </div>
+          )}
+
+          {/* ── AUDIT LOG ── */}
+          {activeTab === 'Audit Log' && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Admin Audit Log</h2>
+                <p className="text-sm text-gray-500">Every consequential admin action, most recent first.</p>
+              </div>
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                {auditLogs.length === 0 ? (
+                  <div className="p-10 text-center text-sm text-gray-400">No admin actions recorded yet.</div>
+                ) : (
+                  <div className="divide-y divide-gray-50">
+                    {auditLogs.map((log) => (
+                      <div key={log.id} className="flex items-start justify-between gap-4 p-4">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900">
+                            <span className="font-mono text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700 mr-2">{log.action}</span>
+                            {log.entity_type}{log.entity_id ? ` · ${String(log.entity_id).slice(0, 8)}` : ''}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-0.5">{log.admin_email || 'admin'}</p>
+                          {log.metadata && (
+                            <p className="text-[11px] text-gray-400 mt-1 font-mono break-all">{JSON.stringify(log.metadata)}</p>
+                          )}
+                        </div>
+                        <span className="text-xs text-gray-400 shrink-0">{new Date(log.created_at).toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
