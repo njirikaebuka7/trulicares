@@ -354,6 +354,7 @@ router.get('/shift/:shiftId', requireAuth, async (req: AuthRequest, res) => {
               pp.id AS professional_id, pp.license_type, pp.specialties,
               pp.years_experience, pp.verification_status, pp.bio, pp.location,
               pp.work_experience, pp.certifications, pp.background_check_status,
+              pp.avg_rating, pp.rating_count, pp.completed_shifts, pp.no_show_count,
               (SELECT json_agg(pl.license_type) FROM professional_licenses pl WHERE pl.professional_id = pp.id) as extra_licenses,
               u.name, u.email, u.photo_url, u.phone
        FROM shift_applications sa

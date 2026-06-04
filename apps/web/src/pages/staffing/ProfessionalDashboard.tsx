@@ -468,13 +468,19 @@ function Overview({ profile, summary, activeShift }: { profile: ProfessionalProf
 
       {/* Active Shift Banner */}
       {activeShift && (
-        <CheckInTimer 
+        <CheckInTimer
           bookingId={activeShift.booking_id}
           status={activeShift.booking_status}
           startTime={activeShift.start_time}
           endTime={activeShift.end_time}
           role="professional"
-          onUpdate={() => window.location.reload()} 
+          checkedInAt={activeShift.checked_in_at}
+          checkedOutAt={activeShift.checked_out_at}
+          clockedHours={activeShift.clocked_hours}
+          checkInVerified={activeShift.check_in_verified}
+          checkOutVerified={activeShift.check_out_verified}
+          counterpartName={activeShift.facility_name}
+          onUpdate={() => window.location.reload()}
         />
       )}
 

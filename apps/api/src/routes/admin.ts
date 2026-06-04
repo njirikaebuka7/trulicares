@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query, supabase } from '../db.js';
 import { requireAdmin, AuthRequest } from '../middleware/auth.js';
 import { sendVerificationStatusEmail } from '../services/email.js';
+import { decryptPII, decryptArray } from '../services/pii.js';
 
 const router = Router();
 
@@ -455,6 +456,7 @@ router.get('/staffing-verification-queue', requireAdmin, async (_req, res) => {
   try {
     const result = await query(
       `SELECT vq.id, vq.entity_type, vq.entity_id, vq.status, vq.created_at,
+              vq.documents, vq.background_check_details, vq.id_card_number,
               u.name, u.email, u.photo_url,
               pp.license_type, pp.specialties, pp.years_experience, pp.bio,
               pp.location AS pro_location, pp.verification_status AS pro_status,
@@ -469,7 +471,15 @@ router.get('/staffing-verification-queue', requireAdmin, async (_req, res) => {
        WHERE vq.status IN ('pending', 'under_review')
        ORDER BY vq.created_at ASC`
     );
-    res.json({ queue: result.rows });
+
+    // Decrypt identity PII for admin review (transparent for legacy plaintext rows).
+    const queue = result.rows.map((row: any) => ({
+      ...row,
+      documents: decryptArray(row.documents),
+      id_card_number: decryptPII(row.id_card_number),
+      background_check_details: decryptPII(row.background_check_details),
+    }));
+    res.json({ queue });
   } catch (err) {
     console.error('Staffing verification queue error:', err);
     res.status(500).json({ error: 'Failed to fetch staffing verification queue' });

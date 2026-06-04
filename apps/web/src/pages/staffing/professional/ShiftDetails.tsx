@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, MapPin, Building2, Calendar, FileText, Loader2, CheckCircle, XCircle, ChevronRight, Check, Briefcase, AlertCircle, X } from 'lucide-react';
+import { ArrowLeft, Clock, MapPin, Building2, Calendar, FileText, Loader2, CheckCircle, XCircle, ChevronRight, Check, Briefcase, AlertCircle, X, Star } from 'lucide-react';
 import { shifts as shiftApi, applications as appApi } from '@/lib/staffingApi';
 import { Shift } from '@/types/staffing';
 import { cn } from '@/utils/cn';
@@ -14,6 +14,8 @@ export default function ShiftDetails() {
   const [applying, setApplying] = useState(false);
   const [application, setApplication] = useState<any>(null);
   const [errorModal, setErrorModal] = useState<string | null>(null);
+  const [showNote, setShowNote] = useState(false);
+  const [coverNote, setCoverNote] = useState('');
 
   useEffect(() => {
     if (!id) {
@@ -48,7 +50,8 @@ export default function ShiftDetails() {
     if (!shift) return;
     setApplying(true);
     try {
-      const res = await appApi.apply(shift.id, "I am interested in this shift and available to work.");
+      const note = coverNote.trim() || 'I am interested in this shift and available to work.';
+      const res = await appApi.apply(shift.id, note);
       if (res?.instantBooked) {
         // Instant Book: the pro is confirmed immediately, pending facility payment.
         setApplication({ status: 'accepted', instantBooked: true, ...res });
@@ -133,9 +136,22 @@ export default function ShiftDetails() {
               )}
             </div>
             <h1 className="text-3xl font-extrabold mb-2">{shift.facility_name}</h1>
-            <p className="text-brand-100 font-medium flex items-center gap-2">
-              <Building2 className="w-4 h-4 opacity-80" /> {shift.facility_type || 'Healthcare Facility'}
-            </p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+              <p className="text-brand-100 font-medium flex items-center gap-2">
+                <Building2 className="w-4 h-4 opacity-80" /> {shift.facility_type || 'Healthcare Facility'}
+              </p>
+              {shift.facility_rating != null && Number(shift.facility_rating) > 0 && (
+                <span className="flex items-center gap-1 text-amber-300 font-bold text-sm">
+                  <Star className="w-4 h-4 fill-amber-300" /> {Number(shift.facility_rating).toFixed(1)}
+                  <span className="text-brand-200 font-medium">({shift.facility_rating_count})</span>
+                </span>
+              )}
+              {Number(shift.applicant_count) > 0 && shift.status === 'open' && (
+                <span className="flex items-center gap-1 text-white/90 font-semibold text-sm bg-white/15 px-2.5 py-0.5 rounded-lg">
+                  🔥 {shift.applicant_count} applied — filling fast
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -228,19 +244,42 @@ export default function ShiftDetails() {
                     <button disabled className="w-full py-4 bg-gray-200 text-gray-500 rounded-2xl font-bold">
                       Shift No Longer Open
                     </button>
-                  ) : (
-                    <button 
+                  ) : shift.instant_book ? (
+                    <button
                       onClick={handleApply}
                       disabled={applying}
                       className="w-full py-4 bg-brand-900 hover:bg-brand-800 text-white rounded-2xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 shadow-xl shadow-brand-900/20 disabled:opacity-70"
                     >
                       {applying ? (
-                        <><Loader2 className="w-5 h-5 animate-spin" /> {shift.instant_book ? 'Booking...' : 'Submitting...'}</>
-                      ) : shift.instant_book ? (
-                        <>⚡ Book This Shift Now <ChevronRight className="w-5 h-5" /></>
+                        <><Loader2 className="w-5 h-5 animate-spin" /> Booking...</>
                       ) : (
-                        <>Apply for Shift <ChevronRight className="w-5 h-5" /></>
+                        <>⚡ Book This Shift Now <ChevronRight className="w-5 h-5" /></>
                       )}
+                    </button>
+                  ) : showNote ? (
+                    <div className="space-y-3">
+                      <textarea
+                        value={coverNote}
+                        onChange={(e) => setCoverNote(e.target.value)}
+                        rows={4}
+                        autoFocus
+                        placeholder="Add a short message to the facility (optional) — e.g. your relevant experience or why you're a great fit."
+                        className="w-full px-4 py-3 bg-white border border-emerald-200 focus:ring-2 focus:ring-emerald-500 focus:border-transparent rounded-2xl text-sm outline-none resize-none"
+                      />
+                      <button
+                        onClick={handleApply}
+                        disabled={applying}
+                        className="w-full py-4 bg-brand-900 hover:bg-brand-800 text-white rounded-2xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 shadow-xl shadow-brand-900/20 disabled:opacity-70"
+                      >
+                        {applying ? <><Loader2 className="w-5 h-5 animate-spin" /> Submitting...</> : <>Submit Application <ChevronRight className="w-5 h-5" /></>}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowNote(true)}
+                      className="w-full py-4 bg-brand-900 hover:bg-brand-800 text-white rounded-2xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 shadow-xl shadow-brand-900/20"
+                    >
+                      Apply for Shift <ChevronRight className="w-5 h-5" />
                     </button>
                   )}
 

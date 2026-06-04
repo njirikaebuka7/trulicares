@@ -23,6 +23,7 @@ import FacilityProfileView from './facility/FacilityProfileView';
 import FacilityApplicants from './facility/FacilityApplicants';
 import StaffingChat from './StaffingChat';
 import { FacilityDashboardProvider, useFacilityDashboard } from './facility/FacilityDashboardContext';
+import CheckInTimer from '@/components/staffing/CheckInTimer';
 
 export default function FacilityDashboard() {
   return (
@@ -336,8 +337,37 @@ function FacilityDashboardInner() {
 }
 
 function FacilityOverview({ profile, summary }: { profile: FacilityProfile | null, summary: any }) {
+  const [activeShifts, setActiveShifts] = useState<any[]>([]);
+  const loadActive = () => {
+    shiftApi.getActive().then((r: any) => setActiveShifts(r?.shifts || [])).catch(() => setActiveShifts([]));
+  };
+  useEffect(() => { loadActive(); /* eslint-disable-next-line */ }, []);
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* Active shift lifecycle (check-in → timesheet → approve & pay) */}
+      {activeShifts.length > 0 && (
+        <div className="space-y-4">
+          {activeShifts.map((s) => (
+            <CheckInTimer
+              key={s.booking_id}
+              bookingId={s.booking_id}
+              status={s.booking_status}
+              startTime={s.start_time}
+              endTime={s.end_time}
+              role="facility"
+              checkedInAt={s.checked_in_at}
+              checkedOutAt={s.checked_out_at}
+              clockedHours={s.clocked_hours}
+              checkInVerified={s.check_in_verified}
+              checkOutVerified={s.check_out_verified}
+              counterpartName={s.professional_name}
+              onUpdate={loadActive}
+            />
+          ))}
+        </div>
+      )}
+
       {/* Welcome Section */}
       <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-3xl p-6 text-white relative overflow-hidden">
         <div className="absolute -right-8 -top-8 w-40 h-40 bg-white/5 rounded-full" />

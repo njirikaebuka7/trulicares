@@ -306,7 +306,10 @@ router.get('/active', requireAuth, async (req: AuthRequest, res) => {
 
       const result = await query(
         `SELECT s.*, b.id as booking_id, b.status as booking_status,
-                fp.facility_name, fp.address, fp.city, fp.state
+                b.checked_in_at, b.checked_out_at, b.clocked_hours,
+                b.check_in_verified, b.check_out_verified, b.timesheet_note,
+                fp.facility_name, fp.address, fp.city, fp.state,
+                fp.avg_rating AS facility_rating
          FROM shift_bookings b
          JOIN shifts s ON s.id = b.shift_id
          JOIN facility_profiles fp ON fp.id = s.facility_id
@@ -327,7 +330,10 @@ router.get('/active', requireAuth, async (req: AuthRequest, res) => {
       // Facility might have multiple active shifts (different pros)
       const result = await query(
         `SELECT s.*, b.id as booking_id, b.status as booking_status,
-                u.name as professional_name, u.photo_url as professional_photo
+                b.checked_in_at, b.checked_out_at, b.clocked_hours,
+                b.check_in_verified, b.check_out_verified, b.timesheet_note,
+                u.name as professional_name, u.photo_url as professional_photo,
+                pp.avg_rating AS professional_rating
          FROM shift_bookings b
          JOIN shifts s ON s.id = b.shift_id
          JOIN professional_profiles pp ON pp.id = b.professional_id
@@ -352,7 +358,9 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res) => {
   try {
     const result = await query(
       `SELECT s.*, fp.facility_name, fp.facility_type, fp.city AS facility_city,
-              fp.verification_status AS facility_verified
+              fp.verification_status AS facility_verified,
+              fp.avg_rating AS facility_rating, fp.rating_count AS facility_rating_count,
+              (SELECT COUNT(*) FROM shift_applications sa WHERE sa.shift_id = s.id AND sa.status = 'pending') AS applicant_count
        FROM shifts s
        JOIN facility_profiles fp ON fp.id = s.facility_id
        WHERE s.id = $1`,

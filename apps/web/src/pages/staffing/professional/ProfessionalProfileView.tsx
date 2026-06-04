@@ -340,7 +340,7 @@ export default function ProfessionalProfileView() {
     { label: 'List your specialties', ok: (profile?.specialties?.length || 0) > 0, tab: 'profile' },
     { label: 'Add work experience', ok: (workExps?.length || 0) > 0, tab: 'profile' },
     { label: 'Upload a certification', ok: (certifications?.length || 0) > 0, tab: 'certifications' },
-    { label: 'Verify your government ID', ok: govtIdStep === 'submitted' || !!profile?.govt_id_number, tab: 'govt-id' },
+    { label: 'Verify your government ID', ok: govtIdStep === 'submitted' || !!profile?.govt_id_submitted, tab: 'govt-id' },
     { label: 'Complete a background check', ok: ['approved', 'pending'].includes(profile?.background_check_status), tab: 'background' },
   ];
   const completionDone = completionItems.filter((i) => i.ok).length;

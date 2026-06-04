@@ -177,6 +177,55 @@ pool.query(`
     ADD COLUMN IF NOT EXISTS stripe_onboarded_at TIMESTAMPTZ;
 `).catch(err => console.error('Stripe Connect auto-migration failed', err));
 
+// Booking lifecycle: geofenced clock-in/out, digital timesheet, cancellation/no-show.
+pool.query(`
+  ALTER TABLE shift_bookings
+    ADD COLUMN IF NOT EXISTS check_in_lat DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS check_in_lng DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS check_in_distance_m DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS check_in_verified BOOLEAN,
+    ADD COLUMN IF NOT EXISTS check_out_lat DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS check_out_lng DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS check_out_distance_m DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS check_out_verified BOOLEAN,
+    ADD COLUMN IF NOT EXISTS clocked_hours NUMERIC(6,2),
+    ADD COLUMN IF NOT EXISTS timesheet_note TEXT,
+    ADD COLUMN IF NOT EXISTS cancelled_by TEXT,
+    ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS cancel_reason TEXT,
+    ADD COLUMN IF NOT EXISTS is_no_show BOOLEAN NOT NULL DEFAULT FALSE;
+`).catch(err => console.error('Booking lifecycle auto-migration failed', err));
+
+// Reliability counters on the profiles (drives reliability score + two-way ratings).
+pool.query(`
+  ALTER TABLE professional_profiles
+    ADD COLUMN IF NOT EXISTS avg_rating NUMERIC(3,2),
+    ADD COLUMN IF NOT EXISTS rating_count INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS completed_shifts INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS no_show_count INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS cancellation_count INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE facility_profiles
+    ADD COLUMN IF NOT EXISTS avg_rating NUMERIC(3,2),
+    ADD COLUMN IF NOT EXISTS rating_count INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS cancellation_count INTEGER NOT NULL DEFAULT 0;
+`).catch(err => console.error('Reliability counters auto-migration failed', err));
+
+// Two-way ratings — one row per (booking, rater role).
+pool.query(`
+  CREATE TABLE IF NOT EXISTS shift_ratings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    booking_id UUID NOT NULL REFERENCES shift_bookings(id) ON DELETE CASCADE,
+    rater_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    ratee_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    rater_role TEXT NOT NULL CHECK (rater_role IN ('professional','facility')),
+    rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    comment TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (booking_id, rater_role)
+  );
+  CREATE INDEX IF NOT EXISTS idx_shift_ratings_ratee ON shift_ratings(ratee_user_id);
+`).catch(err => console.error('Shift ratings auto-migration failed', err));
+
 // Payouts ledger — one row per real Stripe Connect transfer (or attempt). Distinct from
 // the legacy `withdrawals` table; this tracks automatic instant payouts on shift completion.
 pool.query(`

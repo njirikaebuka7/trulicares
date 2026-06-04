@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../../db.js';
 import { requireAuth, AuthRequest } from '../../middleware/auth.js';
+import { encryptPII, encryptArray } from '../../services/pii.js';
 
 const router = Router();
 
@@ -21,7 +22,13 @@ router.get('/me', requireAuth, async (req: AuthRequest, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Professional profile not found' });
     }
-    res.json(result.rows[0]);
+    // Don't ship encrypted identity blobs back to the client — expose booleans instead.
+    const { govt_id_docs, govt_id_number, background_check_details, ...safe } = result.rows[0];
+    res.json({
+      ...safe,
+      govt_id_submitted: !!(Array.isArray(govt_id_docs) ? govt_id_docs.length : govt_id_docs) || !!govt_id_number,
+      background_check_submitted: !!background_check_details,
+    });
   } catch (err) {
     console.error('Professional me error:', err);
     res.status(500).json({ error: 'Failed to fetch professional profile' });
@@ -170,16 +177,17 @@ router.put('/profile', requireAuth, async (req: AuthRequest, res) => {
       values.push(certifications);
     }
     if (govtIdDocs !== undefined) {
+      // Encrypt identity documents at rest (gov-ID images are sensitive PII).
       setClauses.push(`govt_id_docs = $${idx++}`);
-      values.push(govtIdDocs);
+      values.push(encryptArray(govtIdDocs) ?? govtIdDocs);
     }
     if (govtIdNumber !== undefined) {
       setClauses.push(`govt_id_number = $${idx++}`);
-      values.push(govtIdNumber);
+      values.push(encryptPII(govtIdNumber));
     }
     if (backgroundCheckDetails !== undefined) {
       setClauses.push(`background_check_details = $${idx++}`);
-      values.push(JSON.stringify(backgroundCheckDetails));
+      values.push(encryptPII(JSON.stringify(backgroundCheckDetails)));
     }
 
     // Confirmed base location (from the location picker) → drives geo shift matching.
@@ -266,6 +274,10 @@ router.post('/govt-id', requireAuth, async (req: AuthRequest, res) => {
     if (idBackUrl) docs.push(`ID Back: ${idBackUrl}`);
     if (selfieUrl) docs.push(`Selfie: ${selfieUrl}`);
 
+    // Encrypt the document blobs + ID number at rest. Admin review decrypts transparently.
+    const encDocs = encryptArray(docs) ?? docs;
+    const encIdNumber = encryptPII(idNumber || null);
+
     // Try to update with new columns; fallback gracefully
     try {
       await query(
@@ -274,7 +286,7 @@ router.post('/govt-id', requireAuth, async (req: AuthRequest, res) => {
            govt_id_number = $2,
            updated_at = NOW()
          WHERE user_id = $3`,
-        [docs, idNumber || null, req.user!.id]
+        [encDocs, encIdNumber, req.user!.id]
       );
     } catch {
       // Columns may not exist yet — ignore
@@ -291,7 +303,7 @@ router.post('/govt-id', requireAuth, async (req: AuthRequest, res) => {
         `INSERT INTO staffing_verification_queue (entity_type, entity_id, user_id, specialty, documents, id_card_number)
          VALUES ('professional', $1, $2, 'Government ID', $3, $4)
          ON CONFLICT DO NOTHING`,
-        [proId, req.user!.id, docs, idNumber || null]
+        [proId, req.user!.id, encDocs, encIdNumber]
       ).catch(() => {});
     }
 
@@ -313,6 +325,9 @@ router.post('/background-check', requireAuth, async (req: AuthRequest, res) => {
     // screening partner (Checkr) on its hosted form — TruliCares never stores it.
     const { ssn: _ssn, socialSecurityNumber: _ssn2, ...safeDetails } = details || {};
 
+    // Encrypt the detail blob at rest (contains DOB, legal name, address).
+    const encDetails = encryptPII(JSON.stringify(safeDetails));
+
     try {
       await query(
         `UPDATE professional_profiles SET
@@ -320,7 +335,7 @@ router.post('/background-check', requireAuth, async (req: AuthRequest, res) => {
            background_check_status = 'pending',
            updated_at = NOW()
          WHERE user_id = $2`,
-        [JSON.stringify(safeDetails), req.user!.id]
+        [encDetails, req.user!.id]
       );
     } catch {
       // Column may not exist — ignore
@@ -342,7 +357,7 @@ router.post('/background-check', requireAuth, async (req: AuthRequest, res) => {
         `INSERT INTO staffing_verification_queue (entity_type, entity_id, user_id, specialty, documents, background_check_details)
          VALUES ('professional', $1, $2, 'Background Check', $3, $4)
          ON CONFLICT DO NOTHING`,
-        [proId, req.user!.id, summaryDocs, JSON.stringify(safeDetails)]
+        [proId, req.user!.id, encryptArray(summaryDocs) ?? summaryDocs, encDetails]
       ).catch(() => {});
     }
 
@@ -363,6 +378,7 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res) => {
       `SELECT pp.id, pp.license_type, pp.license_state,
               pp.specialties, pp.years_experience, pp.bio, pp.location,
               pp.verification_status, pp.background_check_status,
+              pp.avg_rating, pp.rating_count, pp.completed_shifts,
               u.name, u.photo_url
        FROM professional_profiles pp
        JOIN users u ON u.id = pp.user_id

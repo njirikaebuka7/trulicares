@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from '@/components/ui/Toaster';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, Clock, MapPin, Briefcase, FileText, ChevronDown, ChevronUp, Stethoscope, GraduationCap, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, User, Clock, MapPin, Briefcase, FileText, ChevronDown, ChevronUp, Stethoscope, GraduationCap, ShieldCheck, Star } from 'lucide-react';
 import { applications as appApi, shifts as shiftApi } from '@/lib/staffingApi';
 import { cn } from '@/utils/cn';
 import { Shift } from '@/types/staffing';
@@ -9,6 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import EmptyState from '@/components/ui/EmptyState';
 import { TrustBadges } from '@/components/ui/CaregiverTrust';
+import Avatar from '@/components/ui/Avatar';
 
 export default function FacilityApplicants() {
   const { user } = useAuth();
@@ -139,14 +140,8 @@ export default function FacilityApplicants() {
                 
                 {/* Profile Info */}
                 <div className="flex items-start gap-4 flex-1">
-                  {app.photo_url ? (
-                    <img src={app.photo_url} alt={app.name} className="w-16 h-16 rounded-2xl object-cover shrink-0" />
-                  ) : (
-                    <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl font-bold shrink-0">
-                      {app.name?.charAt(0) || 'P'}
-                    </div>
-                  )}
-                  
+                  <Avatar name={app.name} src={app.photo_url} size={64} className="rounded-2xl" />
+
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-lg font-bold text-gray-900">{app.name}</h3>
@@ -158,7 +153,15 @@ export default function FacilityApplicants() {
                     </div>
                     <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 font-medium">
                       <span className="bg-gray-100 px-2 py-0.5 rounded font-bold text-gray-700">{app.license_type}</span>
-                      {app.years_experience && <span>{app.years_experience} yrs exp</span>}
+                      {app.years_experience ? <span>{app.years_experience} yrs exp</span> : null}
+                      {app.avg_rating != null && Number(app.avg_rating) > 0 && (
+                        <span className="flex items-center gap-1 text-amber-600 font-bold">
+                          <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" /> {Number(app.avg_rating).toFixed(1)}
+                          <span className="text-gray-400 font-medium">({app.rating_count})</span>
+                        </span>
+                      )}
+                      {Number(app.completed_shifts) > 0 && <span className="text-emerald-600 font-semibold">{app.completed_shifts} shifts done</span>}
+                      {Number(app.no_show_count) > 0 && <span className="text-red-500 font-semibold">{app.no_show_count} no-show{app.no_show_count > 1 ? 's' : ''}</span>}
                       {app.location && <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {app.location}</span>}
                     </div>
                     

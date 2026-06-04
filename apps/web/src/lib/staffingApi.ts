@@ -73,10 +73,24 @@ export const applications = {
 export const bookings = {
   list: () => get('/staffing/checkin/bookings'),
   get: (id: string) => get(`/staffing/checkin/bookings/${id}`),
-  checkIn: (bookingId: string) => post(`/staffing/checkin/${bookingId}`),
+  checkIn: (bookingId: string, coords?: { lat?: number; lng?: number }) =>
+    post(`/staffing/checkin/${bookingId}`, coords || {}),
   confirmStart: (bookingId: string) => post(`/staffing/checkin/confirm-start/${bookingId}`),
-  checkOut: (bookingId: string) => post(`/staffing/checkin/checkout/${bookingId}`),
-  confirmComplete: (bookingId: string) => post(`/staffing/checkin/confirm-complete/${bookingId}`),
+  checkOut: (bookingId: string, coords?: { lat?: number; lng?: number }) =>
+    post(`/staffing/checkin/checkout/${bookingId}`, coords || {}),
+  confirmComplete: (bookingId: string, note?: string) =>
+    post(`/staffing/checkin/confirm-complete/${bookingId}`, { note }),
+  cancel: (bookingId: string, reason?: string) =>
+    post(`/staffing/checkin/cancel/${bookingId}`, { reason }),
+  noShow: (bookingId: string, reason?: string) =>
+    post(`/staffing/checkin/no-show/${bookingId}`, { reason }),
+};
+
+// ── Ratings (two-way) ──────────────────────────────────────────
+export const ratings = {
+  submit: (bookingId: string, rating: number, comment?: string) =>
+    post('/staffing/ratings', { bookingId, rating, comment }),
+  forBooking: (bookingId: string) => get(`/staffing/ratings/booking/${bookingId}`),
 };
 
 // ── Wallet ─────────────────────────────────────────────────────
