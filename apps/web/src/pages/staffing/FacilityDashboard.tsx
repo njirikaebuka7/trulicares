@@ -11,6 +11,7 @@ import { facility as facApi, shifts as shiftApi } from '@/lib/staffingApi';
 import { notifications as notificationsApi } from '@/lib/api';
 import { FacilityProfile } from '@/types/staffing';
 import logoImg from '@/assets/logo.png';
+import Avatar from '@/components/ui/Avatar';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/utils/cn';
 import { format } from 'date-fns';
@@ -52,7 +53,7 @@ function FacilityDashboardInner() {
       .catch(() => {});
   }, []);
 
-  const unreadApiCount = apiNotifications.filter((n: any) => !(n.read ?? n.isRead ?? false)).length;
+  const unreadApiCount = apiNotifications.filter((n: any) => !(n.read ?? n.isRead ?? n.is_read ?? false)).length;
   const unread = notificationsRead ? 0 : unreadApiCount;
 
   const openNotifications = () => {
@@ -134,9 +135,7 @@ function FacilityDashboardInner() {
         {!isCollapsed ? (
           <div className="px-4 py-4 border-b border-emerald-800/60">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
-                {initials}
-              </div>
+              <Avatar name={(profile as any)?.facility_name || profile?.name || user?.name} src={(profile as any)?.photo_url} size={36} className="rounded-xl" />
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-white text-sm truncate">{profile?.name || user?.name}</p>
                 <p className="text-xs text-emerald-400 truncate">{profile?.type || 'Facility'}</p>
@@ -145,9 +144,7 @@ function FacilityDashboardInner() {
           </div>
         ) : (
           <div className="flex justify-center py-3 border-b border-emerald-800/60">
-            <div className="w-8 h-8 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-bold text-xs">
-              {initials}
-            </div>
+            <Avatar name={(profile as any)?.facility_name || profile?.name || user?.name} src={(profile as any)?.photo_url} size={32} className="rounded-xl" />
           </div>
         )}
 
@@ -210,9 +207,7 @@ function FacilityDashboardInner() {
 
           <div className="flex items-center gap-2">
             <div className="hidden sm:flex items-center gap-3 bg-gray-50 border border-gray-100 p-1.5 rounded-2xl pr-4">
-              <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-bold text-xs">
-                {initials}
-              </div>
+              <Avatar name={(profile as any)?.facility_name || profile?.name || user?.name} src={(profile as any)?.photo_url} size={32} className="rounded-lg" />
               <span className="text-xs font-bold text-gray-900 truncate max-w-[120px]">{profile?.name || user?.name}</span>
             </div>
             <div className="relative">
@@ -238,7 +233,7 @@ function FacilityDashboardInner() {
                     {apiNotifications.length === 0 ? (
                       <div className="px-4 py-6 text-center text-sm text-gray-400">No notifications yet.</div>
                     ) : apiNotifications.slice(0, 8).map((n: any) => {
-                      const isRead = n.read ?? n.isRead ?? false;
+                      const isRead = n.read ?? n.isRead ?? n.is_read ?? false;
                       return (
                         <div key={n.id} className="px-4 py-3 border-b border-gray-50 last:border-0">
                           <p className={cn('text-sm font-medium', isRead ? 'text-gray-600' : 'text-gray-900')}>{n.content || n.message || n.text}</p>
@@ -255,9 +250,9 @@ function FacilityDashboardInner() {
             <div className="relative lg:hidden">
               <button
                 onClick={() => setMobileUserMenuOpen(!mobileUserMenuOpen)}
-                className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center text-white text-xs font-bold transition-all active:scale-95 overflow-hidden"
+                className="rounded-full transition-all active:scale-95 overflow-hidden"
               >
-                {initials}
+                <Avatar name={(profile as any)?.facility_name || profile?.name || user?.name} src={(profile as any)?.photo_url} size={36} />
               </button>
               {mobileUserMenuOpen && (
                 <>

@@ -10,7 +10,8 @@ import { useAuth } from '@/context/AuthContext';
 import { professional as proApi, shifts as shiftApi, applications as appApi, wallet as walletApi } from '@/lib/staffingApi';
 import { ProfessionalProfile, Shift } from '@/types/staffing';
 import logoImg from '@/assets/logo.png';
-import { get, post } from '@/lib/api';
+import Avatar from '@/components/ui/Avatar';
+import { get, notifications as notificationsApi } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/utils/cn';
 import { format } from 'date-fns';
@@ -65,14 +66,14 @@ function ProfessionalDashboardInner() {
     };
   }, [user]);
 
-  const unread = dbNotifications.filter(n => !(n.read ?? n.isRead)).length;
+  const unread = dbNotifications.filter(n => !(n.read ?? n.isRead ?? n.is_read)).length;
 
   const openNotifications = async () => {
     setNotifOpen(!notifOpen);
     if (!notifOpen && unread > 0) {
-      setDbNotifications(prev => prev.map(n => ({ ...n, read: true, isRead: true })));
+      setDbNotifications(prev => prev.map(n => ({ ...n, read: true, isRead: true, is_read: true })));
       try {
-        await post('/notifications/read', {});
+        await notificationsApi.markAllRead();
       } catch (err) {
         console.error('Failed to mark notifications read', err);
       }
@@ -167,9 +168,7 @@ function ProfessionalDashboardInner() {
         {!isCollapsed ? (
           <div className="px-4 py-4 border-b border-emerald-800/60">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
-                {initials}
-              </div>
+              <Avatar name={profile?.name || user?.name} src={profile?.photo_url} size={36} className="rounded-xl" />
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-white text-sm truncate">{profile?.name || user?.name}</p>
                 <p className="text-xs text-emerald-400 truncate">{profile?.license_type || 'Professional'}</p>
@@ -178,9 +177,7 @@ function ProfessionalDashboardInner() {
           </div>
         ) : (
           <div className="flex justify-center py-3 border-b border-emerald-800/60">
-            <div className="w-8 h-8 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-bold text-xs">
-              {initials}
-            </div>
+            <Avatar name={profile?.name || user?.name} src={profile?.photo_url} size={32} className="rounded-xl" />
           </div>
         )}
 
@@ -243,9 +240,7 @@ function ProfessionalDashboardInner() {
 
           <div className="flex items-center gap-2">
             <div className="hidden sm:flex items-center gap-3 bg-gray-50 border border-gray-100 p-1.5 rounded-2xl pr-4">
-              <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-bold text-xs">
-                {initials}
-              </div>
+              <Avatar name={profile?.name || user?.name} src={profile?.photo_url} size={32} className="rounded-lg" />
               <span className="text-xs font-bold text-gray-900 truncate max-w-[120px]">{profile?.name || user?.name}</span>
             </div>
             <div className="relative">
@@ -259,7 +254,9 @@ function ProfessionalDashboardInner() {
                 )}
               </button>
               {notifOpen && (
-                <div className="hidden lg:block absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50">
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />
+                  <div className="absolute right-0 top-12 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-gray-100 z-50">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                     <span className="font-bold text-gray-900 text-sm">Notifications</span>
                     <button onClick={() => setNotifOpen(false)}><X className="w-4 h-4 text-gray-400" /></button>
@@ -267,7 +264,7 @@ function ProfessionalDashboardInner() {
                   {dbNotifications.length === 0 ? (
                     <div className="px-4 py-6 text-center text-sm text-gray-400">No notifications yet.</div>
                   ) : dbNotifications.slice(0, 8).map((n: any) => {
-                    const isRead = n.read ?? n.isRead ?? false;
+                    const isRead = n.read ?? n.isRead ?? n.is_read ?? false;
                     return (
                       <div key={n.id} className="px-4 py-3 border-b border-gray-50 last:border-0">
                         <p className={cn('text-sm font-medium', isRead ? 'text-gray-600' : 'text-gray-900')}>{n.content || n.title}</p>
@@ -275,7 +272,8 @@ function ProfessionalDashboardInner() {
                       </div>
                     );
                   })}
-                </div>
+                  </div>
+                </>
               )}
             </div>
 
@@ -283,9 +281,9 @@ function ProfessionalDashboardInner() {
             <div className="relative lg:hidden">
               <button
                 onClick={() => setMobileUserMenuOpen(!mobileUserMenuOpen)}
-                className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center text-white text-xs font-bold transition-all active:scale-95 overflow-hidden"
+                className="rounded-full transition-all active:scale-95 overflow-hidden"
               >
-                {initials}
+                <Avatar name={profile?.name || user?.name} src={profile?.photo_url} size={36} />
               </button>
               {mobileUserMenuOpen && (
                 <>

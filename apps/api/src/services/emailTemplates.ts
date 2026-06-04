@@ -153,22 +153,36 @@ export function renderEmail(template: EmailTemplate, data: Data): RenderedEmail 
 
   switch (template) {
     case 'welcome': {
-      const isCaregiver = data.role === 'caregiver' || data.role === 'professional';
+      const role = data.role;
+      // Role-specific welcome copy + correct destination dashboard.
+      let intro: string;
+      let cta = 'Get Started';
+      let ctaUrl = dash;
+      if (role === 'professional') {
+        intro = 'You can now complete your profile, get verified, and start booking healthcare shifts that fit your schedule.';
+        cta = 'Complete Your Profile';
+        ctaUrl = `${APP_URL()}/professional-dashboard`;
+      } else if (role === 'facility') {
+        intro = 'You can now set up your facility, post shifts, and hire verified healthcare professionals — fast.';
+        cta = 'Go to Facility Dashboard';
+        ctaUrl = `${APP_URL()}/facility-dashboard`;
+      } else if (role === 'caregiver') {
+        intro = 'You can now complete your profile and start receiving job requests from families near you.';
+        cta = 'Complete Your Profile';
+      } else {
+        intro = 'You can now find trusted, verified caregivers for your family in just a few minutes.';
+      }
       return {
         subject: `Welcome to TruliCares, ${data.name || ''}!`.trim(),
-        text: `Welcome to TruliCares, ${data.name || ''}. Your account is ready. Log in: ${login}`,
+        text: `Welcome to TruliCares, ${data.name || ''}. ${intro} Log in: ${ctaUrl}`,
         html: layout({
           title: 'Welcome to TruliCares',
           preheader: 'Your account is ready.',
           body:
             h1('Welcome to TruliCares! 🎉') +
             p(`Hi ${name}, your account is ready to go.`) +
-            p(
-              isCaregiver
-                ? `You can now complete your profile and start receiving ${data.role === 'professional' ? 'shift opportunities' : 'job requests'}.`
-                : `You can now find trusted, verified caregivers for your family in just a few minutes.`
-            ) +
-            button('Get Started', dash),
+            p(intro) +
+            button(cta, ctaUrl),
         }),
       };
     }
