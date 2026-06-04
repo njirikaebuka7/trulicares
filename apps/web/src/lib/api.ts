@@ -214,4 +214,25 @@ export const admin = {
   // Audit log (Phase A)
   auditLogs: (page = 1, action?: string) =>
     get(`/admin/audit-logs?page=${page}${action ? `&action=${action}` : ''}`),
+  // Finance (Phase D)
+  finance: () => get('/admin/finance'),
+  refundPayment: (id: string) => post(`/admin/payments/${id}/refund`, {}),
+  // Blog CMS (Phase F)
+  blogList: (params?: { page?: number; status?: string; search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.status) q.set('status', params.status);
+    if (params?.search) q.set('search', params.search);
+    return get(`/admin/blog?${q.toString()}`);
+  },
+  blogGet: (id: string) => get(`/admin/blog/${id}`),
+  blogCreate: (data: any) => post('/admin/blog', data),
+  blogUpdate: (id: string, data: any) => put(`/admin/blog/${id}`, data),
+  blogDelete: (id: string) => del(`/admin/blog/${id}`),
+};
+
+// ── Public resources / blog (CMS-backed) ──────────────────────────────────────
+export const resources = {
+  list: (category?: string) => get(`/resources${category && category !== 'All' ? `?category=${encodeURIComponent(category)}` : ''}`),
+  get: (slug: string) => get(`/resources/${slug}`),
 };

@@ -15,6 +15,7 @@ import clientsRouter from './routes/clients.js';
 import staffingRouter from './routes/staffing/index.js';
 import turnRouter from './routes/turn.js';
 import backgroundCheckRouter from './routes/backgroundCheck.js';
+import resourcesRouter from './routes/resources.js';
 import cronRouter from './routes/cron.js';
 import geoRouter from './routes/geo.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
@@ -78,6 +79,7 @@ app.use('/api/admin', adminRouter);
 app.use('/api/clients', clientsRouter);
 app.use('/api/staffing', staffingRouter); // Independent staffing module
 app.use('/api/background-check', backgroundCheckRouter); // Turn.ai bg-check (caregivers + pros)
+app.use('/api/resources', resourcesRouter); // public blog/resources (CMS-backed)
 app.use('/api/cron', cronRouter); // Vercel Cron maintenance jobs
 app.use('/api/geo', geoRouter); // geocoding (reverse/forward) for the location picker
 

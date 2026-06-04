@@ -1,5 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { ArrowLeft, Clock, User, Share2, Bookmark, ChevronRight } from 'lucide-react';
+import { resources as resourcesApi } from '@/lib/api';
 
 import imgNannyInterview from '@/assets/blog-nanny-interview.jpg';
 import imgSeniorSigns from '@/assets/blog-senior-signs.jpg';
@@ -423,7 +425,40 @@ const relatedPairs: Record<number, number[]> = {
 
 export default function ResourceArticle() {
   const { id } = useParams<{ id: string }>();
-  const article = articles.find(a => a.id === Number(id));
+  const staticArticle = articles.find(a => a.id === Number(id));
+  const [cmsArticle, setCmsArticle] = useState<any>(null);
+  const [loading, setLoading] = useState(!staticArticle);
+
+  // If it's not a built-in numeric article, treat the param as a CMS slug.
+  useEffect(() => {
+    if (staticArticle) { setLoading(false); return; }
+    let active = true;
+    resourcesApi.get(id as string).then((d: any) => {
+      if (!active || !d?.post) return;
+      const p = d.post;
+      setCmsArticle({
+        id: p.slug,
+        category: p.category || 'Resources',
+        title: p.title,
+        readTime: p.read_time || '',
+        author: p.author_name || 'TruliCares',
+        date: p.published_at ? new Date(p.published_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '',
+        image: p.featured_image || '',
+        content: String(p.content || p.excerpt || '').split(/\n{2,}/).map((t: string) => ({ type: 'paragraph', text: t.trim() })).filter((b: any) => b.text),
+      });
+    }).catch(() => {}).finally(() => active && setLoading(false));
+    return () => { active = false; };
+  }, [id, staticArticle]);
+
+  const article: any = staticArticle || cmsArticle;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="w-10 h-10 border-4 border-brand-100 border-t-brand-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (!article) {
     return (

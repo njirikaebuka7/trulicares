@@ -1,7 +1,8 @@
 import { HelpCircle, ChevronRight, Clock, User } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/utils/cn';
+import { resources as resourcesApi } from '@/lib/api';
 
 import imgNannyInterview from '@/assets/blog-nanny-interview.jpg';
 import imgSeniorSigns from '@/assets/blog-senior-signs.jpg';
@@ -109,10 +110,28 @@ const placeholderGradients: Record<string, string> = {
 export default function Resources() {
   const [activeCategory, setActiveCategory] = useState('All');
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [cmsPosts, setCmsPosts] = useState<any[]>([]);
 
+  // Pull published CMS posts and show them ahead of the built-in starter articles.
+  useEffect(() => {
+    resourcesApi.list().then((d: any) => {
+      setCmsPosts((d.posts || []).map((p: any) => ({
+        id: p.slug,
+        category: p.category || 'All',
+        title: p.title,
+        excerpt: p.excerpt || '',
+        readTime: p.read_time || '',
+        author: p.author_name || 'TruliCares',
+        type: 'article',
+        image: p.featured_image || '',
+      })));
+    }).catch(() => {});
+  }, []);
+
+  const allArticles = [...cmsPosts, ...articles];
   const filteredArticles = activeCategory === 'All'
-    ? articles
-    : articles.filter(a => a.category === activeCategory);
+    ? allArticles
+    : allArticles.filter(a => a.category === activeCategory);
 
   return (
     <div className="bg-white">

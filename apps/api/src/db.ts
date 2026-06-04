@@ -154,6 +154,31 @@ pool.query(`
   CREATE INDEX IF NOT EXISTS idx_withdrawals_user ON withdrawals(user_id, created_at);
 `).catch(err => console.error('Withdrawals auto-migration failed', err));
 
+// Blog / resources CMS.
+pool.query(`
+  CREATE TABLE IF NOT EXISTS blog_posts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title TEXT NOT NULL,
+    slug TEXT UNIQUE NOT NULL,
+    excerpt TEXT,
+    content TEXT,
+    featured_image TEXT,
+    category TEXT,
+    tags TEXT[] DEFAULT '{}',
+    seo_title TEXT,
+    seo_description TEXT,
+    author_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    author_name TEXT,
+    read_time TEXT,
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published')),
+    published_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_blog_status ON blog_posts(status, published_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_blog_slug ON blog_posts(slug);
+`).catch(err => console.error('blog_posts auto-migration failed', err));
+
 // Platform settings (key/value) — admin-configurable pricing & config.
 pool.query(`
   CREATE TABLE IF NOT EXISTS platform_settings (

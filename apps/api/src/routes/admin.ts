@@ -757,6 +757,135 @@ router.post('/payments/:id/refund', requireAdmin, async (req: AuthRequest, res) 
   }
 });
 
+// ── Blog / Resources CMS ──────────────────────────────────────────────────────
+function slugify(s: string): string {
+  return s.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').slice(0, 80);
+}
+
+// GET /api/admin/blog — list (paginated, status filter, search)
+router.get('/blog', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { page = '1', status, search } = req.query as any;
+    const pageNum = Math.max(1, parseInt(page, 10));
+    const limit = 20;
+    const offset = (pageNum - 1) * limit;
+    const conditions: string[] = [];
+    const params: any[] = [];
+    let idx = 1;
+    if (status && status !== 'all') { conditions.push(`status = $${idx++}`); params.push(status); }
+    if (search) { conditions.push(`title ILIKE $${idx++}`); params.push(`%${search}%`); }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const countRes = await query(`SELECT COUNT(*) FROM blog_posts ${where}`, params);
+    params.push(limit, offset);
+    const result = await query(
+      `SELECT id, title, slug, excerpt, category, status, author_name, featured_image,
+              published_at, updated_at
+       FROM blog_posts ${where} ORDER BY updated_at DESC LIMIT $${idx} OFFSET $${idx + 1}`,
+      params
+    );
+    res.json({
+      posts: result.rows,
+      pagination: { total: parseInt(countRes.rows[0].count), page: pageNum, pages: Math.ceil(parseInt(countRes.rows[0].count) / limit), limit },
+    });
+  } catch (err) {
+    console.error('Admin blog list error:', err);
+    res.status(500).json({ error: 'Failed to fetch posts' });
+  }
+});
+
+// GET /api/admin/blog/:id — single (for editing)
+router.get('/blog/:id', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const r = await query('SELECT * FROM blog_posts WHERE id = $1', [req.params.id]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Post not found' });
+    res.json({ post: r.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch post' });
+  }
+});
+
+// POST /api/admin/blog — create
+router.post('/blog', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const b = req.body || {};
+    if (!b.title) return res.status(400).json({ error: 'Title is required' });
+    const slug = (b.slug && slugify(b.slug)) || slugify(b.title) || `post-${Date.now()}`;
+    const status = b.status === 'published' ? 'published' : 'draft';
+    const result = await query(
+      `INSERT INTO blog_posts (title, slug, excerpt, content, featured_image, category, tags,
+                               seo_title, seo_description, author_id, author_name, read_time,
+                               status, published_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, CASE WHEN $13='published' THEN NOW() ELSE NULL END)
+       RETURNING id, slug`,
+      [b.title, slug, b.excerpt || null, b.content || null, b.featuredImage || null, b.category || null,
+       Array.isArray(b.tags) ? b.tags : [], b.seoTitle || null, b.seoDescription || null,
+       req.user!.id, b.authorName || req.user!.name, b.readTime || null, status]
+    );
+    await auditFromReq(req, 'blog.create', 'blog_post', result.rows[0].id, { title: b.title, status });
+    res.status(201).json({ post: result.rows[0] });
+  } catch (err: any) {
+    if (err.code === '23505') return res.status(409).json({ error: 'A post with that slug already exists' });
+    console.error('Admin blog create error:', err);
+    res.status(500).json({ error: 'Failed to create post' });
+  }
+});
+
+// PUT /api/admin/blog/:id — update
+router.put('/blog/:id', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const b = req.body || {};
+    const fields: string[] = [];
+    const params: any[] = [];
+    let idx = 1;
+    const set = (col: string, val: any) => { fields.push(`${col} = $${idx++}`); params.push(val); };
+    if (b.title !== undefined) set('title', b.title);
+    if (b.slug !== undefined) set('slug', slugify(b.slug));
+    if (b.excerpt !== undefined) set('excerpt', b.excerpt);
+    if (b.content !== undefined) set('content', b.content);
+    if (b.featuredImage !== undefined) set('featured_image', b.featuredImage);
+    if (b.category !== undefined) set('category', b.category);
+    if (b.tags !== undefined) set('tags', Array.isArray(b.tags) ? b.tags : []);
+    if (b.seoTitle !== undefined) set('seo_title', b.seoTitle);
+    if (b.seoDescription !== undefined) set('seo_description', b.seoDescription);
+    if (b.authorName !== undefined) set('author_name', b.authorName);
+    if (b.readTime !== undefined) set('read_time', b.readTime);
+    if (b.status !== undefined) {
+      const status = b.status === 'published' ? 'published' : 'draft';
+      set('status', status);
+      // Set published_at when first published.
+      fields.push(`published_at = CASE WHEN $${idx} = 'published' AND published_at IS NULL THEN NOW() ELSE published_at END`);
+      params.push(status); idx++;
+    }
+    if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
+    fields.push('updated_at = NOW()');
+    params.push(req.params.id);
+    const result = await query(
+      `UPDATE blog_posts SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, slug, status`,
+      params
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Post not found' });
+    await auditFromReq(req, 'blog.update', 'blog_post', req.params.id, { status: result.rows[0].status });
+    res.json({ post: result.rows[0] });
+  } catch (err: any) {
+    if (err.code === '23505') return res.status(409).json({ error: 'A post with that slug already exists' });
+    console.error('Admin blog update error:', err);
+    res.status(500).json({ error: 'Failed to update post' });
+  }
+});
+
+// DELETE /api/admin/blog/:id
+router.delete('/blog/:id', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const r = await query('DELETE FROM blog_posts WHERE id = $1 RETURNING id', [req.params.id]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Post not found' });
+    await auditFromReq(req, 'blog.delete', 'blog_post', req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Admin blog delete error:', err);
+    res.status(500).json({ error: 'Failed to delete post' });
+  }
+});
+
 // GET /api/admin/audit-logs — paginated admin action history
 router.get('/audit-logs', requireAdmin, async (req: AuthRequest, res) => {
   try {

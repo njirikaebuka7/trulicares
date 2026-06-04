@@ -13,8 +13,9 @@ import { get, put, post, del } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
+import AdminContent from '@/components/admin/AdminContent';
 
-type Tab = 'Overview' | 'Users' | 'Verification Queue' | 'Reports' | 'Staffing' | 'Analytics' | 'Pricing' | 'Finance' | 'Audit Log';
+type Tab = 'Overview' | 'Users' | 'Verification Queue' | 'Reports' | 'Staffing' | 'Analytics' | 'Pricing' | 'Finance' | 'Content' | 'Audit Log';
 
 type AdminUser = {
   id: string; name: string; email: string; role: string;
@@ -50,8 +51,9 @@ const navItems: { id: Tab; label: string; mobileLabel: string; icon: React.React
   { id: 'Reports', label: 'Reports', mobileLabel: 'Reports', icon: <Flag className="w-5 h-5" /> },
   { id: 'Pricing', label: 'Pricing', mobileLabel: 'Pricing', icon: <DollarSign className="w-5 h-5" /> },
   { id: 'Finance', label: 'Finance', mobileLabel: 'Finance', icon: <Activity className="w-5 h-5" /> },
+  { id: 'Content', label: 'Content', mobileLabel: 'Content', icon: <FileText className="w-5 h-5" /> },
   { id: 'Analytics', label: 'Analytics', mobileLabel: 'Analytics', icon: <BarChart2 className="w-5 h-5" /> },
-  { id: 'Audit Log', label: 'Audit Log', mobileLabel: 'Audit', icon: <FileText className="w-5 h-5" /> },
+  { id: 'Audit Log', label: 'Audit Log', mobileLabel: 'Audit', icon: <Eye className="w-5 h-5" /> },
 ];
 
 const PAGE_SIZE = 8;
@@ -1325,6 +1327,9 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {/* ── CONTENT / CMS ── */}
+          {activeTab === 'Content' && <AdminContent />}
+
           {/* ── FINANCE ── */}
           {activeTab === 'Finance' && (
             <div className="space-y-6">
@@ -1464,10 +1469,10 @@ export default function AdminDashboard() {
 
       {/* ── BOTTOM NAV (mobile) ── */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30 shadow-[0_-2px_12px_rgba(0,0,0,0.06)]">
-        <div className="flex items-center justify-around px-1">
+        <div className="flex items-center px-1 overflow-x-auto scrollbar-hide">
           {navItems.map(item => (
             <button key={item.id} onClick={() => setActiveTab(item.id)}
-              className={cn('relative flex flex-col items-center gap-0.5 px-1 py-2.5 min-w-0 flex-1 transition-colors',
+              className={cn('relative flex flex-col items-center gap-0.5 px-3 py-2.5 shrink-0 transition-colors',
                 activeTab === item.id ? 'text-slate-900' : 'text-gray-400 hover:text-gray-600')}>
               {item.badge && (
                 <span className="absolute top-1.5 right-1/2 translate-x-3.5 w-4 h-4 bg-red-500 rounded-full text-white text-[9px] flex items-center justify-center font-bold z-10">
