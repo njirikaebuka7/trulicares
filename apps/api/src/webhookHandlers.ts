@@ -274,6 +274,8 @@ export class WebhookHandlers {
           }).catch(() => {});
         } else if (session.metadata?.type === 'background_check' && session.metadata?.userId) {
           const userId = session.metadata.userId;
+          const role = session.metadata.role || 'caregiver';
+          const table = role === 'professional' ? 'professional_profiles' : 'caregiver_profiles';
           // Update payment record
           await query(
             `UPDATE payments SET status = 'succeeded', stripe_payment_intent_id = $1
@@ -281,15 +283,26 @@ export class WebhookHandlers {
             [session.payment_intent || session.id, userId, session.id]
           );
 
+          // Record the bg-check payment on the provider profile (separate from check status).
+          await query(
+            `UPDATE ${table}
+             SET background_check_payment_status = 'paid',
+                 background_check_payment_provider = 'stripe',
+                 background_check_payment_reference = $1,
+                 background_check_paid_at = NOW()
+             WHERE user_id = $2`,
+            [session.payment_intent || session.id, userId]
+          ).catch(() => {});
+
           // Create verification queue entry (manual fallback / audit trail)
           await query(
             `INSERT INTO verification_queue (caregiver_id, specialty, experience, documents, background_check, status, submitted_at)
              VALUES ($1, $2, $3, $4, true, 'pending', NOW())
              ON CONFLICT DO NOTHING`,
-            [userId, 'General Care', 'N/A', JSON.stringify([{ name: 'Paid Premium Background Verification', url: '#' }])]
-          );
+            [userId, 'General Care', 'N/A', JSON.stringify([{ name: 'Background Check Processing Fee (paid)', url: '#' }])]
+          ).catch(() => {});
 
-          // Kick off the real Checkr background check (no-op fallback if Checkr is off).
+          // Payment succeeded → NOW create the Turn background check (no-op fallback if Turn off).
           await orderBackgroundCheck(userId).catch((e) => console.error('orderBackgroundCheck failed:', e?.message));
 
           // Alert admins there's a new verification to review.

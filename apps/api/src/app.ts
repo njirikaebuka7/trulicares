@@ -13,7 +13,8 @@ import notificationsRouter from './routes/notifications.js';
 import adminRouter from './routes/admin.js';
 import clientsRouter from './routes/clients.js';
 import staffingRouter from './routes/staffing/index.js';
-import checkrRouter from './routes/checkr.js';
+import turnRouter from './routes/turn.js';
+import backgroundCheckRouter from './routes/backgroundCheck.js';
 import cronRouter from './routes/cron.js';
 import geoRouter from './routes/geo.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
@@ -44,8 +45,8 @@ app.post(
   }
 );
 
-// ── Checkr webhook MUST be before express.json() (needs raw body for HMAC) ─────
-app.use('/api/checkr', checkrRouter);
+// ── Turn.ai webhook MUST be before express.json() (needs raw body for HMAC) ────
+app.use('/api/turn', turnRouter);
 
 // ── Global middleware ─────────────────────────────────────────────────────────
 app.use(cors({ origin: true, credentials: true }));
@@ -76,6 +77,7 @@ app.use('/api/notifications', notificationsRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/clients', clientsRouter);
 app.use('/api/staffing', staffingRouter); // Independent staffing module
+app.use('/api/background-check', backgroundCheckRouter); // Turn.ai bg-check (caregivers + pros)
 app.use('/api/cron', cronRouter); // Vercel Cron maintenance jobs
 app.use('/api/geo', geoRouter); // geocoding (reverse/forward) for the location picker
 

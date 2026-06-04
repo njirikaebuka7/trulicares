@@ -158,6 +158,29 @@ pool.query(`
   CREATE INDEX IF NOT EXISTS idx_withdrawals_user ON withdrawals(user_id, created_at);
 `).catch(err => console.error('Withdrawals auto-migration failed', err));
 
+// Turn.ai background checks — payment-first flow. Provider pays the platform a single
+// processing fee; only after payment does the backend create a Turn check. We store ONLY
+// safe fields (Turn IDs, status, timestamps, payment status) — never SSN, raw reports, or
+// identity documents (Turn collects those on its hosted/consent flow). Applies to BOTH
+// caregivers (marketplace) and professionals (staffing).
+for (const t of ['caregiver_profiles', 'professional_profiles']) {
+  pool.query(`
+    ALTER TABLE ${t}
+      ADD COLUMN IF NOT EXISTS background_check_fee_amount NUMERIC(10,2),
+      ADD COLUMN IF NOT EXISTS background_check_payment_status TEXT NOT NULL DEFAULT 'unpaid',
+      ADD COLUMN IF NOT EXISTS background_check_payment_provider TEXT,
+      ADD COLUMN IF NOT EXISTS background_check_payment_reference TEXT,
+      ADD COLUMN IF NOT EXISTS background_check_paid_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS turn_candidate_id TEXT,
+      ADD COLUMN IF NOT EXISTS turn_check_id TEXT,
+      ADD COLUMN IF NOT EXISTS turn_hosted_url TEXT,
+      ADD COLUMN IF NOT EXISTS background_check_package TEXT,
+      ADD COLUMN IF NOT EXISTS background_check_status TEXT NOT NULL DEFAULT 'not_started',
+      ADD COLUMN IF NOT EXISTS background_check_started_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS background_check_completed_at TIMESTAMPTZ;
+  `).catch(err => console.error(`Turn bg-check auto-migration (${t}) failed`, err));
+}
+
 // Phase 5 — Instant Book: a per-shift flag letting facilities allow professionals to
 // book the shift without a manual accept step (Clipboard Health style).
 pool.query(`

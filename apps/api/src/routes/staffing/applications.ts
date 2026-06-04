@@ -3,6 +3,7 @@ import { query, getClient, supabase } from '../../db.js';
 import { requireAuth, AuthRequest } from '../../middleware/auth.js';
 import { getUncachableStripeClient } from '../../stripeClient.js';
 import { enqueueEmail } from '../../queues/queues.js';
+import { turnEnabled } from '../../services/turn.js';
 
 const router = Router();
 
@@ -161,7 +162,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
 
     // Get professional profile + verify approved
     const proRes = await query(
-      `SELECT id, verification_status, license_type, specialties,
+      `SELECT id, verification_status, background_check_status, license_type, specialties,
        (SELECT json_agg(pl.license_type) FROM professional_licenses pl WHERE pl.professional_id = professional_profiles.id) as extra_licenses
        FROM professional_profiles
        WHERE user_id = $1`,
@@ -177,6 +178,14 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       return res.status(403).json({
         error: 'Your profile must be verified before you can apply to shifts. Our team is reviewing your credentials.',
         code: 'PRO_NOT_VERIFIED',
+      });
+    }
+
+    // A passed background check is required to apply (enforced once Turn is live).
+    if (turnEnabled() && pro.background_check_status !== 'passed') {
+      return res.status(403).json({
+        error: 'You must complete and pass your background check before applying to shifts.',
+        code: 'BACKGROUND_CHECK_REQUIRED',
       });
     }
 

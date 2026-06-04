@@ -181,6 +181,13 @@ export const notifications = {
   markAllRead: () => put('/notifications/read-all'),
 };
 
+// ── Background Check (Turn.ai, payment-first) ─────────────────────────────────
+export const backgroundCheck = {
+  status: () => get('/background-check/status'),
+  start: () => post('/background-check/start'),
+  resend: () => post('/background-check/resend'),
+};
+
 // ── Admin ─────────────────────────────────────────────────────────────────────
 export const admin = {
   stats: () => get('/admin/stats'),

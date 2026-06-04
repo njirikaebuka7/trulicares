@@ -1,6 +1,7 @@
 import { query } from '../db.js';
 import { generateRefId } from './utils.js';
 import { cacheGet, cacheSet } from './cache.js';
+import { turnEnabled } from './turn.js';
 
 export interface MatchCandidate {
   id: string;
@@ -190,6 +191,7 @@ export async function findMatches(opts: FindMatchesOptions): Promise<MatchCandid
      WHERE u.status = 'active' AND u.role = 'caregiver'
        AND ($1 = ANY(cp.specialties) OR $1 = '')
        AND cp.hourly_rate_min IS NOT NULL
+       ${turnEnabled() ? "AND cp.background_check_status = 'passed'" : ''}
        ${geoFilter}
      ORDER BY ${orderBy}
      LIMIT 60`,

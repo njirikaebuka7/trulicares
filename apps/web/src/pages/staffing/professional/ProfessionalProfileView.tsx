@@ -12,6 +12,7 @@ import { professional as proApi } from '@/lib/staffingApi';
 import { auth as authApi } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import LocationPicker from '@/components/ui/LocationPicker';
+import BackgroundCheckCard from '@/components/BackgroundCheckCard';
 
 // ── Types ─────────────────────────────────────────────────────
 interface WorkExperience {
@@ -977,95 +978,9 @@ export default function ProfessionalProfileView() {
             <div className="space-y-6">
               <div>
                 <h3 className="text-lg font-bold text-gray-900 mb-1">Background Check</h3>
-                <p className="text-sm text-gray-500">Required for all clinical shift workers. Information is securely handled.</p>
+                <p className="text-sm text-gray-500">Required before you can apply to shifts. Run securely by our partner Turn — your sensitive data never touches TruliCares.</p>
               </div>
-
-              {bgSubmitted ? (
-                <div className="text-center py-12 space-y-4">
-                  <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
-                    <CheckCircle className="w-10 h-10 text-emerald-600" />
-                  </div>
-                  <div>
-                    <h4 className="text-xl font-bold text-gray-900 mb-1">Background Check Submitted</h4>
-                    <p className="text-gray-500 text-sm">Under review. Status: <span className="font-semibold text-amber-600">{bgStatus || 'pending'}</span></p>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-5">
-                  <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 flex gap-3">
-                    <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                    <p className="text-xs text-amber-700 font-medium leading-relaxed">Your SSN is collected directly by our accredited screening partner on their secure portal — TruliCares never stores it. Other details are used solely for verification.</p>
-                  </div>
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    {[
-                      { label: 'Legal Full Name', key: 'legalName', placeholder: 'As it appears on ID' },
-                      { label: 'Date of Birth', key: 'dob', type: 'date', placeholder: '' },
-                      { label: 'Current Address', key: 'currentAddress', placeholder: '123 Main St, City, State ZIP' },
-                      { label: 'Previous Address (if any)', key: 'previousAddress', placeholder: 'Optional' },
-                    ].map(field => (
-                      <div key={field.key} className={field.key === 'currentAddress' || field.key === 'previousAddress' ? 'sm:col-span-2' : ''}>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">{field.label}</label>
-                        <input
-                          type={field.type || 'text'}
-                          value={(bgForm as any)[field.key]}
-                          onChange={e => setBgForm({ ...bgForm, [field.key]: e.target.value })}
-                          placeholder={field.placeholder}
-                          className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium outline-none focus:border-emerald-500 transition-colors"
-                        />
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
-                    <label className="flex items-start gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={bgForm.offersTransport}
-                        onChange={e => setBgForm({ ...bgForm, offersTransport: e.target.checked })}
-                        className="mt-0.5 rounded"
-                      />
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">I provide transportation assistance</p>
-                        <p className="text-xs text-gray-500 mt-0.5">Check if you drive patients / offer transport care</p>
-                      </div>
-                    </label>
-                    {bgForm.offersTransport && (
-                      <div className="mt-3 ml-6">
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Driver's License Number</label>
-                        <input
-                          value={bgForm.driversLicense}
-                          onChange={e => setBgForm({ ...bgForm, driversLicense: e.target.value })}
-                          placeholder="DL number"
-                          className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium outline-none focus:border-emerald-500"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
-                    <label className="flex items-start gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={bgForm.consent}
-                        onChange={e => setBgForm({ ...bgForm, consent: e.target.checked })}
-                        className="mt-0.5 rounded"
-                      />
-                      <p className="text-xs text-gray-600 font-medium leading-relaxed">
-                        I authorize TruliCares to conduct a background screening using the information provided. I certify all information is accurate.
-                      </p>
-                    </label>
-                  </div>
-
-                  <button
-                    onClick={handleBgSubmit}
-                    disabled={bgSubmitting || !bgForm.legalName || !bgForm.dob || !bgForm.consent}
-                    className="w-full py-3.5 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition-all text-sm flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
-                  >
-                    {bgSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />}
-                    Submit Background Check
-                  </button>
-                </div>
-              )}
+              <BackgroundCheckCard />
             </div>
           )}
 

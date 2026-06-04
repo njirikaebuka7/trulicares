@@ -8,6 +8,7 @@ import {
   Eye, EyeOff
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
+import BackgroundCheckCard from '@/components/BackgroundCheckCard';
 import ReportModal from '@/components/ReportModal';
 import { useAuth } from '@/context/AuthContext';
 import LocationPicker from '@/components/ui/LocationPicker';
@@ -2106,6 +2107,16 @@ export default function CaregiverDashboard() {
 
                   {/* Panel 3: BACKGROUND CHECK */}
                   {profileSubTab === 'background_check' && (
+                    <div className="space-y-5">
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-1">Background Check</h3>
+                        <p className="text-xs text-gray-500">Get verified to receive more family requests. Run securely by our partner Turn — your sensitive data never touches TruliCares.</p>
+                      </div>
+                      <BackgroundCheckCard />
+                    </div>
+                  )}
+
+                  {false && profileSubTab === 'background_check' && (
                     <div className="space-y-5">
                       <div>
                         <h3 className="text-lg font-bold text-gray-900 mb-1">Background Check Application</h3>
