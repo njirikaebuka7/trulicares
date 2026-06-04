@@ -65,7 +65,7 @@ export default function ShiftManagement() {
         </div>
         <Link 
           to="/facility-dashboard/post"
-          className="inline-flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 rounded-full font-semibold transition-all active:scale-95 text-sm shadow-sm"
+          className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-full font-semibold transition-all active:scale-95 text-sm shadow-sm"
         >
           <PlusCircle className="w-4 h-4" />
           Post New Shift
@@ -79,7 +79,7 @@ export default function ShiftManagement() {
           <input 
             type="text"
             placeholder="Search shifts by role or ID..."
-            className="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-transparent focus:bg-white focus:ring-2 focus:ring-brand-500 focus:border-transparent rounded-xl text-sm font-medium outline-none transition-all"
+            className="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-transparent focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent rounded-xl text-sm font-medium outline-none transition-all"
           />
         </div>
         <div className="flex gap-2">
@@ -92,7 +92,7 @@ export default function ShiftManagement() {
       {/* Shift List */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-100 shadow-sm">
-          <Loader2 className="w-10 h-10 text-brand-600 animate-spin mb-4" />
+          <Loader2 className="w-10 h-10 text-emerald-600 animate-spin mb-4" />
           <p className="text-gray-500 font-medium">Loading your shifts...</p>
         </div>
       ) : shifts.length === 0 ? (
@@ -104,7 +104,7 @@ export default function ShiftManagement() {
           <p className="text-gray-500 max-w-sm mx-auto mb-6 text-sm font-medium">Start by posting your first shift to find healthcare professionals.</p>
           <Link 
             to="/facility-dashboard/post"
-            className="inline-flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-6 py-3 rounded-full font-semibold transition-all active:scale-95 shadow-sm text-sm"
+            className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-full font-semibold transition-all active:scale-95 shadow-sm text-sm"
           >
             Post Your First Shift
           </Link>
@@ -114,7 +114,7 @@ export default function ShiftManagement() {
           {shifts.map((shift) => (
             <div 
               key={shift.id} 
-              className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-brand-200 transition-all duration-300"
+              className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-emerald-200 transition-all duration-300"
             >
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
                 <div className="flex items-start gap-4">
@@ -128,11 +128,16 @@ export default function ShiftManagement() {
                       <span className={`px-2.5 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider ${getStatusColor(shift.status)}`}>
                         {shift.status}
                       </span>
+                      {shift.instant_book && (
+                        <span className="px-2.5 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700">
+                          ⚡ Instant
+                        </span>
+                      )}
                     </div>
                     <div className="flex flex-wrap items-center gap-y-2 gap-x-4 text-xs text-gray-500 font-medium">
                       <div className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-gray-400" /> {new Date(shift.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({shift.duration_hours}h)</div>
                       <div className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-gray-400" /> {shift.location}</div>
-                      <div className="flex items-center gap-1.5 text-brand-600 font-bold bg-brand-50 px-2 py-0.5 rounded-lg"><Users className="w-4 h-4" /> {shift.pending_applicants || 0} Applicants</div>
+                      <div className="flex items-center gap-1.5 text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-lg"><Users className="w-4 h-4" /> {shift.pending_applicants || 0} Applicants</div>
                     </div>
                   </div>
                 </div>
@@ -145,7 +150,7 @@ export default function ShiftManagement() {
                   <div className="flex items-center gap-2">
                     <Link 
                       to={`/facility-dashboard/applicants?shift=${shift.id}`}
-                      className="px-4 py-2 bg-gray-900 text-white rounded-full font-semibold text-xs hover:bg-brand-600 transition-all flex items-center justify-center gap-1.5 active:scale-95 shadow-sm"
+                      className="px-4 py-2 bg-gray-900 text-white rounded-full font-semibold text-xs hover:bg-emerald-600 transition-all flex items-center justify-center gap-1.5 active:scale-95 shadow-sm"
                     >
                       View Applicants <ArrowUpRight className="w-3.5 h-3.5" />
                     </Link>

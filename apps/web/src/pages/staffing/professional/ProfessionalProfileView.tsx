@@ -331,6 +331,22 @@ export default function ProfessionalProfileView() {
   const verStatus = profile?.verification_status;
   const bgStatus = profile?.background_check_status;
 
+  // ── Profile completeness ────────────────────────────────────
+  // A complete profile gets booked faster — surface what's missing with quick jumps.
+  const completionItems = [
+    { label: 'Add a profile photo', ok: !!profile?.photo_url, tab: 'profile' },
+    { label: 'Write a short bio', ok: !!(profile?.bio && profile.bio.trim()), tab: 'profile' },
+    { label: 'Set your base location', ok: !!profile?.location, tab: 'profile' },
+    { label: 'List your specialties', ok: (profile?.specialties?.length || 0) > 0, tab: 'profile' },
+    { label: 'Add work experience', ok: (workExps?.length || 0) > 0, tab: 'profile' },
+    { label: 'Upload a certification', ok: (certifications?.length || 0) > 0, tab: 'certifications' },
+    { label: 'Verify your government ID', ok: govtIdStep === 'submitted' || !!profile?.govt_id_number, tab: 'govt-id' },
+    { label: 'Complete a background check', ok: ['approved', 'pending'].includes(profile?.background_check_status), tab: 'background' },
+  ];
+  const completionDone = completionItems.filter((i) => i.ok).length;
+  const completionPct = Math.round((completionDone / completionItems.length) * 100);
+  const nextStep = completionItems.find((i) => !i.ok);
+
   return (
     <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-500">
       {/* Profile Header */}
@@ -389,6 +405,58 @@ export default function ProfessionalProfileView() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Profile Completeness */}
+      <div className={cn(
+        'rounded-3xl border shadow-sm p-5 sm:p-6',
+        completionPct === 100 ? 'bg-emerald-50 border-emerald-100' : 'bg-white border-gray-100'
+      )}>
+        <div className="flex items-center justify-between gap-4 mb-3">
+          <div>
+            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+              {completionPct === 100 ? (
+                <><CheckCircle className="w-4 h-4 text-emerald-600" /> Your profile is complete</>
+              ) : (
+                <>Profile completeness</>
+              )}
+            </h3>
+            {completionPct < 100 && nextStep && (
+              <p className="text-xs text-gray-500 font-medium mt-0.5">
+                Next: <button onClick={() => setActiveTab(nextStep.tab)} className="text-emerald-700 font-semibold hover:underline">{nextStep.label}</button>
+              </p>
+            )}
+          </div>
+          <span className={cn('text-lg font-bold', completionPct === 100 ? 'text-emerald-600' : 'text-gray-900')}>{completionPct}%</span>
+        </div>
+        <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
+          <div
+            className={cn('h-full rounded-full transition-all duration-500', completionPct === 100 ? 'bg-emerald-500' : 'bg-emerald-600')}
+            style={{ width: `${completionPct}%` }}
+          />
+        </div>
+        {completionPct < 100 && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {completionItems.map((item) => (
+              <button
+                key={item.label}
+                onClick={() => !item.ok && setActiveTab(item.tab)}
+                disabled={item.ok}
+                className={cn(
+                  'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all',
+                  item.ok
+                    ? 'bg-emerald-50 text-emerald-700 cursor-default'
+                    : 'bg-gray-50 text-gray-500 hover:bg-gray-100 active:scale-95'
+                )}
+              >
+                <div className={cn('w-3.5 h-3.5 rounded-full flex items-center justify-center', item.ok ? 'bg-emerald-500' : 'bg-gray-300')}>
+                  {item.ok && <CheckCircle className="w-2.5 h-2.5 text-white" />}
+                </div>
+                {item.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Tabs */}

@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { toast } from '@/components/ui/Toaster';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, CheckCircle, XCircle, Clock, MapPin, Briefcase, FileText, ChevronDown, ChevronUp, Stethoscope, GraduationCap, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, User, Clock, MapPin, Briefcase, FileText, ChevronDown, ChevronUp, Stethoscope, GraduationCap, ShieldCheck } from 'lucide-react';
 import { applications as appApi, shifts as shiftApi } from '@/lib/staffingApi';
 import { cn } from '@/utils/cn';
 import { Shift } from '@/types/staffing';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
+import EmptyState from '@/components/ui/EmptyState';
+import { TrustBadges } from '@/components/ui/CaregiverTrust';
 
 export default function FacilityApplicants() {
   const { user } = useAuth();
@@ -125,11 +127,11 @@ export default function FacilityApplicants() {
       {/* Applicant List */}
       <div className="grid grid-cols-1 gap-4">
         {applicants.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-12 text-center">
-            <User className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-bold text-gray-900 mb-1">No Applicants Yet</h3>
-            <p className="text-gray-500">Professionals in your area have been notified and can apply soon.</p>
-          </div>
+          <EmptyState
+            icon={<User className="w-6 h-6" />}
+            title="No applicants yet"
+            subtitle="Professionals in your area have been notified and can apply soon."
+          />
         ) : (
           applicants.map((app) => (
             <div key={app.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
@@ -146,11 +148,13 @@ export default function FacilityApplicants() {
                   )}
                   
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-lg font-bold text-gray-900">{app.name}</h3>
-                      {app.verification_status === 'approved' && (
-                        <CheckCircle className="w-4 h-4 text-emerald-500" />
-                      )}
+                      <TrustBadges
+                        verified={app.verification_status === 'approved'}
+                        backgroundChecked={app.background_check_status === 'approved'}
+                        compact
+                      />
                     </div>
                     <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 font-medium">
                       <span className="bg-gray-100 px-2 py-0.5 rounded font-bold text-gray-700">{app.license_type}</span>
@@ -217,7 +221,7 @@ export default function FacilityApplicants() {
                 
                 <button
                   onClick={() => setExpandedApp(expandedApp === app.id ? null : app.id)}
-                  className="flex items-center gap-1.5 text-sm font-bold text-brand-600 hover:text-brand-700 transition-colors shrink-0"
+                  className="flex items-center gap-1.5 text-sm font-bold text-emerald-600 hover:text-emerald-700 transition-colors shrink-0"
                 >
                   {expandedApp === app.id ? (
                     <>Hide Full Profile <ChevronUp className="w-4 h-4" /></>
@@ -262,7 +266,7 @@ export default function FacilityApplicants() {
                             <p className="text-xs text-gray-500 font-medium mb-1.5">Specialties:</p>
                             <div className="flex flex-wrap gap-1.5">
                               {app.specialties.map((s: string) => (
-                                <span key={s} className="px-2.5 py-1 bg-brand-50 text-brand-700 rounded-lg text-xs font-bold">
+                                <span key={s} className="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold">
                                   {s}
                                 </span>
                               ))}
@@ -286,7 +290,7 @@ export default function FacilityApplicants() {
                                 <p className="text-xs text-gray-500">Expires: {cert.expiry || 'Never'}</p>
                               </div>
                               {cert.docUrl && (
-                                <a href={cert.docUrl} target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:bg-brand-50 p-2 rounded-lg transition-colors">
+                                <a href={cert.docUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:bg-emerald-50 p-2 rounded-lg transition-colors">
                                   <FileText className="w-4 h-4" />
                                 </a>
                               )}
