@@ -10,6 +10,7 @@ import {
 import { professional as proApi } from '@/lib/staffingApi';
 import { auth as authApi } from '@/lib/api';
 import { cn } from '@/utils/cn';
+import LocationPicker from '@/components/ui/LocationPicker';
 
 // ── Types ─────────────────────────────────────────────────────
 interface WorkExperience {
@@ -132,6 +133,11 @@ export default function ProfessionalProfileView() {
         yearsExperience: data.years_experience || 0,
         roles: data.licenses?.map((l: any) => l.license_type) || (data.license_type ? [data.license_type] : []),
         preferredRadiusMiles: data.preferred_radius_miles || 25,
+        locationData: (data.latitude && data.longitude) ? {
+          latitude: data.latitude, longitude: data.longitude, city: data.city || '', state: data.state || '',
+          zipCode: data.zip_code || '', country: data.country || '', formattedAddress: data.formatted_address || data.location || '',
+          locationSource: data.location_source || 'geocoded',
+        } : null,
       });
       // Parse work experience
       let we: WorkExperience[] = [];
@@ -185,6 +191,7 @@ export default function ProfessionalProfileView() {
       yearsExperience: editForm.yearsExperience,
       preferredRadiusMiles: editForm.preferredRadiusMiles,
       roles: editForm.roles,
+      locationData: (editForm as any).locationData || undefined,
     });
     setEditing(false);
   };
@@ -538,17 +545,13 @@ export default function ProfessionalProfileView() {
               {/* Location & radius */}
               {editing && (
                 <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
-                    <div className="relative">
-                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        value={editForm.location}
-                        onChange={e => setEditForm({ ...editForm, location: e.target.value })}
-                        placeholder="City, State"
-                        className="w-full pl-9 pr-3 py-3 rounded-xl border border-gray-200 text-sm font-medium focus:border-emerald-500 outline-none"
-                      />
-                    </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Base location <span className="text-gray-400 font-normal">(matches you to nearby shifts)</span></label>
+                    <LocationPicker
+                      accent="emerald"
+                      initial={(editForm as any).locationData}
+                      onConfirm={(str, data) => setEditForm({ ...editForm, location: str, locationData: data })}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Years Experience</label>

@@ -182,6 +182,20 @@ router.put('/profile', requireAuth, async (req: AuthRequest, res) => {
       values.push(JSON.stringify(backgroundCheckDetails));
     }
 
+    // Confirmed base location (from the location picker) → drives geo shift matching.
+    const loc = (req.body as any).locationData;
+    if (loc && typeof loc === 'object') {
+      addField('latitude', Number.isFinite(Number(loc.latitude)) ? Number(loc.latitude) : null);
+      addField('longitude', Number.isFinite(Number(loc.longitude)) ? Number(loc.longitude) : null);
+      addField('city', loc.city ?? null);
+      addField('state', loc.state ?? null);
+      addField('zip_code', loc.zipCode ?? null);
+      addField('country', loc.country ?? null);
+      addField('formatted_address', loc.formattedAddress ?? null);
+      addField('location_source', loc.locationSource ?? null);
+      if (loc.formattedAddress) addField('location', loc.formattedAddress);
+    }
+
     if (setClauses.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }

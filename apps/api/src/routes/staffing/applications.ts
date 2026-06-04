@@ -53,8 +53,30 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
 
     // ROLE MATCHING
     if (!allLicenses.includes(shift.role)) {
-      return res.status(403).json({ 
-        error: `Credential mismatch: This shift requires an ${shift.role}, but you are registered as ${allLicenses.join(', ') || 'none'}.` 
+      return res.status(403).json({
+        error: `Credential mismatch: This shift requires an ${shift.role}, but you are registered as ${allLicenses.join(', ') || 'none'}.`
+      });
+    }
+
+    // CREDENTIAL EXPIRY — the license for this role must not be expired (compliance).
+    const licCheck = await query(
+      `SELECT
+         COUNT(*) FILTER (WHERE expiry IS NULL OR expiry >= CURRENT_DATE)::int AS valid,
+         COUNT(*)::int AS total
+       FROM (
+         SELECT license_expiry::date AS expiry FROM professional_licenses
+           WHERE professional_id = $1 AND license_type = $2
+         UNION ALL
+         SELECT license_expiry::date FROM professional_profiles
+           WHERE id = $1 AND license_type = $2
+       ) x`,
+      [pro.id, shift.role]
+    );
+    const lic = licCheck.rows[0];
+    if (lic.total > 0 && lic.valid === 0) {
+      return res.status(403).json({
+        error: `Your ${shift.role} license appears to be expired. Please update your credentials before applying.`,
+        code: 'LICENSE_EXPIRED',
       });
     }
 

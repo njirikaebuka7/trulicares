@@ -9,6 +9,7 @@ import { Shift } from '@/types/staffing';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { shifts as shiftApi, applications as appApi } from '@/lib/staffingApi';
+import { DistanceChip } from '@/components/ui/CaregiverTrust';
 
 export default function ShiftBrowse() {
   const { user } = useAuth();
@@ -185,7 +186,8 @@ export default function ShiftBrowse() {
                       <div className="flex flex-wrap items-center gap-y-2 gap-x-4 text-xs text-gray-500 font-medium">
                         <div className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-gray-400" /> {startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({shift.duration_hours}h)</div>
                         <div className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-gray-400" /> {shift.location ? `${shift.location} • ` : ''}{shift.city}, {shift.state}</div>
-                        <div className="flex items-center gap-1.5 text-brand-600 font-bold bg-brand-50 px-2 py-0.5 rounded-lg"><Clock className="w-3.5 h-3.5" /> {countdownText}</div>
+                        {(shift as any).distanceMiles != null && <DistanceChip miles={(shift as any).distanceMiles} />}
+                        <div className="flex items-center gap-1.5 text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-lg"><Clock className="w-3.5 h-3.5" /> {countdownText}</div>
                       </div>
                     </div>
                   </div>

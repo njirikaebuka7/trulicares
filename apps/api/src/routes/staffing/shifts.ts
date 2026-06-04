@@ -2,8 +2,22 @@ import { Router } from 'express';
 import { query, supabase } from '../../db.js';
 import { requireAuth, AuthRequest } from '../../middleware/auth.js';
 import { searchLimiter } from '../../middleware/rateLimiter.js';
+import { forwardGeocode } from '../../services/geocode.js';
 
 const router = Router();
+
+const METERS_PER_MILE = 1609.34;
+
+/** Best-effort forward geocode of a shift's location → {lat,lng} (null on failure). */
+async function geocodeShift(parts: { address?: string; city?: string; state?: string; zip?: string; location?: string }) {
+  try {
+    const q = [parts.address, parts.city, parts.state, parts.zip].filter(Boolean).join(', ') || parts.location || '';
+    if (!q) return { lat: null, lng: null };
+    const cands = await forwardGeocode(q);
+    if (cands[0]) return { lat: cands[0].latitude ?? null, lng: cands[0].longitude ?? null };
+  } catch { /* ignore */ }
+  return { lat: null, lng: null };
+}
 
 // ── POST /api/staffing/shifts — Facility posts a shift ────────
 router.post('/', requireAuth, async (req: AuthRequest, res) => {
@@ -44,18 +58,22 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
     );
     const feeRate = parseFloat(settingsRes.rows[0]?.value || '0.20');
 
+    // Geocode the shift location so professionals can be matched/ranked by distance.
+    const { lat, lng } = await geocodeShift({ address, city, state, zip, location });
+
     const result = await query(
       `INSERT INTO shifts
          (facility_id, role, specialty, description, pay_rate, duration_hours,
-          start_time, location, address, city, state, zip, platform_fee_rate, slots_total)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+          start_time, location, address, city, state, zip, platform_fee_rate, slots_total,
+          latitude, longitude)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        RETURNING *, (pay_rate * duration_hours) AS total_pay`,
       [
         facility.id, role, specialty || null, description || null,
         parseFloat(payRate), parseFloat(durationHours),
         startTime, location,
         address || null, city || null, state || null, zip || null,
-        feeRate, slotsTotal || 1,
+        feeRate, slotsTotal || 1, lat, lng,
       ]
     );
 
@@ -100,6 +118,7 @@ router.get('/', requireAuth, searchLimiter, async (req: AuthRequest, res) => {
     if (req.user!.role === 'professional') {
       const proRes = await query(
         `SELECT pp.license_type, pp.specialties, pp.bio, pp.work_experience, pp.certifications, pp.background_check_status,
+                pp.latitude AS pro_lat, pp.longitude AS pro_lng, pp.preferred_radius_miles,
                 (SELECT json_agg(pl.license_type) FROM professional_licenses pl WHERE pl.professional_id = pp.id) as extra_licenses
          FROM professional_profiles pp WHERE pp.user_id = $1`,
         [req.user!.id]
@@ -122,10 +141,24 @@ router.get('/', requireAuth, searchLimiter, async (req: AuthRequest, res) => {
       }
     }
 
+    const proLat = professionalProfile?.pro_lat ?? null;
+    const proLng = professionalProfile?.pro_lng ?? null;
+    const hasProGeo = Number.isFinite(Number(proLat)) && Number.isFinite(Number(proLng));
+
     const licenseParamIndex = idx++;
     const proTextParamIndex = idx++;
+    let proGeoExpr = 'NULL::geography';
+    if (hasProGeo) {
+      const lngIdx = idx++;
+      const latIdx = idx++;
+      proGeoExpr = `ST_SetSRID(ST_MakePoint($${lngIdx}, $${latIdx}), 4326)::geography`;
+    }
     const limitParamIndex = idx++;
     const offsetParamIndex = idx++;
+
+    const baseParams = [...filterParams, allLicenses, profileText];
+    if (hasProGeo) baseParams.push(Number(proLng), Number(proLat));
+    baseParams.push(parsedLimit, parsedOffset);
 
     const result = await query(
       `SELECT s.id, s.ref_id, s.role, s.specialty, s.description,
@@ -133,6 +166,7 @@ router.get('/', requireAuth, searchLimiter, async (req: AuthRequest, res) => {
               s.location, s.city, s.state, s.zip, s.status,
               s.slots_total, s.slots_filled,
               fp.facility_name, fp.facility_type,
+              CASE WHEN s.geo IS NOT NULL THEN ST_Distance(s.geo, ${proGeoExpr}) END AS distance_meters,
               CASE
                 WHEN cardinality($${licenseParamIndex}::text[]) > 0 AND s.role = ANY($${licenseParamIndex}::text[]) THEN true
                 WHEN $${proTextParamIndex}::text != '' AND $${proTextParamIndex}::text ILIKE '%' || s.role || '%' THEN true
@@ -143,10 +177,15 @@ router.get('/', requireAuth, searchLimiter, async (req: AuthRequest, res) => {
        FROM shifts s
        JOIN facility_profiles fp ON fp.id = s.facility_id
        ${whereClause}
-       ORDER BY is_match DESC, s.start_time ASC
+       ORDER BY is_match DESC, distance_meters ASC NULLS LAST, s.start_time ASC
        LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}`,
-      [...filterParams, allLicenses, profileText, parsedLimit, parsedOffset]
+      baseParams
     );
+
+    // Attach a friendly distanceMiles on each shift.
+    for (const s of result.rows) {
+      s.distanceMiles = s.distance_meters != null ? Math.round((s.distance_meters / METERS_PER_MILE) * 10) / 10 : null;
+    }
 
     const shifts = result.rows;
 

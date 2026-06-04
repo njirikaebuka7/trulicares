@@ -115,6 +115,34 @@ pool.query(`CREATE EXTENSION IF NOT EXISTS postgis`)
   `))
   .catch(err => console.error('Geo matching auto-migration failed', err));
 
+// Auto-migrate staffing geo (shifts + professionals)
+pool.query(`CREATE EXTENSION IF NOT EXISTS postgis`)
+  .then(() => pool.query(`
+    ALTER TABLE shifts
+      ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION,
+      ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
+    ALTER TABLE professional_profiles
+      ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION,
+      ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION,
+      ADD COLUMN IF NOT EXISTS city TEXT,
+      ADD COLUMN IF NOT EXISTS state TEXT,
+      ADD COLUMN IF NOT EXISTS zip_code TEXT,
+      ADD COLUMN IF NOT EXISTS country TEXT,
+      ADD COLUMN IF NOT EXISTS formatted_address TEXT,
+      ADD COLUMN IF NOT EXISTS location_source TEXT;
+  `))
+  .then(() => pool.query(`
+    ALTER TABLE shifts ADD COLUMN IF NOT EXISTS geo geography(Point,4326)
+      GENERATED ALWAYS AS (CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL
+        THEN ST_SetSRID(ST_MakePoint(longitude, latitude),4326)::geography ELSE NULL END) STORED;
+    ALTER TABLE professional_profiles ADD COLUMN IF NOT EXISTS geo geography(Point,4326)
+      GENERATED ALWAYS AS (CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL
+        THEN ST_SetSRID(ST_MakePoint(longitude, latitude),4326)::geography ELSE NULL END) STORED;
+    CREATE INDEX IF NOT EXISTS idx_shifts_geo ON shifts USING GIST (geo);
+    CREATE INDEX IF NOT EXISTS idx_professional_geo ON professional_profiles USING GIST (geo);
+  `))
+  .catch(err => console.error('Staffing geo auto-migration failed', err));
+
 // Auto-migrate withdrawals ledger (payout requests). Actual transfer is performed by
 // Stripe Connect payouts in production; this records and tracks each request.
 pool.query(`
