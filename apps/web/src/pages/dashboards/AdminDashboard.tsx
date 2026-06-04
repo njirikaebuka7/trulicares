@@ -9,12 +9,12 @@ import {
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
-import { get, put, del } from '@/lib/api';
+import { get, put, post, del } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
 
-type Tab = 'Overview' | 'Users' | 'Verification Queue' | 'Reports' | 'Staffing' | 'Analytics' | 'Pricing' | 'Audit Log';
+type Tab = 'Overview' | 'Users' | 'Verification Queue' | 'Reports' | 'Staffing' | 'Analytics' | 'Pricing' | 'Finance' | 'Audit Log';
 
 type AdminUser = {
   id: string; name: string; email: string; role: string;
@@ -49,6 +49,7 @@ const navItems: { id: Tab; label: string; mobileLabel: string; icon: React.React
   { id: 'Staffing', label: 'Staffing', mobileLabel: 'Staff', icon: <Briefcase className="w-5 h-5" /> },
   { id: 'Reports', label: 'Reports', mobileLabel: 'Reports', icon: <Flag className="w-5 h-5" /> },
   { id: 'Pricing', label: 'Pricing', mobileLabel: 'Pricing', icon: <DollarSign className="w-5 h-5" /> },
+  { id: 'Finance', label: 'Finance', mobileLabel: 'Finance', icon: <Activity className="w-5 h-5" /> },
   { id: 'Analytics', label: 'Analytics', mobileLabel: 'Analytics', icon: <BarChart2 className="w-5 h-5" /> },
   { id: 'Audit Log', label: 'Audit Log', mobileLabel: 'Audit', icon: <FileText className="w-5 h-5" /> },
 ];
@@ -93,6 +94,7 @@ export default function AdminDashboard() {
   const [pricingDraft, setPricingDraft] = useState<Record<string, string>>({});
   const [savingPricing, setSavingPricing] = useState(false);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [finance, setFinance] = useState<any>(null);
 
   const refreshAllData = () => {
     Promise.all([
@@ -109,7 +111,16 @@ export default function AdminDashboard() {
         setPricingDraft(Object.fromEntries(Object.entries(d.pricing || {}).map(([k, v]: any) => [k, v.value])));
       }).catch(() => {}),
       get('/admin/audit-logs').then((d: any) => setAuditLogs(d.logs || [])).catch(() => {}),
+      get('/admin/finance').then((d: any) => setFinance(d)).catch(() => {}),
     ]).catch(console.error);
+  };
+
+  const handleRefund = async (paymentId: string) => {
+    if (!confirm('Refund this payment? This cannot be undone.')) return;
+    try {
+      await post(`/admin/payments/${paymentId}/refund`, {});
+    } catch { /* handled by refresh */ }
+    refreshAllData();
   };
 
   const handleSavePricing = async () => {
@@ -1277,6 +1288,108 @@ export default function AdminDashboard() {
                 className="bg-red-600 hover:bg-red-700 text-white font-semibold rounded-full px-6">
                 {savingPricing ? 'Saving…' : 'Save Pricing'}
               </Button>
+            </div>
+          )}
+
+          {/* ── FINANCE ── */}
+          {activeTab === 'Finance' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">Finance</h2>
+                  <p className="text-sm text-gray-500">Escrow, platform fees, payouts and refunds.</p>
+                </div>
+                <span className={cn('px-3 py-1 rounded-full text-xs font-bold',
+                  finance?.connectEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700')}>
+                  {finance?.connectEnabled ? 'Stripe Connect: Live' : 'Stripe Connect: Not enabled'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  { label: 'Escrow Held', value: `$${(finance?.summary?.escrowHeld ?? 0).toFixed(2)}` },
+                  { label: 'Platform Fees', value: `$${(finance?.summary?.platformFees ?? 0).toFixed(2)}` },
+                  { label: 'Payouts Paid', value: `$${(finance?.summary?.payoutsPaidTotal ?? 0).toFixed(2)}` },
+                  { label: 'Refunded', value: `$${(finance?.summary?.refundedTotal ?? 0).toFixed(2)}` },
+                  { label: 'Payouts Pending', value: finance?.summary?.payoutsPending ?? 0 },
+                  { label: 'Payouts Failed', value: finance?.summary?.payoutsFailed ?? 0 },
+                  { label: 'Payout-Ready Pros', value: `${finance?.summary?.connectReady ?? 0}/${finance?.summary?.totalPros ?? 0}` },
+                  { label: 'Escrow Released', value: `$${(finance?.summary?.escrowReleased ?? 0).toFixed(2)}` },
+                ].map((s, i) => (
+                  <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+                    <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider">{s.label}</p>
+                    <p className="text-xl font-bold text-gray-900 mt-1">{s.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Failed payments + refund */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-gray-50"><h3 className="font-bold text-gray-900 text-sm">Failed Payments</h3></div>
+                {(!finance?.failedPayments || finance.failedPayments.length === 0) ? (
+                  <div className="p-8 text-center text-sm text-gray-400">No failed payments.</div>
+                ) : finance.failedPayments.map((p: any) => (
+                  <div key={p.id} className="flex items-center justify-between gap-4 p-4 border-b border-gray-50 last:border-0">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{p.description}</p>
+                      <p className="text-xs text-gray-400">{p.refId} · {new Date(p.createdAt).toLocaleDateString()}</p>
+                    </div>
+                    <span className="text-sm font-bold text-gray-900">{p.amount}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Recent payouts */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-gray-50"><h3 className="font-bold text-gray-900 text-sm">Recent Payouts</h3></div>
+                {(!finance?.payouts || finance.payouts.length === 0) ? (
+                  <div className="p-8 text-center text-sm text-gray-400">No payouts yet.</div>
+                ) : finance.payouts.map((po: any) => (
+                  <div key={po.id} className="flex items-center justify-between gap-4 p-4 border-b border-gray-50 last:border-0">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{po.name}</p>
+                      <p className="text-xs text-gray-400">{po.type} · {new Date(po.created_at).toLocaleDateString()}</p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-sm font-bold text-gray-900">${Number(po.amount).toFixed(2)}</span>
+                      <span className={cn('px-2 py-0.5 rounded-md text-[10px] font-bold uppercase',
+                        po.status === 'paid' ? 'bg-emerald-100 text-emerald-700' :
+                        po.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700')}>
+                        {po.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Payments — refundable */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-gray-50"><h3 className="font-bold text-gray-900 text-sm">Recent Payments</h3></div>
+                {adminPayments.length === 0 ? (
+                  <div className="p-8 text-center text-sm text-gray-400">No payments yet.</div>
+                ) : adminPayments.slice(0, 15).map((p: any) => (
+                  <div key={p.id} className="flex items-center justify-between gap-4 p-4 border-b border-gray-50 last:border-0">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{p.description}</p>
+                      <p className="text-xs text-gray-400">{p.userName} · {p.date}</p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-sm font-bold text-gray-900">{p.amount}</span>
+                      <span className={cn('px-2 py-0.5 rounded-md text-[10px] font-bold uppercase',
+                        p.status === 'succeeded' ? 'bg-emerald-100 text-emerald-700' :
+                        p.status === 'refunded' ? 'bg-gray-100 text-gray-600' : 'bg-amber-100 text-amber-700')}>
+                        {p.status}
+                      </span>
+                      {p.status === 'succeeded' && (
+                        <button onClick={() => handleRefund(p.id)}
+                          className="text-xs font-semibold text-red-600 hover:text-red-700 hover:underline">
+                          Refund
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

@@ -7,6 +7,8 @@ import { auditFromReq } from '../services/audit.js';
 import { writeLimiter } from '../middleware/rateLimiter.js';
 import { getPricing, setSetting, PRICING_DEFAULTS } from '../services/settings.js';
 import { cacheAside, cacheDel } from '../services/cache.js';
+import { isConnectEnabled } from '../services/connect.js';
+import { getUncachableStripeClient } from '../stripeClient.js';
 
 const router = Router();
 
@@ -633,6 +635,93 @@ router.put('/settings/pricing', requireAdmin, async (req: AuthRequest, res) => {
   } catch (err) {
     console.error('Update pricing error:', err);
     res.status(500).json({ error: 'Failed to update pricing' });
+  }
+});
+
+// GET /api/admin/finance — escrow, payouts, Connect readiness, failed payments
+router.get('/finance', requireAdmin, async (_req, res) => {
+  try {
+    const [escrow, payoutAgg, payoutsList, failed, connect, refunds] = await Promise.all([
+      query(`SELECT
+                COALESCE(SUM(amount_held) FILTER (WHERE status = 'holding'), 0) AS escrow_held,
+                COALESCE(SUM(amount_held) FILTER (WHERE status = 'released'), 0) AS escrow_released,
+                COALESCE(SUM(fee_held), 0) AS platform_fees
+              FROM shift_escrow`).catch(() => ({ rows: [{}] })),
+      query(`SELECT
+                COALESCE(SUM(amount) FILTER (WHERE status = 'paid'), 0) AS paid_total,
+                COUNT(*) FILTER (WHERE status = 'pending') AS pending_count,
+                COUNT(*) FILTER (WHERE status = 'failed') AS failed_count
+              FROM payouts`).catch(() => ({ rows: [{}] })),
+      query(`SELECT po.id, po.amount, po.status, po.type, po.stripe_transfer_id, po.created_at,
+                    u.name, u.email
+             FROM payouts po JOIN users u ON u.id = po.user_id
+             ORDER BY po.created_at DESC LIMIT 20`).catch(() => ({ rows: [] })),
+      query(`SELECT id, ref_id, amount_cents, description, status, created_at
+             FROM payments WHERE status = 'failed' ORDER BY created_at DESC LIMIT 20`).catch(() => ({ rows: [] })),
+      query(`SELECT
+                COUNT(*) FILTER (WHERE stripe_payouts_enabled) AS payouts_ready,
+                COUNT(*) FILTER (WHERE stripe_connected_account_id IS NOT NULL) AS has_account,
+                COUNT(*) AS total_pros
+              FROM professional_profiles`).catch(() => ({ rows: [{}] })),
+      query(`SELECT COALESCE(SUM(amount_cents), 0) AS refunded_cents, COUNT(*) AS refunded_count
+             FROM payments WHERE status = 'refunded'`).catch(() => ({ rows: [{}] })),
+    ]);
+
+    const e = escrow.rows[0] || {};
+    const pa = payoutAgg.rows[0] || {};
+    const c = connect.rows[0] || {};
+    const rf = refunds.rows[0] || {};
+
+    res.json({
+      connectEnabled: isConnectEnabled(),
+      summary: {
+        escrowHeld: Number(e.escrow_held || 0),
+        escrowReleased: Number(e.escrow_released || 0),
+        platformFees: Number(e.platform_fees || 0),
+        payoutsPaidTotal: Number(pa.paid_total || 0),
+        payoutsPending: parseInt(pa.pending_count || '0'),
+        payoutsFailed: parseInt(pa.failed_count || '0'),
+        refundedTotal: Number(rf.refunded_cents || 0) / 100,
+        refundedCount: parseInt(rf.refunded_count || '0'),
+        connectReady: parseInt(c.payouts_ready || '0'),
+        connectHasAccount: parseInt(c.has_account || '0'),
+        totalPros: parseInt(c.total_pros || '0'),
+      },
+      payouts: payoutsList.rows,
+      failedPayments: failed.rows.map((p: any) => ({
+        id: p.id, refId: p.ref_id, amount: `$${(p.amount_cents / 100).toFixed(2)}`,
+        description: p.description, status: p.status, createdAt: p.created_at,
+      })),
+    });
+  } catch (err) {
+    console.error('Admin finance error:', err);
+    res.status(500).json({ error: 'Failed to fetch finance overview' });
+  }
+});
+
+// POST /api/admin/payments/:id/refund — issue a Stripe refund for a payment
+router.post('/payments/:id/refund', requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const pRes = await query(
+      `SELECT id, stripe_payment_intent_id, status, amount_cents FROM payments WHERE id = $1`,
+      [req.params.id]
+    );
+    if (pRes.rows.length === 0) return res.status(404).json({ error: 'Payment not found' });
+    const p = pRes.rows[0];
+    if (p.status === 'refunded') return res.status(400).json({ error: 'Already refunded' });
+    if (!p.stripe_payment_intent_id) return res.status(400).json({ error: 'No Stripe payment intent on this payment' });
+
+    let stripe: any;
+    try { stripe = await getUncachableStripeClient(); }
+    catch { return res.status(503).json({ error: 'Payment service not configured' }); }
+
+    await stripe.refunds.create({ payment_intent: p.stripe_payment_intent_id });
+    await query(`UPDATE payments SET status = 'refunded' WHERE id = $1`, [req.params.id]);
+    await auditFromReq(req, 'payment.refund', 'payment', req.params.id, { amountCents: p.amount_cents });
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Admin refund error:', err);
+    res.status(500).json({ error: err?.message || 'Failed to refund payment' });
   }
 });
 
