@@ -51,7 +51,6 @@ export default function ProvideCare() {
   
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [verifyingPhone, setVerifyingPhone] = useState(false);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [phoneError, setPhoneError] = useState('');
@@ -107,11 +106,11 @@ export default function ProvideCare() {
   };
 
   const handleSendOtp = async () => {
-    if (phone.length < 10) return;
+    if (!email) return;
     setLoading(true);
     setPhoneError('');
     try {
-      await authApi.sendOtp(`+1${phone.replace(/\D/g, '')}`);
+      await authApi.sendEmailCode(email);
       setOtpSent(true);
     } catch (err: any) {
       setPhoneError(err.message || 'Failed to send code');
@@ -125,11 +124,7 @@ export default function ProvideCare() {
     setLoading(true);
     setPhoneError('');
     try {
-      try {
-        await authApi.verifyOtp(`+1${phone.replace(/\D/g, '')}`, otp.join(''));
-      } catch (apiErr) {
-        console.warn('Bypassing OTP verification failure for testing:', apiErr);
-      }
+      await authApi.verifyEmailCode(email, otp.join(''));
       setIsPhoneVerified(true);
     } catch (err: any) {
       setPhoneError(err.message || 'Invalid code');
@@ -283,9 +278,9 @@ export default function ProvideCare() {
           <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
             <Check className="w-10 h-10 text-emerald-600" />
           </div>
-          <h2 className="text-3xl font-extrabold text-gray-900 mb-2">Phone Verified!</h2>
+          <h2 className="text-3xl font-extrabold text-gray-900 mb-2">Email Verified!</h2>
           <p className="text-gray-500 text-sm max-w-sm mx-auto">
-            Your phone number <span className="font-semibold text-gray-800">{phone}</span> has been successfully verified.
+            Your email <span className="font-semibold text-gray-800">{email}</span> has been successfully verified.
           </p>
           <div className="bg-emerald-50 rounded-2xl p-4 text-emerald-800 text-xs font-semibold max-w-sm mx-auto">
             🛡️ Secure caregiver account active.
@@ -297,19 +292,31 @@ export default function ProvideCare() {
             <div className="w-16 h-16 bg-gradient-to-br from-brand-400 to-brand-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Shield className="w-8 h-8 text-white" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Verify Phone</h2>
-            <p className="text-gray-500 text-sm">Required for US caregivers</p>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Verify Your Email</h2>
+            <p className="text-gray-500 text-sm">We'll send a 6-digit code to your email.</p>
           </div>
 
           {!otpSent ? (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">US Phone Number</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email address</label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="email"
+                    value={email}
+                    readOnly
+                    className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 bg-gray-50 text-gray-700 outline-none"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Phone number <span className="text-gray-400 font-normal">(optional — for families to reach you)</span></label>
                 <div className="relative">
                   <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input 
-                    type="tel" 
-                    value={phone} 
+                  <input
+                    type="tel"
+                    value={phone}
                     onChange={e => {
                       let val = e.target.value.replace(/\D/g, '');
                       if (val.length > 10) val = val.slice(0, 10);
@@ -324,20 +331,20 @@ export default function ProvideCare() {
                         }
                       }
                       setPhone(formatted);
-                    }} 
+                    }}
                     placeholder="(555) 000-0000"
-                    className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none" 
+                    className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none"
                   />
                 </div>
               </div>
               {phoneError && <p className="text-red-500 text-xs">{phoneError}</p>}
-              <Button variant="primary" fullWidth loading={loading} onClick={handleSendOtp} disabled={phone.replace(/\D/g, '').length < 10}>
+              <Button variant="primary" fullWidth loading={loading} onClick={handleSendOtp} disabled={!email}>
                 Send Verification Code
               </Button>
             </div>
           ) : (
             <div className="space-y-6">
-              <p className="text-center text-sm text-gray-500">Enter the 6-digit code sent to your phone.</p>
+              <p className="text-center text-sm text-gray-500">Enter the 6-digit code sent to <span className="font-semibold text-gray-800">{email}</span>.</p>
               <div className="flex justify-center gap-2">
                 {otp.map((digit, i) => (
                   <input
@@ -365,8 +372,8 @@ export default function ProvideCare() {
               <Button variant="primary" fullWidth loading={loading} onClick={handleVerifyOtp} disabled={otp.some(d => !d)}>
                 Verify & Continue
               </Button>
-              <button onClick={() => setOtpSent(false)} className="w-full text-center text-xs text-brand-600 font-medium hover:underline">
-                Change phone number
+              <button onClick={handleSendOtp} className="w-full text-center text-xs text-brand-600 font-medium hover:underline">
+                Resend code
               </button>
             </div>
           )}

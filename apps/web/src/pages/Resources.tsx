@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/utils/cn';
 import { resources as resourcesApi } from '@/lib/api';
+import Seo from '@/components/Seo';
 
 import imgNannyInterview from '@/assets/blog-nanny-interview.jpg';
 import imgSeniorSigns from '@/assets/blog-senior-signs.jpg';
@@ -135,6 +136,11 @@ export default function Resources() {
 
   return (
     <div className="bg-white">
+      <Seo
+        title="Care Resources & Guides | TruliCares"
+        description="Expert articles and guides on child care, senior care, hiring caregivers, and family wellbeing from the TruliCares team."
+        path="/resources"
+      />
       {/* Hero */}
       <section className="bg-gradient-to-br from-brand-900 via-brand-800 to-brand-950 py-20 lg:py-28 relative overflow-hidden">
         <div className="absolute inset-0">

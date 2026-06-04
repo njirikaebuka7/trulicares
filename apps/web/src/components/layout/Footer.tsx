@@ -104,6 +104,16 @@ export default function Footer() {
                   Become a Caregiver →
                 </Link>
               </li>
+              <li>
+                <Link to="/for-facilities" className="text-sm text-gray-300 hover:text-white font-medium transition-colors">
+                  For Facilities →
+                </Link>
+              </li>
+              <li>
+                <Link to="/for-professionals" className="text-sm text-gray-300 hover:text-white font-medium transition-colors">
+                  For Professionals →
+                </Link>
+              </li>
             </ul>
           </div>
 

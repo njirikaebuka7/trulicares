@@ -133,11 +133,11 @@ export default function ProfessionalOnboarding() {
   };
 
   const handleSendOtp = async () => {
-    if (phone.replace(/\D/g, '').length < 10) return;
+    if (!form.email) return;
     setLoading(true);
     setPhoneError('');
     try {
-      await authApi.sendOtp(`+1${phone.replace(/\D/g, '')}`);
+      await authApi.sendEmailCode(form.email);
       setOtpSent(true);
     } catch (err: any) {
       setPhoneError(err.message || 'Failed to send code');
@@ -151,11 +151,7 @@ export default function ProfessionalOnboarding() {
     setLoading(true);
     setPhoneError('');
     try {
-      try {
-        await authApi.verifyOtp(`+1${phone.replace(/\D/g, '')}`, otp.join(''));
-      } catch (apiErr) {
-        console.warn('Bypassing OTP verification failure for testing:', apiErr);
-      }
+      await authApi.verifyEmailCode(form.email, otp.join(''));
       setIsPhoneVerified(true);
     } catch (err: any) {
       setPhoneError(err.message || 'Invalid code');
@@ -384,9 +380,9 @@ export default function ProfessionalOnboarding() {
                     <CheckCircle className="w-12 h-12 text-emerald-600" />
                   </div>
                   <div>
-                    <h2 className="text-3xl font-extrabold text-gray-900 mb-2">Phone Verified!</h2>
+                    <h2 className="text-3xl font-extrabold text-gray-900 mb-2">Email Verified!</h2>
                     <p className="text-gray-500 text-sm max-w-sm mx-auto">
-                      Your phone number <span className="font-semibold text-gray-800">{phone}</span> has been successfully verified.
+                      Your email <span className="font-semibold text-gray-800">{form.email}</span> has been successfully verified.
                     </p>
                   </div>
                   <div className="bg-emerald-50 rounded-2xl p-4 text-emerald-800 text-xs font-semibold max-w-sm mx-auto">
@@ -397,16 +393,28 @@ export default function ProfessionalOnboarding() {
                 <>
                   <div className="text-center mb-8">
                     <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-teal-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                      <Phone className="w-8 h-8 text-white" />
+                      <Mail className="w-8 h-8 text-white" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Verify Your Phone</h2>
-                    <p className="text-gray-500 text-sm">Required for US healthcare professionals.</p>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Verify Your Email</h2>
+                    <p className="text-gray-500 text-sm">We'll send a 6-digit code to your email.</p>
                   </div>
 
                   {!otpSent ? (
                     <div className="space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">US Phone Number</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Email address</label>
+                        <div className="relative">
+                          <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                          <input
+                            type="email"
+                            value={form.email}
+                            readOnly
+                            className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 bg-gray-50 text-gray-700 outline-none"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Phone number <span className="text-gray-400 font-normal">(optional — for facilities to reach you)</span></label>
                         <div className="relative">
                           <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                           <input
@@ -434,7 +442,7 @@ export default function ProfessionalOnboarding() {
                         fullWidth
                         loading={loading}
                         onClick={handleSendOtp}
-                        disabled={phone.replace(/\D/g, '').length < 10}
+                        disabled={!form.email}
                       >
                         Send Verification Code
                       </Button>
@@ -442,7 +450,7 @@ export default function ProfessionalOnboarding() {
                   ) : (
                     <div className="space-y-6">
                       <p className="text-center text-sm text-gray-500">
-                        Enter the 6-digit code sent to <span className="font-semibold text-gray-700">{phone}</span>
+                        Enter the 6-digit code sent to <span className="font-semibold text-gray-700">{form.email}</span>
                       </p>
                       <div className="flex justify-center gap-2">
                         {otp.map((digit, i) => (
@@ -480,10 +488,10 @@ export default function ProfessionalOnboarding() {
                       </Button>
                       <button
                         type="button"
-                        onClick={() => { setOtpSent(false); setOtp(['', '', '', '', '', '']); }}
+                        onClick={handleSendOtp}
                         className="w-full text-center text-sm text-gray-400 hover:text-gray-600 transition-colors"
                       >
-                        ← Change phone number
+                        Resend code
                       </button>
                     </div>
                   )}

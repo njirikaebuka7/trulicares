@@ -59,11 +59,18 @@ const services = [
   },
 ];
 
+import Seo from '@/components/Seo';
+
 export default function Services() {
   const navigate = useNavigate();
 
   return (
     <div className="bg-white">
+      <Seo
+        title="Care Services — Child Care, Senior Care, Adult Care & Cleaning | TruliCares"
+        description="Explore TruliCares care services: trusted child care, senior care, adult care, and home cleaning from verified, background-checked caregivers near you."
+        path="/services"
+      />
       {/* Hero */}
       <section className="bg-gradient-to-br from-brand-900 via-brand-800 to-brand-950 py-20 lg:py-28 relative overflow-hidden">
         <div className="absolute inset-0">

@@ -16,10 +16,16 @@ const navLinks = [
   { to: '/contact', label: 'Contact' },
 ];
 
+const staffingLinks = [
+  { to: '/for-facilities', label: 'For Facilities', desc: 'Post shifts & hire verified pros' },
+  { to: '/for-professionals', label: 'For Professionals', desc: 'Find per-diem & travel shifts' },
+];
+
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [showGetStarted, setShowGetStarted] = useState(false);
+  const [staffingOpen, setStaffingOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
@@ -51,6 +57,37 @@ export default function Navbar() {
                   {link.label}
                 </Link>
               ))}
+
+              {/* Staffing dropdown */}
+              <div className="relative" onMouseEnter={() => setStaffingOpen(true)} onMouseLeave={() => setStaffingOpen(false)}>
+                <button
+                  className={cn(
+                    'flex items-center gap-1 px-4 py-2 rounded-xl text-sm font-medium transition-colors',
+                    staffingLinks.some(l => l.to === location.pathname)
+                      ? 'text-brand-700 bg-brand-50'
+                      : 'text-gray-600 hover:text-brand-700 hover:bg-gray-50'
+                  )}
+                >
+                  Staffing <ChevronDown className={cn('w-4 h-4 transition-transform', staffingOpen && 'rotate-180')} />
+                </button>
+                {staffingOpen && (
+                  <div className="absolute left-0 top-full pt-2 w-64">
+                    <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-2 animate-fade-in-up">
+                      {staffingLinks.map(link => (
+                        <Link
+                          key={link.to}
+                          to={link.to}
+                          onClick={() => setStaffingOpen(false)}
+                          className="block px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors"
+                        >
+                          <p className="text-sm font-semibold text-gray-800">{link.label}</p>
+                          <p className="text-xs text-gray-400">{link.desc}</p>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Desktop actions */}
@@ -126,6 +163,25 @@ export default function Navbar() {
                   {link.label}
                 </Link>
               ))}
+
+              {/* Staffing section */}
+              <p className="px-4 pt-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-gray-400">Staffing</p>
+              {staffingLinks.map(link => (
+                <Link
+                  key={link.to}
+                  to={link.to}
+                  onClick={() => setMobileOpen(false)}
+                  className={cn(
+                    'block px-4 py-3 rounded-xl text-sm font-medium transition-colors',
+                    location.pathname === link.to
+                      ? 'text-brand-700 bg-brand-50'
+                      : 'text-gray-600 hover:bg-gray-50'
+                  )}
+                >
+                  {link.label}
+                </Link>
+              ))}
+
               <div className="pt-4 border-t border-gray-100 space-y-2">
                 {isAuthenticated ? (
                   <>

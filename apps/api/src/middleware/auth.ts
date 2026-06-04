@@ -1,7 +1,21 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { query } from '../db.js';
 
-export const JWT_SECRET = process.env.JWT_SECRET || 'trulicares-dev-secret-please-change';
+// SECURITY: never ship a hardcoded fallback secret to production. A known fallback lets
+// anyone forge tokens. In production we require a real JWT_SECRET (and reject the
+// placeholder from .env.example); in dev we allow an insecure fallback with a warning.
+function resolveSecret(): string {
+  const s = process.env.JWT_SECRET;
+  if (s && s !== 'your_super_secret_jwt_key_here') return s;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET is not set (or is the placeholder) — refusing to start in production.');
+  }
+  console.warn('[auth] JWT_SECRET not set — using an INSECURE dev fallback. Set JWT_SECRET for production.');
+  return 'trulicares-dev-secret-please-change';
+}
+
+export const JWT_SECRET = resolveSecret();
 
 export interface AuthRequest extends Request {
   user?: {
@@ -16,7 +30,7 @@ export function generateToken(user: { id: string; email: string; role: string; n
   return jwt.sign(user, JWT_SECRET, { expiresIn: '7d' });
 }
 
-export function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
+export async function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Authentication required' });
@@ -24,7 +38,18 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
   try {
     const token = header.substring(7);
     const decoded = jwt.verify(token, JWT_SECRET) as any;
-    req.user = { id: decoded.id, email: decoded.email, role: decoded.role, name: decoded.name };
+
+    // SECURITY: do not trust the role/status baked into a 7-day token. Re-load the user from
+    // the DB so suspended/deleted/demoted users lose access immediately, and so the role used
+    // for authorization is always the current one.
+    const result = await query('SELECT id, email, role, name, status FROM users WHERE id = $1', [decoded.id]);
+    const user = result.rows[0];
+    if (!user) return res.status(401).json({ error: 'Account not found' });
+    if (user.status === 'suspended' || user.status === 'deleted') {
+      return res.status(403).json({ error: 'This account is no longer active. Contact support.' });
+    }
+
+    req.user = { id: user.id, email: user.email, role: user.role, name: user.name };
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid or expired token' });

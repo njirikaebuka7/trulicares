@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { X, Baby, Heart, UserCheck, Sparkles, ArrowRight, Shield } from 'lucide-react';
+import { X, Baby, Heart, UserCheck, Sparkles, ArrowRight, Shield, Stethoscope, Building2 } from 'lucide-react';
 
 interface Props {
   open: boolean;
@@ -11,13 +11,15 @@ export default function GetStartedModal({ open, onClose }: Props) {
 
   if (!open) return null;
 
-  const handleSelect = (role: 'family' | 'caregiver') => {
+  const handleSelect = (role: 'family' | 'caregiver' | 'professional' | 'facility') => {
     onClose();
-    if (role === 'family') {
-      navigate('/find-care');
-    } else {
-      navigate('/provide-care');
-    }
+    const paths: Record<typeof role, string> = {
+      family: '/find-care',
+      caregiver: '/provide-care',
+      professional: '/professional-onboarding',
+      facility: '/facility-onboarding',
+    };
+    navigate(paths[role]);
   };
 
   return (
@@ -29,7 +31,7 @@ export default function GetStartedModal({ open, onClose }: Props) {
       />
 
       {/* Modal — bottom sheet on mobile, centered on sm+ */}
-      <div className="relative w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-fade-in-up z-10">
+      <div className="relative w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-y-auto max-h-[92vh] animate-fade-in-up z-10">
         {/* Handle bar — mobile only */}
         <div className="sm:hidden flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 bg-gray-200 rounded-full" />
@@ -123,6 +125,47 @@ export default function GetStartedModal({ open, onClose }: Props) {
                 </div>
               </div>
               <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-brand-500 group-hover:translate-x-1 transition-all shrink-0" />
+            </div>
+          </button>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3 pt-1">
+            <div className="flex-1 h-px bg-gray-100" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Healthcare staffing</span>
+            <div className="flex-1 h-px bg-gray-100" />
+          </div>
+
+          {/* Professional card */}
+          <button
+            onClick={() => handleSelect('professional')}
+            className="group w-full bg-white rounded-2xl border-2 border-gray-100 p-4 text-left hover:border-blue-300 hover:shadow-lg hover:shadow-blue-500/5 transition-all duration-300 relative overflow-hidden"
+          >
+            <div className="relative flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform">
+                <Stethoscope className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-bold text-gray-900 group-hover:text-blue-700 transition-colors">Join as a Healthcare Professional</h3>
+                <p className="text-xs text-gray-500 mt-0.5">RN · CNA · LPN — find per-diem &amp; travel shifts</p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all shrink-0" />
+            </div>
+          </button>
+
+          {/* Facility card */}
+          <button
+            onClick={() => handleSelect('facility')}
+            className="group w-full bg-white rounded-2xl border-2 border-gray-100 p-4 text-left hover:border-violet-300 hover:shadow-lg hover:shadow-violet-500/5 transition-all duration-300 relative overflow-hidden"
+          >
+            <div className="relative flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform">
+                <Building2 className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-bold text-gray-900 group-hover:text-violet-700 transition-colors">Register a Facility</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Post shifts &amp; hire verified professionals</p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-violet-500 group-hover:translate-x-1 transition-all shrink-0" />
             </div>
           </button>
         </div>

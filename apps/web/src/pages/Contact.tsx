@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Mail, Phone, MapPin, MessageCircle, Send, Clock, Check } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { support } from '@/lib/api';
+import Seo from '@/components/Seo';
 
 export default function Contact() {
   const [formData, setFormData] = useState({ name: '', email: '', subject: '', message: '' });
@@ -32,6 +33,11 @@ export default function Contact() {
 
   return (
     <div className="bg-white">
+      <Seo
+        title="Contact TruliCares — We're Here to Help"
+        description="Get in touch with the TruliCares team. Questions about finding care, becoming a caregiver, or staffing your facility? Reach us by email or phone."
+        path="/contact"
+      />
       {/* Hero */}
       <section className="bg-gradient-to-br from-brand-900 via-brand-800 to-brand-950 py-20 lg:py-28">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">

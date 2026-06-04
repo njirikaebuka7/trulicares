@@ -3,6 +3,7 @@ import { query } from '../db.js';
 import { requireAuth, requireCaregiver, AuthRequest } from '../middleware/auth.js';
 import { cacheGet, cacheSet, invalidateCache } from '../services/cache.js';
 import { searchLimiter } from '../middleware/rateLimiter.js';
+import { encryptPII } from '../services/pii.js';
 
 const router = Router();
 
@@ -359,7 +360,9 @@ router.post('/background-check', requireCaregiver, async (req: AuthRequest, res)
       return res.status(400).json({ error: 'Please upload a valid document.' });
     }
 
-    const documentObj = { name: documentName || 'verification_document.pdf', url: documentBase64 };
+    // SECURITY: encrypt the raw document blob at rest (PII). No-op until PII_ENCRYPTION_KEY
+    // is set; the admin review endpoint decrypts it transparently.
+    const documentObj = { name: documentName || 'verification_document.pdf', url: encryptPII(documentBase64) };
 
     // Insert into verification_queue
     const qResult = await query(

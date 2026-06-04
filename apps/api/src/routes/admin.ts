@@ -278,7 +278,7 @@ router.get('/verification-queue', requireAdmin, async (_req, res) => {
        FROM verification_queue vq
        JOIN users u ON u.id = vq.caregiver_id
        LEFT JOIN caregiver_profiles cp ON cp.user_id = vq.caregiver_id
-       WHERE vq.status != 'awaiting_payment'
+       WHERE vq.status IN ('pending', 'needs_review')
        ORDER BY vq.created_at DESC`
     );
 
@@ -292,7 +292,12 @@ router.get('/verification-queue', requireAdmin, async (_req, res) => {
         specialty: row.specialty || (row.specialties?.[0] ?? 'General'),
         experience: row.experience || `${row.years_experience || 0} years`,
         location: row.location || 'Not specified',
-        documents: row.documents || [],
+        // Decrypt any encrypted document blobs for review (no-op on legacy plaintext rows).
+        documents: (Array.isArray(row.documents) ? row.documents : []).map((d: any) =>
+          d && typeof d === 'object' && typeof d.url === 'string'
+            ? { ...d, url: decryptPII(d.url) }
+            : d
+        ),
         backgroundCheck: row.background_check,
         status: row.status,
         submittedAt: new Date(row.created_at).toLocaleDateString('en-US', {
@@ -755,6 +760,83 @@ router.post('/payments/:id/refund', requireAdmin, async (req: AuthRequest, res) 
   } catch (err: any) {
     console.error('Admin refund error:', err);
     res.status(500).json({ error: err?.message || 'Failed to refund payment' });
+  }
+});
+
+// GET /api/admin/analytics — real platform analytics (cached 60s). Every query is wrapped
+// so a missing table degrades gracefully to a zero/empty value instead of failing the page.
+router.get('/analytics', requireAdmin, async (_req, res) => {
+  try {
+    const analytics = await cacheAside('admin:analytics', 60, async () => {
+      const [categories, revenue, funnel, repeat] = await Promise.all([
+        query(`SELECT care_type, COUNT(*)::int AS n FROM care_requests GROUP BY care_type`).catch(() => ({ rows: [] as any[] })),
+        query(`
+          SELECT TO_CHAR(date_trunc('month', generate_series), 'Mon') AS month,
+                 date_trunc('month', generate_series) AS month_date,
+                 (SELECT COALESCE(SUM(amount_cents), 0) FROM payments
+                   WHERE status = 'succeeded'
+                     AND date_trunc('month', created_at) = date_trunc('month', generate_series)) AS cents
+          FROM generate_series(NOW() - INTERVAL '5 months', NOW(), '1 month') AS generate_series
+          ORDER BY month_date ASC`).catch(() => ({ rows: [] as any[] })),
+        query(`
+          SELECT
+            (SELECT COUNT(*) FROM matches) AS total,
+            (SELECT COUNT(*) FROM matches WHERE status = 'accepted') AS accepted,
+            (SELECT COUNT(*) FROM matches WHERE status = 'declined') AS declined,
+            (SELECT COUNT(*) FROM matches WHERE messaging_unlocked = true) AS unlocked`).catch(() => ({ rows: [{}] })),
+        query(`
+          SELECT
+            (SELECT COUNT(*) FROM (SELECT family_id FROM care_requests GROUP BY family_id) a) AS families,
+            (SELECT COUNT(*) FROM (SELECT family_id FROM care_requests GROUP BY family_id HAVING COUNT(*) >= 2) b) AS repeat_families`).catch(() => ({ rows: [{}] })),
+      ]);
+
+      const catRows = categories.rows;
+      const catTotal = catRows.reduce((s: number, r: any) => s + Number(r.n || 0), 0) || 1;
+      const LABELS: Record<string, string> = {
+        'child-care': 'Child Care', 'senior-care': 'Senior Care',
+        'adult-care': 'Adult Care', 'cleaning': 'Cleaning Services',
+      };
+      const categoryDistribution = catRows
+        .map((r: any) => ({
+          label: LABELS[r.care_type] || (r.care_type || 'Other'),
+          count: Number(r.n || 0),
+          pct: Math.round((Number(r.n || 0) / catTotal) * 100),
+        }))
+        .sort((a: any, b: any) => b.count - a.count);
+
+      const revenueByMonth = revenue.rows.map((r: any) => ({
+        month: r.month,
+        revenue: Math.round(Number(r.cents || 0) / 100),
+      }));
+
+      const f = funnel.rows[0] || {};
+      const accepted = Number(f.accepted || 0);
+      const declined = Number(f.declined || 0);
+      const unlocked = Number(f.unlocked || 0);
+      const total = Number(f.total || 0);
+      const rp = repeat.rows[0] || {};
+      const families = Number(rp.families || 0);
+      const repeatFamilies = Number(rp.repeat_families || 0);
+
+      const pct = (num: number, den: number) => (den > 0 ? Math.round((num / den) * 100) : 0);
+
+      return {
+        categoryDistribution,
+        revenueByMonth,
+        metrics: {
+          matchRate: pct(accepted, total),
+          acceptanceRate: pct(accepted, accepted + declined),
+          messagingConversion: pct(unlocked, accepted),
+          repeatFamilies: pct(repeatFamilies, families),
+          totalMatches: total,
+          acceptedMatches: accepted,
+        },
+      };
+    });
+    res.json({ analytics });
+  } catch (err) {
+    console.error('Admin analytics error:', err);
+    res.status(500).json({ error: 'Failed to fetch analytics' });
   }
 });
 

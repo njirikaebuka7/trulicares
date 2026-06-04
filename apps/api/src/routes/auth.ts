@@ -55,14 +55,23 @@ router.post('/register', registerLimiter, async (req, res) => {
     const role = detectRole(email.toLowerCase(), requestedRole);
     const passwordHash = await bcrypt.hash(password, 12);
 
+    // If the email was verified during onboarding (before this account row existed),
+    // carry that verification onto the new account.
+    const normalizedEmail = email.toLowerCase().trim();
+    const preVerified = await query('SELECT 1 FROM verified_emails WHERE email = $1', [normalizedEmail]);
+    const emailVerified = preVerified.rows.length > 0;
+
     const result = await query(
-      `INSERT INTO users (name, email, password_hash, role, status, phone)
-       VALUES ($1, $2, $3, $4, 'active', $5)
+      `INSERT INTO users (name, email, password_hash, role, status, phone, email_verified)
+       VALUES ($1, $2, $3, $4, 'active', $5, $6)
        RETURNING id, name, email, role, status, photo_url, created_at, phone`,
-      [name.trim(), email.toLowerCase().trim(), passwordHash, role, phone || null]
+      [name.trim(), normalizedEmail, passwordHash, role, phone || null, emailVerified]
     );
 
     const user = result.rows[0];
+    if (emailVerified) {
+      await query('DELETE FROM verified_emails WHERE email = $1', [normalizedEmail]).catch(() => {});
+    }
 
     if (role === 'caregiver') {
       await query(
@@ -367,25 +376,9 @@ router.put('/profile', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// PUT /api/auth/notifications
-router.put('/notifications', requireAuth, async (req: AuthRequest, res) => {
-  try {
-    // In a real app, we'd update user preferences in the DB.
-    // For now, we mock success to fix "Failed to save" on frontend.
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to update notifications' });
-  }
-});
-
-// PUT /api/auth/privacy
-router.put('/privacy', requireAuth, async (req: AuthRequest, res) => {
-  try {
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to update privacy settings' });
-  }
-});
+// NOTE: the real PUT /notifications and PUT /privacy handlers are defined above (they
+// persist to the DB). Earlier duplicate mock handlers here were dead code (Express uses the
+// first match) and have been removed.
 
 // GET /api/auth/stats — activity stats (care requests, matches, sessions booked)
 router.get('/stats', requireAuth, async (req: AuthRequest, res) => {
@@ -478,53 +471,85 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
-// POST /api/auth/otp/send
-router.post('/otp/send', otpLimiter, async (req, res) => {
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// POST /api/auth/email/send-code — email a 6-digit code to the given address.
+// Email-keyed (works before the account row exists, during onboarding). This is safe: the
+// code only lands in the real owner's inbox, and the endpoint is rate-limited.
+router.post('/email/send-code', otpLimiter, async (req, res) => {
   try {
-    const { phone } = req.body;
-    if (!phone) return res.status(400).json({ error: 'Phone number is required' });
-    
-    // Generate 6-digit code
+    const email = String(req.body?.email || '').toLowerCase().trim();
+    if (!EMAIL_REGEX.test(email)) return res.status(400).json({ error: 'A valid email is required' });
+
+    // If an account already exists and is verified, short-circuit.
+    const existing = await query('SELECT name, email_verified FROM users WHERE email = $1', [email]);
+    if (existing.rows[0]?.email_verified) return res.json({ message: 'Email already verified', alreadyVerified: true, email });
+
+    const name = existing.rows[0]?.name || 'there';
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-    
-    try {
-      // Store in DB (wrapped to tolerate missing otp_codes table)
-      await query('DELETE FROM otp_codes WHERE phone = $1', [phone]);
-      await query('INSERT INTO otp_codes (phone, code, expires_at) VALUES ($1, $2, $3)', [phone, code, expires]);
-    } catch (dbErr) {
-      console.warn('[OTP DB WARNING] Failed to persist OTP code in database. Falling back to simulated verification. Error:', dbErr);
-    }
-    
-    // Simulate SMS (logging to console for now)
-    console.log(`[SIMULATED SMS] To: ${phone}, Code: ${code}`);
-    
-    res.json({ message: 'Verification code sent', simulatedCode: code }); // Returning code for easy testing, remove in prod
+
+    await query(
+      `INSERT INTO email_verification_codes (email, code, expires_at) VALUES ($1, $2, $3)
+       ON CONFLICT (email) DO UPDATE SET code = EXCLUDED.code, expires_at = EXCLUDED.expires_at, created_at = NOW()`,
+      [email, code, expires]
+    );
+
+    await enqueueEmail('email-verification', email, { name, code }).catch((e) =>
+      console.error('Verification email failed:', e?.message)
+    );
+
+    // SECURITY: never return the code itself in production. Expose it only in non-production
+    // (so local testing works without a real inbox).
+    const body: Record<string, unknown> = { message: 'Verification code sent', email };
+    if (process.env.NODE_ENV !== 'production') body.simulatedCode = code;
+    res.json(body);
   } catch (err) {
-    console.error('OTP send error:', err);
-    res.status(500).json({ error: 'Failed to send code' });
+    console.error('Email code send error:', err);
+    res.status(500).json({ error: 'Failed to send verification code' });
   }
 });
 
-// POST /api/auth/otp/verify
-router.post('/otp/verify', otpLimiter, async (req, res) => {
+// POST /api/auth/email/verify — confirm the 6-digit code for an email address.
+router.post('/email/verify', otpLimiter, async (req, res) => {
   try {
-    const { phone, code } = req.body;
-    if (!phone || !code) return res.status(400).json({ error: 'Phone and code are required' });
-    
-    try {
-      // Delete code after use if DB exists
-      await query('DELETE FROM otp_codes WHERE phone = $1', [phone]);
-    } catch (dbErr) {
-      console.warn('[OTP DB WARNING] Failed to delete OTP code from database. Error:', dbErr);
+    const email = String(req.body?.email || '').toLowerCase().trim();
+    const code = String(req.body?.code || '').trim();
+    if (!email || !code) return res.status(400).json({ error: 'Email and code are required' });
+
+    const r = await query('SELECT code, expires_at FROM email_verification_codes WHERE email = $1', [email]);
+    const row = r.rows[0];
+    if (!row || new Date(row.expires_at) < new Date()) {
+      return res.status(400).json({ error: 'Your code has expired. Request a new one.' });
     }
-    
-    // Allow any code to pass successfully for now (per user request)
-    res.json({ success: true, message: 'Phone verified' });
+    if (String(row.code) !== code) {
+      return res.status(400).json({ error: 'Invalid verification code' });
+    }
+
+    // Consume the code, record the verification, and mark the account verified if it exists.
+    await query('DELETE FROM email_verification_codes WHERE email = $1', [email]).catch(() => {});
+    await query(
+      `INSERT INTO verified_emails (email, verified_at) VALUES ($1, NOW())
+       ON CONFLICT (email) DO UPDATE SET verified_at = NOW()`,
+      [email]
+    );
+    await query('UPDATE users SET email_verified = true, updated_at = NOW() WHERE email = $1', [email]).catch(() => {});
+
+    res.json({ success: true, message: 'Email verified' });
   } catch (err) {
-    console.error('OTP verify error:', err);
+    console.error('Email verify error:', err);
     res.status(500).json({ error: 'Verification failed' });
   }
 });
+
+// ── DEPRECATED: phone SMS OTP. Replaced by email verification above. ──
+// These previously leaked the code to the caller and accepted any code, so they are
+// disabled rather than left as a self-verification bypass.
+router.post('/otp/send', otpLimiter, (_req, res) =>
+  res.status(410).json({ error: 'Phone verification has moved to email verification.', endpoint: '/api/auth/email/send-code' })
+);
+router.post('/otp/verify', otpLimiter, (_req, res) =>
+  res.status(410).json({ error: 'Phone verification has moved to email verification.', endpoint: '/api/auth/email/verify' })
+);
 
 export default router;

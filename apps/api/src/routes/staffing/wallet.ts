@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query, getClient } from '../../db.js';
 import { requireAuth, AuthRequest } from '../../middleware/auth.js';
+import { encryptPII } from '../../services/pii.js';
 import {
   isConnectEnabled,
   createOnboardingLink,
@@ -216,6 +217,9 @@ router.post('/bank-account', requireAuth, async (req: AuthRequest, res) => {
     }
 
     const last4 = accountNumber.slice(-4);
+    // SECURITY: encrypt the routing number at rest (PII). We never store the full account
+    // number — only its last 4 digits. encryptPII is a no-op until PII_ENCRYPTION_KEY is set.
+    const routingEnc = encryptPII(String(routingNumber));
 
     const result = await query(
       `INSERT INTO bank_accounts (user_id, bank_name, account_holder_name, account_number_last4, routing_number, account_type)
@@ -228,7 +232,7 @@ router.post('/bank-account', requireAuth, async (req: AuthRequest, res) => {
          account_type = EXCLUDED.account_type,
          updated_at = NOW()
        RETURNING id, bank_name, account_holder_name, account_number_last4, account_type, created_at`,
-      [req.user!.id, bankName, accountHolderName, last4, routingNumber, accountType || 'checking']
+      [req.user!.id, bankName, accountHolderName, last4, routingEnc, accountType || 'checking']
     );
 
     res.json({ bankAccount: result.rows[0], message: 'Bank account saved successfully' });

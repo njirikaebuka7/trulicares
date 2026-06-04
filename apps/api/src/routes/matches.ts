@@ -135,7 +135,12 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
       return res.json({ matches: result.rows.map(formatCaregiverMatch) });
     }
 
-    // Admin
+    // SECURITY: only admins get the platform-wide match list. Any other role (including
+    // self-registered 'professional'/'facility') must NOT fall through to this admin path.
+    if (role !== 'admin') {
+      return res.status(403).json({ error: 'Not authorized for this resource' });
+    }
+
     const result = await query(
       `SELECT m.*, uc.name as caregiver_name, uf.name as family_name, cr.care_type
        FROM matches m

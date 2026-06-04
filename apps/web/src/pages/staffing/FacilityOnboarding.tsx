@@ -8,7 +8,7 @@ import {
   Building2, FileText, User, CheckCircle,
   ArrowRight, ArrowLeft, Eye, EyeOff, Loader2, Shield, MapPin, X,
   Briefcase, Globe, Phone, Lock, Heart, Star, LayoutDashboard,
-  ShieldCheck, Zap, Users, MessageCircle
+  ShieldCheck, Zap, Users, MessageCircle, Mail, AlertCircle
 } from 'lucide-react';
 import logoImg from '@/assets/logo.png';
 import Button from '@/components/ui/Button';
@@ -69,12 +69,11 @@ export default function FacilityOnboarding() {
     setForm(prev => ({ ...prev, [field]: value }));
 
   const handleSendContactOtp = async () => {
-    const digits = form.contactPhone.replace(/\D/g, '');
-    if (digits.length < 10) return;
+    if (!form.email) return;
     setLoading(true);
     setContactPhoneError('');
     try {
-      await authApi.sendOtp(`+1${digits}`);
+      await authApi.sendEmailCode(form.email);
       setContactOtpSent(true);
     } catch (err: any) {
       setContactPhoneError(err.message || 'Failed to send code');
@@ -88,11 +87,7 @@ export default function FacilityOnboarding() {
     setLoading(true);
     setContactPhoneError('');
     try {
-      try {
-        await authApi.verifyOtp(`+1${form.contactPhone.replace(/\D/g, '')}`, contactOtp.join(''));
-      } catch (apiErr) {
-        console.warn('Bypassing OTP verification failure for testing:', apiErr);
-      }
+      await authApi.verifyEmailCode(form.email, contactOtp.join(''));
       setIsContactPhoneVerified(true);
     } catch (err: any) {
       setContactPhoneError(err.message || 'Invalid code');
@@ -131,7 +126,7 @@ export default function FacilityOnboarding() {
       if (!form.zip.trim()) return setError('ZIP code is required'), false;
     }
     if (step === 3) {
-      if (!isContactPhoneVerified) return setError('Please verify the contact phone number'), false;
+      if (!isContactPhoneVerified) return setError('Please verify your email address'), false;
     }
     return true;
   };
@@ -488,44 +483,60 @@ export default function FacilityOnboarding() {
                   />
                 </div>
 
-                {/* Contact Phone with OTP */}
+                {/* Contact Phone (contact info only) */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Contact Phone Number</label>
+                  <div className="relative">
+                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="tel"
+                      className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
+                      placeholder="(555) 000-0000"
+                      value={form.contactPhone}
+                      onChange={e => {
+                        let val = e.target.value.replace(/\D/g, '');
+                        if (val.length > 10) val = val.slice(0, 10);
+                        let fmt = val;
+                        if (val.length > 0) {
+                          if (val.length <= 3) fmt = `(${val}`;
+                          else if (val.length <= 6) fmt = `(${val.slice(0,3)}) ${val.slice(3)}`;
+                          else fmt = `(${val.slice(0,3)}) ${val.slice(3,6)}-${val.slice(6)}`;
+                        }
+                        set('contactPhone', fmt);
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Email verification */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Verify Your Email</label>
                   {!isContactPhoneVerified ? (
                     <>
-                      <div className="relative">
-                        <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input
-                          type="tel"
-                          className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
-                          placeholder="(555) 000-0000"
-                          value={form.contactPhone}
-                          onChange={e => {
-                            let val = e.target.value.replace(/\D/g, '');
-                            if (val.length > 10) val = val.slice(0, 10);
-                            let fmt = val;
-                            if (val.length > 0) {
-                              if (val.length <= 3) fmt = `(${val}`;
-                              else if (val.length <= 6) fmt = `(${val.slice(0,3)}) ${val.slice(3)}`;
-                              else fmt = `(${val.slice(0,3)}) ${val.slice(3,6)}-${val.slice(6)}`;
-                            }
-                            set('contactPhone', fmt);
-                          }}
-                        />
-                      </div>
                       {!contactOtpSent ? (
-                        <button
-                          type="button"
-                          onClick={handleSendContactOtp}
-                          disabled={loading || form.contactPhone.replace(/\D/g, '').length < 10}
-                          className="mt-3 w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 transition-all disabled:opacity-50"
-                        >
-                          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
-                          Send Verification Code
-                        </button>
+                        <>
+                          <div className="relative">
+                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                            <input
+                              type="email"
+                              readOnly
+                              className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 bg-gray-50 text-gray-700 outline-none font-medium"
+                              value={form.email}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleSendContactOtp}
+                            disabled={loading || !form.email}
+                            className="mt-3 w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 transition-all disabled:opacity-50"
+                          >
+                            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
+                            Send Verification Code
+                          </button>
+                        </>
                       ) : (
                         <div className="mt-4 space-y-4">
-                          <p className="text-sm text-gray-500 text-center">Enter the 6-digit code sent to <strong>{form.contactPhone}</strong></p>
+                          <p className="text-sm text-gray-500 text-center">Enter the 6-digit code sent to <strong>{form.email}</strong></p>
                           <div className="flex justify-center gap-2">
                             {contactOtp.map((d, i) => (
                               <input
@@ -550,8 +561,8 @@ export default function FacilityOnboarding() {
                             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                             Verify Code
                           </button>
-                          <button type="button" onClick={() => setContactOtpSent(false)} className="w-full text-center text-sm text-gray-400 hover:text-gray-600">
-                            ← Change number
+                          <button type="button" onClick={handleSendContactOtp} className="w-full text-center text-sm text-gray-400 hover:text-gray-600">
+                            Resend code
                           </button>
                         </div>
                       )}
@@ -561,8 +572,8 @@ export default function FacilityOnboarding() {
                     <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-2xl border border-emerald-200">
                       <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
                       <div>
-                        <p className="font-semibold text-emerald-800 text-sm">{form.contactPhone}</p>
-                        <p className="text-xs text-emerald-600">Phone verified ✓</p>
+                        <p className="font-semibold text-emerald-800 text-sm">{form.email}</p>
+                        <p className="text-xs text-emerald-600">Email verified ✓</p>
                       </div>
                       <button type="button" onClick={() => { setIsContactPhoneVerified(false); setContactOtpSent(false); setContactOtp(['','','','','','']); }} className="ml-auto text-xs text-emerald-700 underline">
                         Change

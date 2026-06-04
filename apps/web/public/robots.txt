@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+
+# Private/app areas — no SEO value, keep out of the index
+Disallow: /dashboard
+Disallow: /professional-dashboard
+Disallow: /facility-dashboard
+Disallow: /professional-onboarding
+Disallow: /facility-onboarding
+Disallow: /reset-password
+Disallow: /login
+
+Sitemap: https://www.trulicares.com/sitemap.xml

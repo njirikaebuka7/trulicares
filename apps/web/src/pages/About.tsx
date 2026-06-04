@@ -52,11 +52,18 @@ const timeline = [
 
 
 
+import Seo from '@/components/Seo';
+
 export default function About() {
   const navigate = useNavigate();
 
   return (
     <div className="bg-white">
+      <Seo
+        title="About TruliCares — Trusted Care, Built on Verification"
+        description="Learn how TruliCares connects families and healthcare facilities with verified caregivers and licensed professionals through thoughtful matching, background checks, and secure payments."
+        path="/about"
+      />
       {/* ═══ HERO ═══ */}
       <section className="relative bg-gradient-to-br from-brand-950 via-brand-900 to-brand-800 py-24 lg:py-32 overflow-hidden">
         <div className="absolute inset-0">

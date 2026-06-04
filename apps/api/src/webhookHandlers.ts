@@ -184,12 +184,20 @@ export class WebhookHandlers {
     const stripe = new Stripe(secret);
 
     let event: Stripe.Event;
-    const isPlaceholderSecret = webhookSecret?.startsWith('whsec_...');
-    
-    if (webhookSecret && !isPlaceholderSecret) {
-      event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
-    } else {
+    // A real secret looks like `whsec_<random>`; the shipped placeholder is literally
+    // `whsec_...`. Treat a missing or placeholder secret as "no signature verification".
+    const hasValidSecret = !!webhookSecret && !webhookSecret.startsWith('whsec_...');
+
+    if (hasValidSecret) {
+      event = stripe.webhooks.constructEvent(payload, signature, webhookSecret!);
+    } else if (process.env.NODE_ENV !== 'production') {
+      // SECURITY: only accept UNSIGNED events outside production, for local testing.
+      console.warn('[webhook] No valid STRIPE_WEBHOOK_SECRET — accepting UNSIGNED event (dev only).');
       event = JSON.parse(payload.toString()) as Stripe.Event;
+    } else {
+      // In production we refuse to process unsigned webhooks — otherwise anyone could POST a
+      // fake "payment succeeded" event and unlock paid features for free.
+      throw new Error('STRIPE_WEBHOOK_SECRET is not configured; refusing unsigned webhook in production.');
     }
 
     switch (event.type) {
@@ -203,12 +211,16 @@ export class WebhookHandlers {
         // branches below (every payment uses Checkout), which avoids double-emailing
         // since Stripe fires both events for a Checkout payment.
         if (pi.metadata?.matchId && pi.metadata?.userId) {
-          await query(
-            `UPDATE matches SET messaging_unlocked = true WHERE id = $1`,
-            [pi.metadata.matchId]
+          // SECURITY: only unlock if the match belongs to the payer. Without this an
+          // attacker who knows another match's UUID could flip it via crafted metadata.
+          const upd = await query(
+            `UPDATE matches SET messaging_unlocked = true WHERE id = $1 AND family_id = $2`,
+            [pi.metadata.matchId, pi.metadata.userId]
           );
-          // Auto create conversation
-          const matchRes = await query(`SELECT caregiver_id FROM matches WHERE id = $1`, [pi.metadata.matchId]);
+          // Auto create conversation (only when the ownership-checked unlock applied)
+          const matchRes = (upd.rowCount ?? 0) > 0
+            ? await query(`SELECT caregiver_id FROM matches WHERE id = $1`, [pi.metadata.matchId])
+            : { rows: [] as any[] };
           if (matchRes.rows.length > 0) {
             const caregiverId = matchRes.rows[0].caregiver_id;
             await query(
@@ -251,12 +263,15 @@ export class WebhookHandlers {
               [session.metadata.userId, session.metadata.matchId, session.amount_total, session.currency, session.payment_intent || session.id]
             );
           }
-          await query(
-            `UPDATE matches SET messaging_unlocked = true WHERE id = $1`,
-            [session.metadata.matchId]
+          // SECURITY: only unlock the match if it belongs to the paying user.
+          const upd = await query(
+            `UPDATE matches SET messaging_unlocked = true WHERE id = $1 AND family_id = $2`,
+            [session.metadata.matchId, session.metadata.userId]
           );
-          // Auto create conversation
-          const matchRes = await query(`SELECT caregiver_id FROM matches WHERE id = $1`, [session.metadata.matchId]);
+          // Auto create conversation (only when the ownership-checked unlock applied)
+          const matchRes = (upd.rowCount ?? 0) > 0
+            ? await query(`SELECT caregiver_id FROM matches WHERE id = $1`, [session.metadata.matchId])
+            : { rows: [] as any[] };
           if (matchRes.rows.length > 0) {
             const caregiverId = matchRes.rows[0].caregiver_id;
             await query(

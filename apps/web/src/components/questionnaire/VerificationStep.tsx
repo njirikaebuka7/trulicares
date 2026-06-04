@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Phone, Shield, Check, CheckCircle, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Mail, Shield, Check, CheckCircle, ArrowRight, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Button from '@/components/ui/Button';
 import { auth as authApi } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 import logoImg from '@/assets/logo.png';
 
 interface Props {
@@ -12,33 +13,27 @@ interface Props {
   cancelLabel?: string;
 }
 
-type Step = 'phone' | 'otp' | 'confirmed';
-
-function formatUSPhone(digits: string): string {
-  const d = digits.slice(0, 10);
-  if (d.length <= 3) return d;
-  if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
-  return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
-}
+type Step = 'start' | 'otp' | 'confirmed';
 
 export default function VerificationStep({ onComplete, onBack, onCancel, cancelLabel }: Props) {
-  const [phoneDigits, setPhoneDigits] = useState('');
+  const { user } = useAuth();
+  const email = user?.email || '';
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [step, setStep] = useState<Step>('phone');
+  const [step, setStep] = useState<Step>('start');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
 
-  const handlePhoneInput = (raw: string) => {
-    const digits = raw.replace(/\D/g, '').slice(0, 10);
-    setPhoneDigits(digits);
-  };
-
-  const handleSendOTP = async () => {
-    if (phoneDigits.length < 10) return;
+  const handleSendCode = async () => {
     setLoading(true);
     setError('');
+    setInfo('');
     try {
-      await authApi.sendOtp(`+1${phoneDigits}`);
+      const res: any = await authApi.sendEmailCode(email);
+      if (res?.alreadyVerified) {
+        setStep('confirmed');
+        return;
+      }
       setStep('otp');
     } catch (err: any) {
       setError(err.message || 'Failed to send code');
@@ -47,17 +42,28 @@ export default function VerificationStep({ onComplete, onBack, onCancel, cancelL
     }
   };
 
-  const handleVerifyOTP = async () => {
+  const handleVerify = async () => {
     if (otp.some(d => !d)) return;
     setLoading(true);
     setError('');
     try {
-      await authApi.verifyOtp(`+1${phoneDigits}`, otp.join(''));
+      await authApi.verifyEmailCode(email, otp.join(''));
       setStep('confirmed');
     } catch (err: any) {
       setError(err.message || 'Invalid verification code');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setOtp(['', '', '', '', '', '']);
+    setError('');
+    try {
+      await authApi.sendEmailCode(email);
+      setInfo('A new code is on its way to your inbox.');
+    } catch (err: any) {
+      setError(err.message || 'Failed to resend code');
     }
   };
 
@@ -71,8 +77,6 @@ export default function VerificationStep({ onComplete, onBack, onCancel, cancelL
       nextInput?.focus();
     }
   };
-
-  const displayPhone = `+1 ${formatUSPhone(phoneDigits)}`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-coral-50 flex flex-col">
@@ -103,9 +107,9 @@ export default function VerificationStep({ onComplete, onBack, onCancel, cancelL
               <CheckCircle className="w-12 h-12 text-white" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Phone Verified!</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Email Verified!</h2>
               <p className="text-gray-500 text-sm">
-                <span className="font-semibold text-gray-800">{displayPhone}</span> has been successfully verified.
+                <span className="font-semibold text-gray-800">{email}</span> has been successfully verified.
               </p>
             </div>
             <div className="bg-emerald-50 rounded-2xl p-5 border border-emerald-100 text-left space-y-3">
@@ -128,43 +132,34 @@ export default function VerificationStep({ onComplete, onBack, onCancel, cancelL
           </div>
         )}
 
-        {/* ── PHONE INPUT ── */}
-        {step === 'phone' && (
+        {/* ── START: confirm email + send code ── */}
+        {step === 'start' && (
           <>
             <div className="text-center mb-8">
               <div className="w-16 h-16 bg-gradient-to-br from-brand-400 to-brand-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <Shield className="w-8 h-8 text-white" />
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Verify Your Identity</h2>
-              <p className="text-gray-500 text-sm">We need to verify your US phone number for safety.</p>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Verify Your Email</h2>
+              <p className="text-gray-500 text-sm">We'll send a 6-digit verification code to your email to secure your account.</p>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">US Phone Number</label>
-                <div className="flex gap-2">
-                  {/* Country prefix */}
-                  <div className="flex items-center gap-2 px-3 py-4 rounded-2xl border border-gray-200 bg-gray-50 shrink-0">
-                    <span className="text-xl leading-none">🇺🇸</span>
-                    <span className="text-sm font-semibold text-gray-700">+1</span>
-                  </div>
-                  {/* Phone input */}
-                  <div className="relative flex-1">
-                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="tel"
-                      value={formatUSPhone(phoneDigits)}
-                      onChange={e => handlePhoneInput(e.target.value)}
-                      placeholder="(555) 123-4567"
-                      className="w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-lg"
-                    />
-                  </div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Your email address</label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="email"
+                    value={email}
+                    readOnly
+                    className="w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-200 bg-gray-50 text-lg text-gray-700 outline-none"
+                  />
                 </div>
               </div>
               <Button
                 variant="primary" size="xl" fullWidth
-                onClick={handleSendOTP}
+                onClick={handleSendCode}
                 loading={loading}
-                disabled={phoneDigits.length < 10}
+                disabled={!email}
               >
                 Send Verification Code
               </Button>
@@ -181,7 +176,7 @@ export default function VerificationStep({ onComplete, onBack, onCancel, cancelL
                 <Shield className="w-8 h-8 text-white" />
               </div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Enter Verification Code</h2>
-              <p className="text-gray-500 text-sm">We sent a 6-digit code to <span className="font-semibold text-gray-800">{displayPhone}</span></p>
+              <p className="text-gray-500 text-sm">We sent a 6-digit code to <span className="font-semibold text-gray-800">{email}</span></p>
             </div>
             <div className="space-y-6">
               <div className="flex justify-center gap-3">
@@ -206,18 +201,19 @@ export default function VerificationStep({ onComplete, onBack, onCancel, cancelL
               </div>
               <Button
                 variant="primary" size="xl" fullWidth
-                onClick={handleVerifyOTP}
+                onClick={handleVerify}
                 loading={loading}
                 disabled={otp.some(d => !d)}
               >
                 Verify & Continue
               </Button>
+              {info && <p className="text-emerald-600 text-sm text-center">{info}</p>}
               {error && <p className="text-red-500 text-sm text-center">{error}</p>}
               <button
-                onClick={() => setStep('phone')}
+                onClick={handleResend}
                 className="w-full text-center text-sm text-brand-600 font-medium hover:underline"
               >
-                Change phone number
+                Didn't get it? Resend code
               </button>
             </div>
           </>

@@ -102,6 +102,9 @@ export default function AdminDashboard() {
   const [savingPricing, setSavingPricing] = useState(false);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [finance, setFinance] = useState<any>(null);
+  const [analytics, setAnalytics] = useState<any>(null);
+  const [resolvingDispute, setResolvingDispute] = useState<any | null>(null);
+  const [disputeNotes, setDisputeNotes] = useState('');
   const [idDocs, setIdDocs] = useState<Record<string, { front: string | null; back: string | null; selfie: string | null } | 'loading'>>({});
 
   const refreshAllData = () => {
@@ -120,7 +123,22 @@ export default function AdminDashboard() {
       }).catch(() => {}),
       get('/admin/audit-logs').then((d: any) => setAuditLogs(d.logs || [])).catch(() => {}),
       get('/admin/finance').then((d: any) => setFinance(d)).catch(() => {}),
+      get('/admin/analytics').then((d: any) => setAnalytics(d.analytics || null)).catch(() => {}),
     ]).catch(console.error);
+  };
+
+  const handleResolveDispute = async (outcome: 'release' | 'refund' | 'none') => {
+    if (!resolvingDispute) return;
+    const id = resolvingDispute.id;
+    const status = outcome === 'none' ? 'dismissed' : 'resolved';
+    setStaffingDisputes((prev) => prev.filter((d: any) => d.id !== id));
+    setResolvingDispute(null);
+    setDisputeNotes('');
+    try {
+      await put(`/staffing/disputes/${id}`, { status, outcome, resolutionNotes: disputeNotes });
+    } catch {
+      refreshAllData();
+    }
   };
 
   const handleRefund = async (paymentId: string) => {
@@ -458,7 +476,7 @@ export default function AdminDashboard() {
                   )}
                   {dbNotifications.length > 5 && (
                     <div className="px-4 py-2 bg-gray-50 text-center">
-                      <button className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">See all notifications</button>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Showing 5 of {dbNotifications.length}</span>
                     </div>
                   )}
                 </div>
@@ -769,8 +787,65 @@ export default function AdminDashboard() {
             <div className="space-y-5">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-gray-900">Verification Queue</h2>
-                <span className="text-sm text-gray-500">{verificationQueue.length} pending</span>
+                <span className="text-sm text-gray-500">{verificationQueue.length + professionalVerifications.length} pending</span>
               </div>
+
+              {/* Professionals & Facilities (staffing verifications) */}
+              {professionalVerifications.length > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
+                    <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                      <Briefcase className="w-4 h-4 text-blue-600" /> Professionals &amp; Facilities
+                    </h3>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">{professionalVerifications.length}</span>
+                  </div>
+                  <div className="divide-y divide-gray-50">
+                    {professionalVerifications.map((v: any) => {
+                      const isFacility = v.entity_type === 'facility';
+                      const title = isFacility ? v.facility_name : v.name;
+                      const subtitle = isFacility
+                        ? `${v.facility_type || 'Facility'} · ${[v.fac_city, v.fac_state].filter(Boolean).join(', ')}`
+                        : `${v.license_type || 'Professional'} · ${v.pro_location || v.location || '—'}`;
+                      return (
+                        <div key={v.id} className="p-4 flex items-center gap-4 flex-wrap">
+                          <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0',
+                            isFacility ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600')}>
+                            {(title || '?').charAt(0)}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="font-bold text-sm text-gray-900 truncate">{title}</p>
+                              <span className={cn('text-[9px] font-black uppercase px-1.5 py-0.5 rounded',
+                                isFacility ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600')}>
+                                {isFacility ? 'Facility' : 'Pro'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-500 truncate">{subtitle}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => handleStaffingVerify(v.id, 'approved')}
+                              className="px-3 py-1.5 bg-blue-600 text-white text-[10px] font-black uppercase rounded-lg hover:bg-blue-700 transition-all active:scale-95">Approve</button>
+                            <button onClick={() => handleStaffingVerify(v.id, 'needs_review')}
+                              className="px-3 py-1.5 bg-amber-100 text-amber-700 text-[10px] font-black uppercase rounded-lg hover:bg-amber-200 transition-all active:scale-95">Needs Review</button>
+                            <button onClick={() => handleStaffingVerify(v.id, 'rejected')}
+                              className="px-3 py-1.5 bg-gray-100 text-gray-600 text-[10px] font-black uppercase rounded-lg hover:bg-gray-200 transition-all active:scale-95">Reject</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button onClick={() => setActiveTab('Staffing')} className="w-full px-5 py-2.5 text-xs font-semibold text-slate-500 hover:bg-gray-50 border-t border-gray-50">
+                    Open full Staffing review →
+                  </button>
+                </div>
+              )}
+
+              {/* Caregivers */}
+              {verificationQueue.length === 0 && professionalVerifications.length === 0 && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center text-gray-400 text-sm">
+                  No pending verifications.
+                </div>
+              )}
               {verificationQueue.map((item: any) => {
                 const action = verificationActions[item.id];
                 const isExpanded = expandedVerificationId === item.id;
@@ -1282,10 +1357,12 @@ export default function AdminDashboard() {
                           </div>
                           <p className="text-xs text-gray-700 font-medium mb-3 line-clamp-2">"{dispute.reason}"</p>
                           <div className="flex gap-2">
-                            <button className="flex-1 px-3 py-1.5 bg-slate-800 text-white text-[10px] font-black uppercase rounded-lg hover:bg-slate-900 transition-all">
+                            <button onClick={() => { setResolvingDispute(dispute); setDisputeNotes(''); }}
+                              className="flex-1 px-3 py-1.5 bg-slate-800 text-white text-[10px] font-black uppercase rounded-lg hover:bg-slate-900 transition-all">
                               Resolve
                             </button>
-                            <button className="flex-1 px-3 py-1.5 border border-gray-200 text-gray-500 text-[10px] font-black uppercase rounded-lg hover:bg-gray-50 transition-all">
+                            <button onClick={() => { setResolvingDispute(dispute); setDisputeNotes(''); }}
+                              className="flex-1 px-3 py-1.5 border border-gray-200 text-gray-500 text-[10px] font-black uppercase rounded-lg hover:bg-gray-50 transition-all">
                               Details
                             </button>
                           </div>
@@ -1302,65 +1379,72 @@ export default function AdminDashboard() {
           {activeTab === 'Analytics' && (
             <div className="space-y-6">
               <h2 className="text-xl font-bold text-gray-900">Platform Analytics</h2>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[
-                  { label: 'Match Rate', value: '78%', sub: 'Families that find a match', trend: '↑ 4% vs last month' },
-                  { label: 'Avg Time to Match', value: '2.4 days', sub: 'From request to first match', trend: '↓ 0.3 days improvement' },
-                  { label: 'Acceptance Rate', value: '64%', sub: 'Job requests accepted', trend: '↑ 7% vs last month' },
-                  { label: 'Messaging Conv.', value: '41%', sub: 'Matches that unlock messaging', trend: '↑ 2% vs last month' },
-                  { label: 'Repeat Families', value: '58%', sub: 'Families with 2+ requests', trend: '↑ 5% vs last month' },
-                  { label: 'Churn Rate', value: '3.2%', sub: 'Monthly user churn', trend: '↓ 0.8% improvement' },
-                ].map((metric, i) => (
-                  <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition-shadow">
-                    <p className="text-sm text-gray-500 font-medium mb-2">{metric.label}</p>
-                    <p className="text-4xl font-bold text-gray-900 mb-1">{metric.value}</p>
-                    <p className="text-xs text-gray-400 mb-2">{metric.sub}</p>
-                    <p className="text-xs text-emerald-600 font-semibold">{metric.trend}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <h3 className="font-bold text-gray-900 mb-4">Care Category Distribution</h3>
-                <div className="space-y-3">
-                  {[
-                    { label: 'Child Care', pct: 48, color: 'bg-brand-500' },
-                    { label: 'Senior Care', pct: 27, color: 'bg-emerald-500' },
-                    { label: 'Adult Care', pct: 14, color: 'bg-sky-500' },
-                    { label: 'Cleaning Services', pct: 11, color: 'bg-violet-400' },
-                  ].map(cat => (
-                    <div key={cat.label}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-700">{cat.label}</span>
-                        <span className="text-sm font-bold text-gray-900">{cat.pct}%</span>
-                      </div>
-                      <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div className={cn('h-full rounded-full', cat.color)} style={{ width: `${cat.pct}%` }} />
-                      </div>
+              {(() => {
+                const m = analytics?.metrics || {};
+                const cats = analytics?.categoryDistribution || [];
+                const rev = analytics?.revenueByMonth || [];
+                const maxRev = Math.max(1, ...rev.map((r: any) => r.revenue));
+                const catColors = ['bg-brand-500', 'bg-emerald-500', 'bg-sky-500', 'bg-violet-400', 'bg-amber-400'];
+                const cards = [
+                  { label: 'Match Rate', value: `${m.matchRate ?? 0}%`, sub: 'Matches that were accepted' },
+                  { label: 'Acceptance Rate', value: `${m.acceptanceRate ?? 0}%`, sub: 'Of accepted + declined' },
+                  { label: 'Messaging Conv.', value: `${m.messagingConversion ?? 0}%`, sub: 'Accepted matches that unlock messaging' },
+                  { label: 'Repeat Families', value: `${m.repeatFamilies ?? 0}%`, sub: 'Families with 2+ requests' },
+                  { label: 'Total Matches', value: (m.totalMatches ?? 0).toLocaleString(), sub: 'All-time matches created' },
+                  { label: 'Accepted Matches', value: (m.acceptedMatches ?? 0).toLocaleString(), sub: 'Currently accepted' },
+                ];
+                return (
+                  <>
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {cards.map((metric, i) => (
+                        <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition-shadow">
+                          <p className="text-sm text-gray-500 font-medium mb-2">{metric.label}</p>
+                          <p className="text-4xl font-bold text-gray-900 mb-1">{metric.value}</p>
+                          <p className="text-xs text-gray-400">{metric.sub}</p>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <h3 className="font-bold text-gray-900 mb-4">Revenue by Month</h3>
-                <div className="flex items-end gap-4" style={{ height: '120px' }}>
-                  {[
-                    { month: 'Dec', revenue: 18200 },
-                    { month: 'Jan', revenue: 21400 },
-                    { month: 'Feb', revenue: 22800 },
-                    { month: 'Mar', revenue: 24600 },
-                    { month: 'Apr', revenue: 26100 },
-                    { month: 'May', revenue: 28640 },
-                  ].map(m => (
-                    <div key={m.month} className="flex-1 flex flex-col items-center gap-1">
-                      <span className="text-xs text-slate-600 font-semibold">${(m.revenue/1000).toFixed(0)}k</span>
-                      <div className="w-full flex items-end" style={{ height: '80px' }}>
-                        <div className="w-full rounded-t-lg bg-slate-700" style={{ height: `${(m.revenue/30000)*100}%` }} />
-                      </div>
-                      <span className="text-xs text-gray-400">{m.month}</span>
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                      <h3 className="font-bold text-gray-900 mb-4">Care Category Distribution</h3>
+                      {cats.length === 0 ? (
+                        <p className="text-sm text-gray-400 italic">No care requests yet.</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {cats.map((cat: any, i: number) => (
+                            <div key={cat.label}>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-sm font-medium text-gray-700">{cat.label}</span>
+                                <span className="text-sm font-bold text-gray-900">{cat.pct}% <span className="text-gray-400 font-normal">({cat.count})</span></span>
+                              </div>
+                              <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div className={cn('h-full rounded-full', catColors[i % catColors.length])} style={{ width: `${cat.pct}%` }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
-              </div>
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                      <h3 className="font-bold text-gray-900 mb-4">Revenue by Month</h3>
+                      {rev.length === 0 ? (
+                        <p className="text-sm text-gray-400 italic">No revenue data yet.</p>
+                      ) : (
+                        <div className="flex items-end gap-4" style={{ height: '120px' }}>
+                          {rev.map((r: any) => (
+                            <div key={r.month} className="flex-1 flex flex-col items-center gap-1">
+                              <span className="text-xs text-slate-600 font-semibold">${(r.revenue / 1000).toFixed(1)}k</span>
+                              <div className="w-full flex items-end" style={{ height: '80px' }}>
+                                <div className="w-full rounded-t-lg bg-slate-700" style={{ height: `${Math.max(4, (r.revenue / maxRev) * 100)}%` }} />
+                              </div>
+                              <span className="text-xs text-gray-400">{r.month}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           )}
 
@@ -1878,6 +1962,66 @@ export default function AdminDashboard() {
                   {reportActions[selectedReport.id] === 'resolved' ? 'Report Resolved' : 'Report Dismissed'}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── DISPUTE RESOLUTION MODAL ── */}
+      {resolvingDispute && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setResolvingDispute(null)} />
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl z-10 overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+              <h3 className="font-bold text-gray-900 text-lg">Resolve Dispute</h3>
+              <button onClick={() => setResolvingDispute(null)} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-6 space-y-5">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Raised By</p>
+                  <p className="font-bold text-gray-900">{resolvingDispute.raised_by_name || resolvingDispute.raised_by_role}</p>
+                  <p className="text-xs text-gray-400 capitalize">{resolvingDispute.raised_by_role}</p>
+                </div>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Booking</p>
+                  <p className="font-bold text-gray-900">{resolvingDispute.booking_ref || `#${String(resolvingDispute.booking_id).split('-')[0]}`}</p>
+                  {resolvingDispute.wage_amount != null && <p className="text-xs text-gray-400">Wage: ${Number(resolvingDispute.wage_amount).toFixed(2)}</p>}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Reason</p>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <p className="text-sm text-gray-700 leading-relaxed font-medium">{resolvingDispute.reason}</p>
+                  {resolvingDispute.description && <p className="text-sm text-gray-500 mt-2">{resolvingDispute.description}</p>}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Resolution notes (optional)</p>
+                <textarea value={disputeNotes} onChange={e => setDisputeNotes(e.target.value)} rows={3}
+                  placeholder="Explain the decision for both parties…"
+                  className="w-full px-4 py-3 rounded-2xl border border-gray-200 focus:border-slate-400 focus:ring-2 focus:ring-slate-100 outline-none text-sm resize-none" />
+              </div>
+              <div className="space-y-2 pt-1">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Outcome</p>
+                <button onClick={() => handleResolveDispute('release')}
+                  className="w-full text-left px-4 py-3 rounded-2xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 transition-colors">
+                  <span className="font-bold text-emerald-800 text-sm">Release funds to professional</span>
+                  <span className="block text-xs text-emerald-600">Completes the booking and credits the professional's wallet.</span>
+                </button>
+                <button onClick={() => handleResolveDispute('refund')}
+                  className="w-full text-left px-4 py-3 rounded-2xl border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors">
+                  <span className="font-bold text-amber-800 text-sm">Refund the facility</span>
+                  <span className="block text-xs text-amber-600">Refunds the charge via Stripe and cancels the booking.</span>
+                </button>
+                <button onClick={() => handleResolveDispute('none')}
+                  className="w-full text-left px-4 py-3 rounded-2xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors">
+                  <span className="font-bold text-gray-700 text-sm">Dismiss (no money movement)</span>
+                  <span className="block text-xs text-gray-500">Closes the dispute without releasing or refunding.</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

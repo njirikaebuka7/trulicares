@@ -37,10 +37,24 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// Messaging-unlock price is fixed server-side. NEVER trust a client-supplied amount.
+const MESSAGING_UNLOCK_CENTS = 999;
+
 // POST /api/payments/intent
 router.post('/intent', requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { matchId, amount = 999 } = req.body;
+    const { matchId } = req.body;
+    // SECURITY: ignore any client-supplied amount — the price is set on the server.
+    const amount = MESSAGING_UNLOCK_CENTS;
+
+    // SECURITY: only let a user pay to unlock a match that belongs to them, so the
+    // intent's metadata.matchId can never reference someone else's match.
+    if (matchId) {
+      const owns = await query('SELECT 1 FROM matches WHERE id = $1 AND family_id = $2', [matchId, req.user!.id]);
+      if (owns.rows.length === 0) {
+        return res.status(403).json({ error: 'Match not found on this account' });
+      }
+    }
 
     let stripe: any;
     try {

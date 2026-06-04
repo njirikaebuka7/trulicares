@@ -21,6 +21,8 @@ import ResourceArticle from '@/pages/ResourceArticle';
 import CaregiverProfile from '@/pages/CaregiverProfile';
 import CaregiverList from '@/pages/CaregiverList';
 import ResetPassword from '@/pages/ResetPassword';
+import ForProfessionals from '@/pages/ForProfessionals';
+import ForFacilities from '@/pages/ForFacilities';
 import ProfessionalOnboarding from '@/pages/staffing/ProfessionalOnboarding';
 import FacilityOnboarding from '@/pages/staffing/FacilityOnboarding';
 import ProfessionalDashboard from '@/pages/staffing/ProfessionalDashboard';
@@ -50,6 +52,8 @@ export default function App() {
                 <CaregiverProfile />
               </ProtectedRoute>
             } />
+            <Route path="/for-professionals" element={<ForProfessionals />} />
+            <Route path="/for-facilities" element={<ForFacilities />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<Terms />} />

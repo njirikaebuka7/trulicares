@@ -87,8 +87,8 @@ export const auth = {
   updatePrivacy: (prefs: Record<string, boolean>) => put('/auth/privacy', prefs),
   forgotPassword: (email: string) => post('/auth/forgot-password', { email }),
   resetPassword: (token: string, password: string) => post('/auth/reset-password', { token, password }),
-  sendOtp: (phone: string) => post('/auth/otp/send', { phone }),
-  verifyOtp: (phone: string, code: string) => post('/auth/otp/verify', { phone, code }),
+  sendEmailCode: (email: string) => post('/auth/email/send-code', { email }),
+  verifyEmailCode: (email: string, code: string) => post('/auth/email/verify', { email, code }),
 };
 
 // ── Clients ───────────────────────────────────────────────────────────────────
