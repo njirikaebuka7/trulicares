@@ -6,6 +6,7 @@ import { decryptArray } from '../services/pii.js';
 import { auditFromReq } from '../services/audit.js';
 import { writeLimiter } from '../middleware/rateLimiter.js';
 import { getPricing, setSetting, PRICING_DEFAULTS } from '../services/settings.js';
+import { cacheAside, cacheDel } from '../services/cache.js';
 
 const router = Router();
 
@@ -15,9 +16,10 @@ router.use((req, res, next) => {
   return writeLimiter(req, res, next);
 });
 
-// GET /api/admin/stats
+// GET /api/admin/stats — cached 45s (8 aggregate queries; avoids hammering the DB).
 router.get('/stats', requireAdmin, async (_req, res) => {
   try {
+    const stats = await cacheAside('admin:stats', 45, async () => {
     const [usersResult, caregiversResult, reportsResult, pendingResult, matchesResult, revenueResult, growthResult, staffingResult] = await Promise.all([
       query(`SELECT
                COUNT(*) as total,
@@ -64,8 +66,7 @@ router.get('/stats', requireAdmin, async (_req, res) => {
       caregivers: parseInt(r.caregivers) || 0,
     }));
 
-    res.json({
-      stats: {
+    return {
         totalUsers: parseInt(users.total),
         totalFamilies: parseInt(users.families),
         totalCaregivers: parseInt(users.caregivers),
@@ -82,8 +83,9 @@ router.get('/stats', requireAdmin, async (_req, res) => {
         monthlyRevenue: Math.round(parseInt(revenueResult.rows[0].total) / 100),
         monthlyGrowth,
         platformHealth: 'Operational',
-      },
+    };
     });
+    res.json({ stats });
   } catch (err) {
     console.error('Admin stats error:', err);
     res.status(500).json({ error: 'Failed to fetch stats' });
@@ -362,6 +364,7 @@ router.put('/verification/:id', requireAdmin, async (req: AuthRequest, res) => {
     }
 
     await auditFromReq(req, 'verification.update', 'caregiver', entry.caregiver_id, { status, kind: entry.specialty });
+    await cacheDel('admin:stats').catch(() => {});
     res.json({ entry: result.rows[0] });
   } catch (err) {
     console.error('Update verification error:', err);
@@ -369,9 +372,23 @@ router.put('/verification/:id', requireAdmin, async (req: AuthRequest, res) => {
   }
 });
 
-// GET /api/admin/reports
-router.get('/reports', requireAdmin, async (_req, res) => {
+// GET /api/admin/reports — paginated + status filter
+router.get('/reports', requireAdmin, async (req: AuthRequest, res) => {
   try {
+    const { page = '1', status } = req.query as any;
+    const pageNum = Math.max(1, parseInt(page, 10));
+    const limit = 20;
+    const offset = (pageNum - 1) * limit;
+
+    const conditions: string[] = [];
+    const params: any[] = [];
+    let idx = 1;
+    if (status && status !== 'all') { conditions.push(`r.status = $${idx++}`); params.push(status); }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const countRes = await query(`SELECT COUNT(*) FROM reports r ${where}`, params);
+    params.push(limit, offset);
+
     const result = await query(
       `SELECT r.id, r.type, r.description, r.evidence, r.status, r.priority, r.created_at, r.ref_id,
               r.reported_user_id,
@@ -380,12 +397,21 @@ router.get('/reports', requireAdmin, async (_req, res) => {
        FROM reports r
        LEFT JOIN users u1 ON u1.id = r.reported_user_id
        LEFT JOIN users u2 ON u2.id = r.reporter_id
+       ${where}
        ORDER BY
          CASE r.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,
-         r.created_at DESC`
+         r.created_at DESC
+       LIMIT $${idx} OFFSET $${idx + 1}`,
+      params
     );
 
     res.json({
+      pagination: {
+        total: parseInt(countRes.rows[0].count),
+        page: pageNum,
+        pages: Math.ceil(parseInt(countRes.rows[0].count) / limit),
+        limit,
+      },
       reports: result.rows.map((row: any) => ({
         id: row.id,
         type: row.type,
@@ -433,19 +459,41 @@ router.put('/reports/:id', requireAdmin, async (req: AuthRequest, res) => {
   }
 });
 
-// GET /api/admin/payments
-router.get('/payments', requireAdmin, async (_req, res) => {
+// GET /api/admin/payments — paginated + status filter
+router.get('/payments', requireAdmin, async (req: AuthRequest, res) => {
   try {
+    const { page = '1', status } = req.query as any;
+    const pageNum = Math.max(1, parseInt(page, 10));
+    const limit = 20;
+    const offset = (pageNum - 1) * limit;
+
+    const conditions: string[] = [];
+    const params: any[] = [];
+    let idx = 1;
+    if (status && status !== 'all') { conditions.push(`p.status = $${idx++}`); params.push(status); }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const countRes = await query(`SELECT COUNT(*) FROM payments p ${where}`, params);
+    params.push(limit, offset);
+
     const result = await query(
       `SELECT p.id, p.ref_id, p.amount_cents, p.currency, p.description, p.status, p.created_at,
               u.name as user_name, u.email as user_email
        FROM payments p
        JOIN users u ON u.id = p.user_id
+       ${where}
        ORDER BY p.created_at DESC
-       LIMIT 50`
+       LIMIT $${idx} OFFSET $${idx + 1}`,
+      params
     );
 
     res.json({
+      pagination: {
+        total: parseInt(countRes.rows[0].count),
+        page: pageNum,
+        pages: Math.ceil(parseInt(countRes.rows[0].count) / limit),
+        limit,
+      },
       payments: result.rows.map((p: any) => ({
         id: p.id,
         refId: p.ref_id,
@@ -544,6 +592,7 @@ router.put('/staffing-verification/:id', requireAdmin, async (req: AuthRequest, 
     }
 
     await auditFromReq(req, 'staffing_verification.update', entry.entity_type, entry.entity_id, { status, notes: notes || null });
+    await cacheDel('admin:stats').catch(() => {});
     res.json({ message: `Verification ${status}`, entityType: entry.entity_type });
   } catch (err) {
     console.error('Staffing verification update error:', err);
