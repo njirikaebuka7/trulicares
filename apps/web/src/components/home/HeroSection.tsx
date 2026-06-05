@@ -80,8 +80,8 @@ export default function HeroSection() {
         </div>
 
         {/* Bottom wave */}
-        <div className="absolute bottom-0 left-0 right-0">
-          <svg viewBox="0 0 1440 80" fill="none" className="w-full">
+        <div className="absolute -bottom-px left-0 right-0 leading-none">
+          <svg viewBox="0 0 1440 80" fill="none" className="w-full block">
             <path d="M0 40 C360 80, 720 0, 1080 40 C1260 60, 1380 50, 1440 40 L1440 80 L0 80 Z" fill="white" />
           </svg>
         </div>
