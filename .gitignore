@@ -19,6 +19,9 @@ dist-server/
 out/
 build/
 
+# Puppeteer Chromium cache (downloaded at install for prerendering)
+.cache/
+
 # IDE
 .vscode/
 .idea/
