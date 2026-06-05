@@ -3,24 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      NOTE: page-specific tags (title, description, canonical, og:title/description/url,
+      twitter:title/description) are injected per-route by the <Seo> component (React 19
+      metadata hoisting). They are intentionally NOT hardcoded here — React appends rather
+      than replaces meta/link tags, so duplicating them would create conflicting canonicals.
+      Only constant, non-varying defaults live in this static shell.
+    -->
     <title>TruliCares — Find Trusted, Verified Caregivers & Healthcare Staffing</title>
-    <meta name="description" content="TruliCares connects families with verified caregivers for child, senior, and adult care, and staffs healthcare facilities with licensed nursing professionals across the United States." />
     <meta name="keywords" content="caregivers, nursing professionals, child care, senior care, healthcare staffing, per diem nursing, find care, verified caregivers, TruliCares" />
     <meta name="theme-color" content="#2d6a4f" />
-    <link rel="canonical" href="https://www.trulicares.com/" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" />
 
-    <!-- Open Graph / social (per-route overrides are injected by React 19) -->
+    <!-- Constant social defaults (per-route title/description/url come from <Seo>) -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="TruliCares" />
-    <meta property="og:title" content="TruliCares — Find Trusted, Verified Caregivers & Healthcare Staffing" />
-    <meta property="og:description" content="Verified caregivers for families and on-demand licensed staffing for healthcare facilities across the United States." />
-    <meta property="og:url" content="https://www.trulicares.com/" />
     <meta property="og:image" content="https://www.trulicares.com/logo.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="TruliCares — Trusted Caregivers & Healthcare Staffing" />
-    <meta name="twitter:description" content="Verified caregivers for families and on-demand licensed staffing for healthcare facilities." />
     <meta name="twitter:image" content="https://www.trulicares.com/logo.png" />
 
     <script type="application/ld+json">

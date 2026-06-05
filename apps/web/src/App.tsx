@@ -23,6 +23,8 @@ import CaregiverList from '@/pages/CaregiverList';
 import ResetPassword from '@/pages/ResetPassword';
 import ForProfessionals from '@/pages/ForProfessionals';
 import ForFacilities from '@/pages/ForFacilities';
+import Locations from '@/pages/Locations';
+import LocationLanding from '@/pages/LocationLanding';
 import ProfessionalOnboarding from '@/pages/staffing/ProfessionalOnboarding';
 import FacilityOnboarding from '@/pages/staffing/FacilityOnboarding';
 import ProfessionalDashboard from '@/pages/staffing/ProfessionalDashboard';
@@ -54,6 +56,8 @@ export default function App() {
             } />
             <Route path="/for-professionals" element={<ForProfessionals />} />
             <Route path="/for-facilities" element={<ForFacilities />} />
+            <Route path="/locations" element={<Locations />} />
+            <Route path="/care/:slug" element={<LocationLanding />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<Terms />} />

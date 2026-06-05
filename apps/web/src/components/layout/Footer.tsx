@@ -128,6 +128,11 @@ export default function Footer() {
                   </Link>
                 </li>
               ))}
+              <li className="pt-1 border-t border-gray-800">
+                <Link to="/locations" className="text-sm text-gray-300 hover:text-white font-medium transition-colors">
+                  Find Caregivers Near You →
+                </Link>
+              </li>
             </ul>
           </div>
 
