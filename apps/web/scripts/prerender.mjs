@@ -69,17 +69,33 @@ async function main() {
     process.exit(1);
   }
 
-  let puppeteer;
+  const routes = routesToPrerender();
+
+  // Launch headless Chromium. On Vercel/CI, full puppeteer's bundled Chromium usually can't
+  // run (missing system libraries), so prefer @sparticuz/chromium + puppeteer-core there.
+  // Locally, use full puppeteer. ANY launch failure is non-fatal: we warn and let the build
+  // succeed (the site still ships client-rendered, with per-page meta + sitemap).
+  let browser;
   try {
-    puppeteer = (await import('puppeteer')).default;
-  } catch {
-    console.error('\n✗ puppeteer is not installed. Install it to enable prerendering:\n    npm i -D puppeteer\n');
-    process.exit(1);
+    if (process.env.VERCEL || process.env.CI || process.env.USE_SPARTICUZ) {
+      const chromium = (await import('@sparticuz/chromium')).default;
+      const puppeteer = (await import('puppeteer-core')).default;
+      browser = await puppeteer.launch({
+        args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
+        executablePath: await chromium.executablePath(),
+        headless: true,
+      });
+    } else {
+      const puppeteer = (await import('puppeteer')).default;
+      browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    }
+  } catch (e) {
+    console.warn(`\n⚠ Prerender skipped — could not launch headless Chromium: ${e.message}`);
+    console.warn('  Build continues; the site ships client-rendered with per-page meta + sitemap.\n');
+    process.exit(0);
   }
 
-  const routes = routesToPrerender();
   const server = await startServer();
-  const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
 
   let ok = 0;
   try {
