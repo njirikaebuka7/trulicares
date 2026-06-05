@@ -219,16 +219,22 @@ export default function About() {
       </section>
 
       {/* ═══ HEALTHCARE STAFFING ═══ */}
-      <section className="py-20 lg:py-28 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="py-20 lg:py-28 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-brand-950 to-gray-900" />
+        <div className="absolute inset-0">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-coral-500/8 rounded-full blur-3xl" />
+        </div>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-brand-50 text-brand-600 text-sm font-semibold mb-4">
+            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass text-brand-300 text-sm font-semibold mb-4">
               <Building2 className="w-4 h-4" /> Beyond Home Care
             </span>
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              We also power healthcare staffing
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">
+              We also power{' '}
+              <span className="bg-gradient-to-r from-brand-300 to-coral-400 bg-clip-text text-transparent">healthcare staffing</span>
             </h2>
-            <p className="text-gray-500 max-w-2xl mx-auto text-lg">
+            <p className="text-gray-400 max-w-2xl mx-auto text-lg">
               The same trust and verification that connect families with caregivers also help healthcare
               facilities staff their shifts with licensed professionals — on demand.
             </p>
@@ -236,39 +242,33 @@ export default function About() {
 
           <div className="grid md:grid-cols-2 gap-6">
             {/* Facilities */}
-            <Link
-              to="/for-facilities"
-              className="group relative overflow-hidden rounded-3xl border-2 border-gray-100 bg-white p-8 hover:border-transparent hover:shadow-2xl hover:shadow-gray-200/50 transition-all duration-300 hover:-translate-y-1"
-            >
+            <Link to="/for-facilities" className="group glass rounded-3xl p-8 hover:bg-white/15 transition-all duration-300">
               <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5 bg-gradient-to-br from-violet-500 to-purple-600 text-white group-hover:scale-110 transition-transform duration-300">
                 <Building2 className="w-7 h-7" />
               </div>
               <span className="text-xs font-bold uppercase tracking-wider text-gray-400">For Facilities</span>
-              <h3 className="text-xl font-bold text-gray-900 mt-1 mb-2">Hospitals, clinics &amp; care homes</h3>
-              <p className="text-sm text-gray-500 leading-relaxed mb-5">
+              <h3 className="text-xl font-bold text-white mt-1 mb-2 group-hover:text-brand-300 transition-colors">Hospitals, clinics &amp; care homes</h3>
+              <p className="text-sm text-gray-400 leading-relaxed mb-5">
                 Post open shifts and hire verified, licensed professionals — with escrow-protected payments
                 and no agency markups.
               </p>
-              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-violet-700 group-hover:gap-2.5 transition-all">
+              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-violet-300 group-hover:gap-2.5 transition-all">
                 Learn about facility staffing <ArrowRight className="w-4 h-4" />
               </span>
             </Link>
 
             {/* Professionals */}
-            <Link
-              to="/for-professionals"
-              className="group relative overflow-hidden rounded-3xl border-2 border-gray-100 bg-white p-8 hover:border-transparent hover:shadow-2xl hover:shadow-gray-200/50 transition-all duration-300 hover:-translate-y-1"
-            >
+            <Link to="/for-professionals" className="group glass rounded-3xl p-8 hover:bg-white/15 transition-all duration-300">
               <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5 bg-gradient-to-br from-blue-500 to-indigo-600 text-white group-hover:scale-110 transition-transform duration-300">
                 <Stethoscope className="w-7 h-7" />
               </div>
               <span className="text-xs font-bold uppercase tracking-wider text-gray-400">For Professionals</span>
-              <h3 className="text-xl font-bold text-gray-900 mt-1 mb-2">Nurses &amp; allied health pros</h3>
-              <p className="text-sm text-gray-500 leading-relaxed mb-5">
+              <h3 className="text-xl font-bold text-white mt-1 mb-2 group-hover:text-brand-300 transition-colors">Nurses &amp; allied health pros</h3>
+              <p className="text-sm text-gray-400 leading-relaxed mb-5">
                 RNs, LPNs, CNAs and more find per-diem and travel shifts that fit their lives — verify once,
                 apply anywhere, and get fast, protected payouts.
               </p>
-              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-700 group-hover:gap-2.5 transition-all">
+              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-300 group-hover:gap-2.5 transition-all">
                 Learn about professional shifts <ArrowRight className="w-4 h-4" />
               </span>
             </Link>

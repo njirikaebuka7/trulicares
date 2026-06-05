@@ -260,3 +260,15 @@ export const support = {
   createTicket: (data: { name?: string; email: string; subject: string; message: string; category?: string }) =>
     post('/support/tickets', data),
 };
+
+// ── Public site settings (footer + contact page) ────────────────────────────────
+export interface PublicSettings {
+  platformName: string;
+  socials: { facebook: string; instagram: string; youtube: string };
+  emails: string[];
+  phones: string[];
+  addresses: string[];
+}
+export const siteSettings = {
+  getPublic: () => get('/settings/public') as Promise<PublicSettings>,
+};

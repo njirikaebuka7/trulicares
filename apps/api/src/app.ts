@@ -19,6 +19,7 @@ import resourcesRouter from './routes/resources.js';
 import supportRouter from './routes/support.js';
 import cronRouter from './routes/cron.js';
 import geoRouter from './routes/geo.js';
+import settingsRouter from './routes/settings.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
 import { redisHealthCheck } from './services/redis.js';
 
@@ -84,6 +85,7 @@ app.use('/api/resources', resourcesRouter); // public blog/resources (CMS-backed
 app.use('/api/support', supportRouter); // public support ticket creation
 app.use('/api/cron', cronRouter); // Vercel Cron maintenance jobs
 app.use('/api/geo', geoRouter); // geocoding (reverse/forward) for the location picker
+app.use('/api/settings', settingsRouter); // public site settings (footer + contact)
 
 // ── 404 handler for unknown API routes ────────────────────────────────────────
 app.use('/api/*path', (_req, res) => {

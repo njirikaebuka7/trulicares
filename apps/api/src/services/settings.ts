@@ -14,12 +14,22 @@ const CACHE_TTL = 300; // 5 min
 export const GENERAL_DEFAULTS: Record<string, { value: string; label: string }> = {
   platform_name: { value: 'TruliCares', label: 'Platform Name' },
   support_email: { value: process.env.SUPPORT_EMAIL || 'support@trulicares.com', label: 'Support Email' },
-  contact_phone: { value: '', label: 'Contact Phone' },
   terms_url: { value: '/terms', label: 'Terms URL' },
   privacy_url: { value: '/privacy-policy', label: 'Privacy Policy URL' },
   default_search_radius_miles: { value: '25', label: 'Default Search Radius (miles)' },
   default_service_area: { value: '', label: 'Default Service Area' },
+  // Social links (public — shown in the footer).
+  social_facebook: { value: 'https://facebook.com/trulicares', label: 'Facebook URL' },
+  social_instagram: { value: 'https://instagram.com/trulicares', label: 'Instagram URL' },
+  social_youtube: { value: 'https://youtube.com/@trulicares', label: 'YouTube URL' },
+  // Contact info — JSON arrays of strings (additive; shown in footer + contact page).
+  contact_emails: { value: '["hello@trulicares.com"]', label: 'Contact Emails' },
+  contact_phones: { value: '["(555) 123-4567"]', label: 'Contact Phones' },
+  contact_addresses: { value: '["New York, NY"]', label: 'Contact Addresses' },
 };
+
+/** Keys that hold JSON string arrays (additive contact fields). */
+export const GENERAL_ARRAY_KEYS = ['contact_emails', 'contact_phones', 'contact_addresses'] as const;
 
 // Canonical pricing keys + their defaults (USD amounts, or rates as decimals).
 export const PRICING_DEFAULTS: Record<string, { value: string; label: string; kind: 'usd' | 'rate' | 'percent' }> = {
@@ -85,4 +95,43 @@ export async function setSetting(key: string, value: string, updatedBy?: string)
     [key, value, updatedBy || null]
   );
   await cacheDel(CACHE_KEY).catch(() => {});
+}
+
+/** Parse a JSON string-array setting, tolerating comma/newline-separated legacy values. */
+function parseArraySetting(raw: string | undefined, fallback: string[]): string[] {
+  if (raw == null || raw === '') return fallback;
+  try {
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr)) return arr.map((s) => String(s).trim()).filter(Boolean);
+  } catch {
+    // tolerate a plain comma/newline-separated string
+    return raw.split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+  }
+  return fallback;
+}
+
+/**
+ * Public-facing site settings (no auth) for the footer + contact page:
+ * platform name, social links, and the additive contact lists.
+ */
+export async function getPublicSettings(): Promise<{
+  platformName: string;
+  socials: { facebook: string; instagram: string; youtube: string };
+  emails: string[];
+  phones: string[];
+  addresses: string[];
+}> {
+  const all = await loadAll();
+  const g = (k: string) => all[k] ?? GENERAL_DEFAULTS[k]?.value ?? '';
+  return {
+    platformName: g('platform_name'),
+    socials: {
+      facebook: g('social_facebook'),
+      instagram: g('social_instagram'),
+      youtube: g('social_youtube'),
+    },
+    emails: parseArraySetting(all['contact_emails'], parseArraySetting(GENERAL_DEFAULTS.contact_emails.value, [])),
+    phones: parseArraySetting(all['contact_phones'], parseArraySetting(GENERAL_DEFAULTS.contact_phones.value, [])),
+    addresses: parseArraySetting(all['contact_addresses'], parseArraySetting(GENERAL_DEFAULTS.contact_addresses.value, [])),
+  };
 }

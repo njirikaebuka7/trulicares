@@ -1,14 +1,21 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Mail, Phone, MapPin, MessageCircle, Send, Clock, Check } from 'lucide-react';
 import Button from '@/components/ui/Button';
-import { support } from '@/lib/api';
+import { support, siteSettings, type PublicSettings } from '@/lib/api';
 import Seo from '@/components/Seo';
+
+const telHref = (p: string) => `tel:${p.replace(/[^\d+]/g, '')}`;
 
 export default function Contact() {
   const [formData, setFormData] = useState({ name: '', email: '', subject: '', message: '' });
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [settings, setSettings] = useState<PublicSettings | null>(null);
+
+  useEffect(() => {
+    siteSettings.getPublic().then(setSettings).catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,10 +31,20 @@ export default function Contact() {
     }
   };
 
+  const emails = settings?.emails?.length ? settings.emails : ['hello@trulicares.com'];
+  const phones = settings?.phones?.length ? settings.phones : ['(555) 123-4567'];
+  const addresses = settings?.addresses?.length ? settings.addresses : ['New York, NY'];
+
   const contactInfo = [
-    { icon: <Mail className="w-5 h-5" />, label: 'Email', value: 'hello@trulicares.com', href: 'mailto:hello@trulicares.com' },
-    { icon: <Phone className="w-5 h-5" />, label: 'Phone', value: '(555) 123-4567', href: 'tel:+15551234567' },
-    { icon: <MapPin className="w-5 h-5" />, label: 'Address', value: '123 Care Street, New York, NY 10001', href: '#' },
+    ...emails.map((value, i) => ({
+      icon: <Mail className="w-5 h-5" />, label: i === 0 ? 'Email' : 'Email (alt)', value, href: `mailto:${value}`,
+    })),
+    ...phones.map((value, i) => ({
+      icon: <Phone className="w-5 h-5" />, label: i === 0 ? 'Phone' : 'Phone (alt)', value, href: telHref(value),
+    })),
+    ...addresses.map((value, i) => ({
+      icon: <MapPin className="w-5 h-5" />, label: i === 0 ? 'Address' : 'Address (alt)', value, href: '#',
+    })),
     { icon: <Clock className="w-5 h-5" />, label: 'Hours', value: 'Mon-Fri: 9am-6pm EST', href: '#' },
   ];
 

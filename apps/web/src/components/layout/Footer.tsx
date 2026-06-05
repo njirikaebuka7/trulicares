@@ -1,51 +1,37 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, Phone, MapPin } from 'lucide-react';
 import logoImg from '@/assets/logo.png';
+import { siteSettings, type PublicSettings } from '@/lib/api';
+import { FacebookIcon, InstagramIcon, YoutubeIcon } from '@/components/icons/social';
 
-const socialLinks = [
-  {
-    label: 'Facebook',
-    href: '#',
-    icon: (
-      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
-        <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
-      </svg>
-    ),
+const FALLBACK: PublicSettings = {
+  platformName: 'TruliCares',
+  socials: {
+    facebook: 'https://facebook.com/trulicares',
+    instagram: 'https://instagram.com/trulicares',
+    youtube: 'https://youtube.com/@trulicares',
   },
-  {
-    label: 'Twitter / X',
-    href: '#',
-    icon: (
-      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
-        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Instagram',
-    href: '#',
-    icon: (
-      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-        <circle cx="12" cy="12" r="4" />
-        <circle cx="17.5" cy="6.5" r="0.01" fill="currentColor" strokeWidth="3" />
-      </svg>
-    ),
-  },
-  {
-    label: 'LinkedIn',
-    href: '#',
-    icon: (
-      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
-        <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
-        <rect x="2" y="9" width="4" height="12" />
-        <circle cx="4" cy="4" r="2" />
-      </svg>
-    ),
-  },
-];
+  emails: ['hello@trulicares.com'],
+  phones: ['(555) 123-4567'],
+  addresses: ['New York, NY'],
+};
+
+const telHref = (p: string) => `tel:${p.replace(/[^\d+]/g, '')}`;
 
 export default function Footer() {
+  const [settings, setSettings] = useState<PublicSettings>(FALLBACK);
+
+  useEffect(() => {
+    siteSettings.getPublic().then((s) => setSettings({ ...FALLBACK, ...s })).catch(() => {});
+  }, []);
+
+  const socialLinks = [
+    { label: 'Facebook', href: settings.socials.facebook, icon: <FacebookIcon className="w-4 h-4" /> },
+    { label: 'Instagram', href: settings.socials.instagram, icon: <InstagramIcon className="w-4 h-4" /> },
+    { label: 'YouTube', href: settings.socials.youtube, icon: <YoutubeIcon className="w-4 h-4" /> },
+  ].filter((s) => s.href && s.href.trim());
+
   return (
     <footer className="bg-gray-900 text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -59,23 +45,29 @@ export default function Footer() {
                 className="h-9 w-auto brightness-0 invert opacity-90"
               />
             </Link>
-            <p className="text-gray-400 text-sm leading-relaxed mb-6 max-w-xs">
-              A trusted care marketplace connecting families with verified caregivers.
-              Built on trust, transparency, and thoughtful matching.
+            <p className="text-gray-400 text-sm leading-relaxed mb-6 max-w-sm">
+              TruliCares is a trusted care marketplace connecting families with verified,
+              background-checked caregivers for child, senior, and adult care — and staffing
+              healthcare facilities with licensed nursing professionals on demand. Built on
+              trust, transparency, and thoughtful matching across the United States.
             </p>
             {/* Social links */}
-            <div className="flex items-center gap-2">
-              {socialLinks.map(s => (
-                <a
-                  key={s.label}
-                  href={s.href}
-                  aria-label={s.label}
-                  className="w-9 h-9 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-400 hover:text-white transition-all duration-200"
-                >
-                  {s.icon}
-                </a>
-              ))}
-            </div>
+            {socialLinks.length > 0 && (
+              <div className="flex items-center gap-2">
+                {socialLinks.map((s) => (
+                  <a
+                    key={s.label}
+                    href={s.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={s.label}
+                    className="w-9 h-9 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-400 hover:text-white transition-all duration-200"
+                  >
+                    {s.icon}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Quick Links */}
@@ -140,29 +132,35 @@ export default function Footer() {
           <div>
             <h4 className="font-semibold text-xs uppercase tracking-wider text-gray-500 mb-4">Contact</h4>
             <ul className="space-y-3">
-              <li>
-                <a href="mailto:hello@trulicares.com" className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors">
-                  <Mail className="w-4 h-4 text-gray-600 shrink-0" />
-                  hello@trulicares.com
-                </a>
-              </li>
-              <li>
-                <a href="tel:5551234567" className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors">
-                  <Phone className="w-4 h-4 text-gray-600 shrink-0" />
-                  (555) 123-4567
-                </a>
-              </li>
-              <li className="flex items-center gap-2 text-sm text-gray-400">
-                <MapPin className="w-4 h-4 text-gray-600 shrink-0" />
-                New York, NY
-              </li>
+              {settings.emails.map((email) => (
+                <li key={email}>
+                  <a href={`mailto:${email}`} className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors">
+                    <Mail className="w-4 h-4 text-gray-600 shrink-0" />
+                    {email}
+                  </a>
+                </li>
+              ))}
+              {settings.phones.map((phone) => (
+                <li key={phone}>
+                  <a href={telHref(phone)} className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors">
+                    <Phone className="w-4 h-4 text-gray-600 shrink-0" />
+                    {phone}
+                  </a>
+                </li>
+              ))}
+              {settings.addresses.map((address) => (
+                <li key={address} className="flex items-start gap-2 text-sm text-gray-400">
+                  <MapPin className="w-4 h-4 text-gray-600 shrink-0 mt-0.5" />
+                  {address}
+                </li>
+              ))}
             </ul>
           </div>
         </div>
 
         <div className="mt-12 pt-8 border-t border-gray-800 flex flex-col sm:flex-row justify-between items-center gap-4">
           <p className="text-xs text-gray-600">
-            © {new Date().getFullYear()} TruliCares. All rights reserved.
+            © {new Date().getFullYear()} {settings.platformName || 'TruliCares'}. All rights reserved.
           </p>
           <div className="flex gap-6">
             <Link to="/privacy-policy" className="text-xs text-gray-600 hover:text-gray-300 transition-colors">Privacy Policy</Link>
