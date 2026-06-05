@@ -54,7 +54,7 @@ export default function HeroSection() {
 
           {/* Subheadline */}
           <p className="text-lg sm:text-xl text-brand-100/90 mb-10 max-w-2xl mx-auto leading-relaxed animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-            Thoughtful matching with verified caregivers for child care, senior care, adult care, and cleaning services — all in one trusted platform.
+            Thoughtful matching with verified caregivers for child care, senior care, adult care, and cleaning — plus on-demand staffing that connects healthcare facilities with licensed professionals. All in one trusted platform.
           </p>
 
           {/* CTAs */}

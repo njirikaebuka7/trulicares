@@ -1,6 +1,6 @@
-import { Heart, Users, Shield, Target, Lightbulb, Handshake, CheckCircle, ArrowRight, Quote, Clock } from 'lucide-react';
+import { Heart, Users, Shield, Target, Lightbulb, Handshake, CheckCircle, ArrowRight, Quote, Clock, Building2, Stethoscope } from 'lucide-react';
 import Button from '@/components/ui/Button';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { cn } from '@/utils/cn';
 
 const values = [
@@ -81,7 +81,7 @@ export default function About() {
             </span>
           </h1>
           <p className="text-lg lg:text-xl text-brand-200 max-w-2xl mx-auto leading-relaxed">
-            TruliCares is the care marketplace that puts trust first — connecting families with verified caregivers through thoughtful, intelligent matching for child care, senior care, adult care, and cleaning services.
+            TruliCares is the care marketplace that puts trust first — connecting families with verified caregivers, and connecting healthcare facilities with licensed professionals, through thoughtful, intelligent matching across child care, senior care, adult care, cleaning, and on-demand medical staffing.
           </p>
         </div>
       </section>
@@ -214,6 +214,64 @@ export default function About() {
                 <p className="text-sm text-gray-500 leading-relaxed">{item.desc}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ HEALTHCARE STAFFING ═══ */}
+      <section className="py-20 lg:py-28 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-14">
+            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-brand-50 text-brand-600 text-sm font-semibold mb-4">
+              <Building2 className="w-4 h-4" /> Beyond Home Care
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+              We also power healthcare staffing
+            </h2>
+            <p className="text-gray-500 max-w-2xl mx-auto text-lg">
+              The same trust and verification that connect families with caregivers also help healthcare
+              facilities staff their shifts with licensed professionals — on demand.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Facilities */}
+            <Link
+              to="/for-facilities"
+              className="group relative overflow-hidden rounded-3xl border-2 border-gray-100 bg-white p-8 hover:border-transparent hover:shadow-2xl hover:shadow-gray-200/50 transition-all duration-300 hover:-translate-y-1"
+            >
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5 bg-gradient-to-br from-violet-500 to-purple-600 text-white group-hover:scale-110 transition-transform duration-300">
+                <Building2 className="w-7 h-7" />
+              </div>
+              <span className="text-xs font-bold uppercase tracking-wider text-gray-400">For Facilities</span>
+              <h3 className="text-xl font-bold text-gray-900 mt-1 mb-2">Hospitals, clinics &amp; care homes</h3>
+              <p className="text-sm text-gray-500 leading-relaxed mb-5">
+                Post open shifts and hire verified, licensed professionals — with escrow-protected payments
+                and no agency markups.
+              </p>
+              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-violet-700 group-hover:gap-2.5 transition-all">
+                Learn about facility staffing <ArrowRight className="w-4 h-4" />
+              </span>
+            </Link>
+
+            {/* Professionals */}
+            <Link
+              to="/for-professionals"
+              className="group relative overflow-hidden rounded-3xl border-2 border-gray-100 bg-white p-8 hover:border-transparent hover:shadow-2xl hover:shadow-gray-200/50 transition-all duration-300 hover:-translate-y-1"
+            >
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5 bg-gradient-to-br from-blue-500 to-indigo-600 text-white group-hover:scale-110 transition-transform duration-300">
+                <Stethoscope className="w-7 h-7" />
+              </div>
+              <span className="text-xs font-bold uppercase tracking-wider text-gray-400">For Professionals</span>
+              <h3 className="text-xl font-bold text-gray-900 mt-1 mb-2">Nurses &amp; allied health pros</h3>
+              <p className="text-sm text-gray-500 leading-relaxed mb-5">
+                RNs, LPNs, CNAs and more find per-diem and travel shifts that fit their lives — verify once,
+                apply anywhere, and get fast, protected payouts.
+              </p>
+              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-700 group-hover:gap-2.5 transition-all">
+                Learn about professional shifts <ArrowRight className="w-4 h-4" />
+              </span>
+            </Link>
           </div>
         </div>
       </section>
