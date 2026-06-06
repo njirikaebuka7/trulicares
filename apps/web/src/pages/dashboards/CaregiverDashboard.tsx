@@ -17,6 +17,7 @@ import { cn } from '@/utils/cn';
 import { sameDay, dayLabel, listStamp } from '@/utils/chatTime';
 import { supabase } from '@/lib/supabase';
 import logoImg from '@/assets/logo.png';
+import CaregiverResumeGenerator from './caregiver/CaregiverResumeGenerator';
 
 type Tab = 'Overview' | 'Job Requests' | 'Messages' | 'Schedule' | 'Reviews' | 'Profile';
 
@@ -111,6 +112,7 @@ export default function CaregiverDashboard() {
 
   // Rebuilt Profile Builder States
   const [profileSubTab, setProfileSubTab] = useState<'bio' | 'id_verification' | 'background_check' | 'services' | 'resumes' | 'certifications' | 'security' | 'notifications'>('bio');
+  const [showResumeGenerator, setShowResumeGenerator] = useState(false);
   const [mobileShowMenu, setMobileShowMenu] = useState(true);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -1449,6 +1451,19 @@ export default function CaregiverDashboard() {
 
           {/* ── PROFILE ── */}
           {activeTab === 'Profile' && (
+            showResumeGenerator ? (
+              <CaregiverResumeGenerator
+                user={user}
+                profile={{
+                  photoUrl, jobTitle: cgJobTitle, location: cgLocation,
+                  yearsExperience: cgExperience, bio: cgBio,
+                  specialties: cgSpecialties, certifications,
+                  availability: cgAvailType, languages: cgLanguages,
+                  idVerificationStatus, backgroundCheckStatus: bgCheckStatus
+                }}
+                onBack={() => setShowResumeGenerator(false)}
+              />
+            ) : (
             <div className="space-y-6">
               {/* Main Profile Builder Layout */}
               <div className="flex flex-col lg:flex-row gap-6 items-stretch">
@@ -2501,9 +2516,14 @@ export default function CaregiverDashboard() {
                   {/* Panel 5: RESUMES */}
                   {profileSubTab === 'resumes' && (
                     <div className="space-y-5">
-                      <div>
-                        <h3 className="text-lg font-bold text-gray-900 mb-1">Resumes</h3>
-                        <p className="text-xs text-gray-500">Upload your CV/resume PDF or photo files. Active resumes help families verify your professional history.</p>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="text-lg font-bold text-gray-900 mb-1">Resumes</h3>
+                          <p className="text-xs text-gray-500">Upload your CV/resume PDF or photo files, or generate one automatically from your profile.</p>
+                        </div>
+                        <Button variant="primary" className="text-xs" onClick={() => setShowResumeGenerator(true)}>
+                          Generate Resume
+                        </Button>
                       </div>
 
                       <div className="space-y-4 pt-2">
@@ -2943,6 +2963,7 @@ export default function CaregiverDashboard() {
 
               </div>
             </div>
+            )
           )}
         </div>
       </div>
