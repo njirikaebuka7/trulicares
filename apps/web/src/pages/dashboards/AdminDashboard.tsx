@@ -17,6 +17,7 @@ import AdminContent from '@/components/admin/AdminContent';
 import AdminSettings from '@/components/admin/AdminSettings';
 import AdminSupport from '@/components/admin/AdminSupport';
 import AdminNotes from '@/components/admin/AdminNotes';
+import { toast } from '@/components/ui/Toaster';
 
 type Tab = 'Overview' | 'Users' | 'Verification Queue' | 'Reports' | 'Staffing' | 'Analytics' | 'Pricing' | 'Finance' | 'Content' | 'Support' | 'Settings' | 'Audit Log';
 
@@ -136,7 +137,9 @@ export default function AdminDashboard() {
     setDisputeNotes('');
     try {
       await put(`/staffing/disputes/${id}`, { status, outcome, resolutionNotes: disputeNotes });
+      toast('Dispute resolved successfully', 'success');
     } catch {
+      toast('Failed to resolve dispute', 'error');
       refreshAllData();
     }
   };
@@ -145,7 +148,10 @@ export default function AdminDashboard() {
     if (!confirm('Refund this payment? This cannot be undone.')) return;
     try {
       await post(`/admin/payments/${paymentId}/refund`, {});
-    } catch { /* handled by refresh */ }
+      toast('Payment refunded successfully', 'success');
+    } catch {
+      toast('Failed to refund payment', 'error');
+    }
     refreshAllData();
   };
 
@@ -154,8 +160,11 @@ export default function AdminDashboard() {
     try {
       const d: any = await put('/admin/settings/pricing', { pricing: pricingDraft });
       setPricing(d.pricing || {});
+      setPricingDraft(Object.fromEntries(Object.entries(d.pricing || {}).map(([k, v]: any) => [k, v.value])));
+      toast('Pricing updated successfully', 'success');
     } catch (e) {
       console.error('Save pricing failed', e);
+      toast('Failed to save pricing', 'error');
     } finally {
       setSavingPricing(false);
     }
@@ -166,7 +175,9 @@ export default function AdminDashboard() {
     setProfessionalVerifications((prev) => prev.filter((v: any) => v.id !== id));
     try {
       await put(`/admin/staffing-verification/${id}`, { status });
+      toast('Verification updated successfully', 'success');
     } catch {
+      toast('Failed to update verification', 'error');
       refreshAllData(); // restore on failure
     }
   };
@@ -270,19 +281,34 @@ export default function AdminDashboard() {
     const id = suspendingUser.id;
     setUsers(prev => prev.map(u => u.id === id ? { ...u, status: 'suspended' } : u));
     setSuspendingUser(null);
-    try { await put(`/admin/users/${id}/suspend`, { reason: suspensionReason }); } catch { }
+    try { 
+      await put(`/admin/users/${id}/suspend`, { reason: suspensionReason });
+      toast('User suspended successfully', 'success');
+    } catch {
+      toast('Failed to suspend user', 'error');
+    }
   };
   const handleRestore = async (id: string) => {
     setUsers(prev => prev.map(u => u.id === id ? { ...u, status: 'active' } : u));
     if (selectedUser?.id === id) setSelectedUser(prev => prev ? { ...prev, status: 'active' } : prev);
-    try { await put(`/admin/users/${id}/restore`, {}); } catch { }
+    try { 
+      await put(`/admin/users/${id}/restore`, {});
+      toast('User restored successfully', 'success');
+    } catch {
+      toast('Failed to restore user', 'error');
+    }
   };
   const handleDelete = (u: AdminUser) => { setDeletingUser(u); setSelectedUser(null); };
   const confirmDelete = async () => {
     if (!deletingUser) return;
     setUsers(prev => prev.filter(u => u.id !== deletingUser.id));
     setDeletingUser(null);
-    try { await del(`/admin/users/${deletingUser.id}`); } catch { }
+    try { 
+      await del(`/admin/users/${deletingUser.id}`);
+      toast('User deleted successfully', 'success');
+    } catch {
+      toast('Failed to delete user', 'error');
+    }
   };
   const openEdit = (u: AdminUser) => {
     setEditingUser(u);
@@ -293,7 +319,12 @@ export default function AdminDashboard() {
     if (!editingUser) return;
     setUsers(prev => prev.map(u => u.id === editingUser.id ? { ...u, ...editForm } : u));
     setEditingUser(null);
-    try { await put(`/admin/users/${editingUser.id}`, editForm); } catch { }
+    try { 
+      await put(`/admin/users/${editingUser.id}`, editForm);
+      toast('User updated successfully', 'success');
+    } catch {
+      toast('Failed to update user', 'error');
+    }
   };
 
   const unread = dbNotifications.filter(n => !n.is_read).length;
@@ -360,19 +391,19 @@ export default function AdminDashboard() {
         )}
 
         {/* Alerts summary */}
-        {!collapsed && (adminStats.pendingVerifications > 0 || adminStats.openReports > 0) && (
+        {!collapsed && (verificationQueue.length + professionalVerifications.length > 0 || adminReports.filter((r: any) => r.status !== 'resolved').length > 0) && (
           <div className="mx-3 mt-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
             <p className="text-xs font-semibold text-red-400 mb-1.5">Action Required</p>
-            {adminStats.pendingVerifications > 0 && (
+            {verificationQueue.length + professionalVerifications.length > 0 && (
               <p className="text-xs text-slate-400 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
-                {adminStats.pendingVerifications} pending verifications
+                {verificationQueue.length + professionalVerifications.length} pending verifications
               </p>
             )}
-            {adminStats.openReports > 0 && (
+            {adminReports.filter((r: any) => r.status !== 'resolved').length > 0 && (
               <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
-                {adminStats.openReports} open reports
+                {adminReports.filter((r: any) => r.status !== 'resolved').length} open reports
               </p>
             )}
           </div>
@@ -522,8 +553,8 @@ export default function AdminDashboard() {
                 <h2 className="text-2xl font-bold mb-1">Platform Overview</h2>
                 <p className="text-slate-400 text-sm mb-5">
                   <span className="text-white font-semibold">{adminStats.newSignupsThisMonth} new signups</span> this month ·
-                  <span className="text-amber-400 font-semibold"> {adminStats.pendingVerifications} pending</span> ·
-                  <span className="text-red-400 font-semibold"> {adminStats.openReports} reports</span>
+                  <span className="text-amber-400 font-semibold"> {verificationQueue.length + professionalVerifications.length} pending</span> ·
+                  <span className="text-red-400 font-semibold"> {adminReports.filter((r: any) => r.status !== 'resolved').length} reports</span>
                 </p>
                 <div className="flex gap-3 flex-wrap">
                   <Button size="sm" onClick={() => setActiveTab('Verification Queue')}
@@ -1092,14 +1123,24 @@ export default function AdminDashboard() {
                         <div className="flex gap-3 flex-wrap items-center">
                           <Button size="sm" onClick={async () => {
                             setVerificationActions(prev => ({...prev, [item.id]: 'approved'}));
-                            try { await put(`/admin/verification/${item.id}`, { status: 'approved' }); } catch { }
+                            try { 
+                              await put(`/admin/verification/${item.id}`, { status: 'approved' });
+                              toast('Caregiver approved successfully', 'success');
+                            } catch { 
+                              toast('Failed to approve caregiver', 'error');
+                            }
                           }}
                             className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-sm text-xs">
                             <CheckCircle className="w-4 h-4" /> Approve
                           </Button>
                           <Button variant="ghost" size="sm" onClick={async () => {
                             setVerificationActions(prev => ({...prev, [item.id]: 'rejected'}));
-                            try { await put(`/admin/verification/${item.id}`, { status: 'rejected' }); } catch { }
+                            try { 
+                              await put(`/admin/verification/${item.id}`, { status: 'rejected' });
+                              toast('Caregiver rejected', 'info');
+                            } catch {
+                              toast('Failed to reject caregiver', 'error');
+                            }
                           }}
                             className="text-red-500 hover:bg-red-50 text-xs">
                             <XCircle className="w-4 h-4" /> Reject
@@ -1128,6 +1169,11 @@ export default function AdminDashboard() {
                 <h2 className="text-xl font-bold text-gray-900">Platform Reports</h2>
                 <span className="text-sm text-gray-500">{adminReports.length} total</span>
               </div>
+              {adminReports.length === 0 && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center text-gray-500">
+                  No reports to display.
+                </div>
+              )}
               {adminReports.map((report: any) => {
                 const action = reportActions[report.id];
                 return (
@@ -1175,7 +1221,12 @@ export default function AdminDashboard() {
                         <div className="flex gap-3 flex-wrap">
                           <Button size="sm" onClick={async () => {
                             setReportActions(prev => ({...prev, [report.id]: 'resolved'}));
-                            try { await put(`/admin/reports/${report.id}`, { status: 'resolved' }); } catch { }
+                            try { 
+                              await put(`/admin/reports/${report.id}`, { status: 'resolved' });
+                              toast('Report resolved successfully', 'success');
+                            } catch {
+                              toast('Failed to resolve report', 'error');
+                            }
                           }}
                             className="bg-slate-700 hover:bg-slate-800 text-white rounded-full shadow-sm">
                             <CheckCircle className="w-4 h-4" /> Mark Resolved
@@ -1186,7 +1237,12 @@ export default function AdminDashboard() {
                           {report.status !== 'resolved' && (
                             <Button variant="ghost" size="sm" onClick={async () => {
                               setReportActions(prev => ({...prev, [report.id]: 'dismissed'}));
-                              try { await put(`/admin/reports/${report.id}`, { status: 'dismissed' }); } catch { }
+                              try { 
+                                await put(`/admin/reports/${report.id}`, { status: 'dismissed' });
+                                toast('Report dismissed', 'info');
+                              } catch {
+                                toast('Failed to dismiss report', 'error');
+                              }
                             }}
                               className="text-gray-400 hover:bg-gray-100">Dismiss</Button>
                           )}
@@ -1230,7 +1286,7 @@ export default function AdminDashboard() {
 
               <div className="grid lg:grid-cols-2 gap-6">
                 {/* Professional Verification Queue */}
-                <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                   <div className="p-6 border-b border-gray-50 flex items-center justify-between">
                     <h3 className="font-bold text-gray-900">Pending Verifications</h3>
                     <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center font-bold text-xs">
@@ -1336,7 +1392,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Staffing Disputes */}
-                <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                   <div className="p-6 border-b border-gray-50 flex items-center justify-between">
                     <h3 className="font-bold text-gray-900">Staffing Disputes</h3>
                     <div className="w-8 h-8 bg-red-50 text-red-600 rounded-lg flex items-center justify-center font-bold text-xs">

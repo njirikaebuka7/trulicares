@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Loader2, Plus, X } from 'lucide-react';
 import { admin as adminApi } from '@/lib/api';
+import { toast } from '@/components/ui/Toaster';
 import { FacebookIcon, InstagramIcon, YoutubeIcon } from '@/components/icons/social';
 
 const SOCIAL_KEYS = ['social_facebook', 'social_instagram', 'social_youtube'] as const;
@@ -59,10 +60,15 @@ export default function AdminSettings() {
       const d: any = await adminApi.updateGeneralSettings(payload);
       const s = d.settings || {};
       setSettings(s);
+      setDraft(Object.fromEntries(Object.entries(s).map(([k, v]: any) => [k, v.value])));
       setArrays(Object.fromEntries(ARRAY_KEYS.map((k) => [k, parseArr(s[k]?.value)])));
       setSaved(true);
+      toast('Settings saved successfully', 'success');
       setTimeout(() => setSaved(false), 2500);
-    } catch (e) { console.error(e); } finally { setSaving(false); }
+    } catch (e) { 
+      console.error(e); 
+      toast('Failed to save settings', 'error');
+    } finally { setSaving(false); }
   };
 
   if (loading) return <div className="p-10 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>;

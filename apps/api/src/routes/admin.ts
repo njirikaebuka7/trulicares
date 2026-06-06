@@ -57,7 +57,7 @@ router.get('/stats', requireAdmin, async (_req, res) => {
       query(`SELECT
                (SELECT COUNT(*) FROM shifts WHERE status = 'open') as active_shifts,
                (SELECT COUNT(*) FROM shift_disputes WHERE status = 'open') as open_disputes,
-               (SELECT COUNT(*) FROM professional_profiles WHERE verification_status = 'pending') as pending_pros
+               (SELECT COUNT(*) FROM staffing_verification_queue WHERE status IN ('pending', 'under_review')) as pending_staffing
              FROM (SELECT 1) as dummy`),
     ]);
 
@@ -80,11 +80,11 @@ router.get('/stats', requireAdmin, async (_req, res) => {
         verifiedCaregivers: parseInt(caregivers.verified),
         backgroundChecked: parseInt(caregivers.background_checked),
         openReports: parseInt(reportsResult.rows[0].open),
-        pendingVerifications: parseInt(pendingResult.rows[0].pending) + parseInt(staffingResult.rows[0].pending_pros),
+        pendingVerifications: parseInt(pendingResult.rows[0].pending) + parseInt(staffingResult.rows[0].pending_staffing),
         activeMatches: parseInt(matchesResult.rows[0].active),
         activeShifts: parseInt(staffingResult.rows[0].active_shifts),
         openDisputes: parseInt(staffingResult.rows[0].open_disputes),
-        monthlyRevenue: Math.round(parseInt(revenueResult.rows[0].total) / 100),
+        monthlyRevenue: parseFloat((parseInt(revenueResult.rows[0].total) / 100).toFixed(2)),
         monthlyGrowth,
         platformHealth: 'Operational',
     };
@@ -601,8 +601,8 @@ router.put('/staffing-verification/:id', requireAdmin, async (req: AuthRequest, 
       }).catch(() => {});
     }
 
-    await auditFromReq(req, 'staffing_verification.update', entry.entity_type, entry.entity_id, { status, notes: notes || null });
     await cacheDel('admin:stats').catch(() => {});
+    await auditFromReq(req, 'staffing_verification.update', entry.entity_type, entry.entity_id, { status, notes: notes || null });
     res.json({ message: `Verification ${status}`, entityType: entry.entity_type });
   } catch (err) {
     console.error('Staffing verification update error:', err);
