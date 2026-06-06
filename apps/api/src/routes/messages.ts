@@ -306,7 +306,7 @@ router.post('/:id/video', requireAuth, async (req: AuthRequest, res) => {
       },
       body: JSON.stringify({
         properties: {
-          exp: Math.floor(Date.now() / 1000) + 1800, // Expires in 30 minutes to prevent abuse
+          exp: Math.floor(Date.now() / 1000) + 600, // Expires in 10 minutes to prevent abuse
           max_participants: 2, // Limit to 1-on-1 to save minutes
           enable_chat: true,
           enable_screenshare: true,
