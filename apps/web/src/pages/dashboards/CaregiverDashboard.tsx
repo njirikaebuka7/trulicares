@@ -5,7 +5,7 @@ import {
   Star, Shield, Check, ChevronRight, Calendar, Clock, TrendingUp,
   Briefcase, X, CheckCircle, XCircle, Edit3, LayoutDashboard,
   ChevronLeft, ChevronRight as ChevronRightIcon, Camera, Send, MoreHorizontal, Loader2, Plus, AlertCircle, Phone, Trash2, Upload, Zap, CreditCard, Flag, AlertTriangle, Ban, Award,
-  Eye, EyeOff
+  Eye, EyeOff, Video
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import BackgroundCheckCard from '@/components/BackgroundCheckCard';
@@ -18,6 +18,7 @@ import { sameDay, dayLabel, listStamp } from '@/utils/chatTime';
 import { supabase } from '@/lib/supabase';
 import logoImg from '@/assets/logo.png';
 import CaregiverResumeGenerator from './caregiver/CaregiverResumeGenerator';
+import VideoCallModal from '@/components/chat/VideoCallModal';
 
 type Tab = 'Overview' | 'Job Requests' | 'Messages' | 'Schedule' | 'Reviews' | 'Profile';
 
@@ -109,6 +110,7 @@ export default function CaregiverDashboard() {
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
+  const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
 
   // Rebuilt Profile Builder States
   const [profileSubTab, setProfileSubTab] = useState<'bio' | 'id_verification' | 'background_check' | 'services' | 'resumes' | 'certifications' | 'security' | 'notifications'>('bio');
@@ -1199,6 +1201,19 @@ export default function CaregiverDashboard() {
                               <p className="text-xs text-emerald-600">● {activeFamily.care}</p>
                             </div>
                             <button
+                              onClick={async () => {
+                                try {
+                                  await post(`/conversations/${cgSelectedMsg}/video`, {});
+                                } catch (err) {
+                                  showToast('Failed to start video call', 'error');
+                                }
+                              }}
+                              className="w-9 h-9 rounded-full bg-emerald-50 hover:bg-emerald-100 flex items-center justify-center text-emerald-600 transition-colors shrink-0"
+                              title="Start Video Interview"
+                            >
+                              <Video className="w-4 h-4" />
+                            </button>
+                            <button
                               onClick={() => {
                                 const conversation = conversations.find(c => c.id === cgSelectedMsg);
                                 setShowBookModal({
@@ -1230,7 +1245,22 @@ export default function CaregiverDashboard() {
                                   )}
                                   <div className={cn('flex', m.fromMe ? 'justify-end' : 'justify-start')}>
                                     <div className={cn('max-w-[80%] sm:max-w-[70%] px-3.5 py-2 rounded-2xl shadow-sm', m.fromMe ? 'bg-emerald-600 text-white rounded-br-md' : 'bg-white text-gray-800 border border-gray-100 rounded-bl-md')}>
-                                      <p className="text-sm whitespace-pre-wrap break-words">{m.text}</p>
+                                      {m.text.startsWith('[VIDEO_CALL:') ? (
+                                        <div className="flex flex-col items-center justify-center py-2">
+                                          <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center mb-2">
+                                            <Video className="w-6 h-6" />
+                                          </div>
+                                          <p className="font-semibold mb-3">Video Interview Started</p>
+                                          <button
+                                            onClick={() => setActiveVideoUrl(m.text.replace('[VIDEO_CALL:', '').replace(']', ''))}
+                                            className={cn("px-4 py-2 rounded-full font-bold text-sm transition-colors", m.fromMe ? "bg-white text-emerald-600 hover:bg-gray-50" : "bg-emerald-600 text-white hover:bg-emerald-700")}
+                                          >
+                                            Join Video Call
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <p className="text-sm whitespace-pre-wrap break-words">{m.text}</p>
+                                      )}
                                       <p className={cn('text-[10px] mt-0.5 text-right', m.fromMe ? 'text-emerald-200' : 'text-gray-400')}>{m.time}</p>
                                     </div>
                                   </div>
@@ -3906,6 +3936,9 @@ export default function CaregiverDashboard() {
         requestId={showReportModal?.requestId}
         refId={showReportModal?.refId}
       />
+      {activeVideoUrl && (
+        <VideoCallModal url={activeVideoUrl} onClose={() => setActiveVideoUrl(null)} />
+      )}
     </div>
   );
 }

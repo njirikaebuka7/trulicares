@@ -5,7 +5,7 @@ import {
   Star, Shield, Check, ChevronRight, Calendar, Clock, CreditCard,
   FileText, X, Home, LayoutDashboard, ChevronLeft, ChevronRight as ChevronRightIcon,
   Edit3, Camera, MoreHorizontal, Send, Phone, Trash2, CheckCircle, AlertCircle,
-  Loader2, Flag, AlertTriangle, Ban, Upload, ImagePlus, Scale, Lock, Eye, EyeOff
+  Loader2, Flag, AlertTriangle, Ban, Upload, ImagePlus, Scale, Lock, Eye, EyeOff, Video
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import StripeCardModal from '@/components/ui/StripeCardModal';
@@ -20,6 +20,7 @@ import Avatar from '@/components/ui/Avatar';
 import LocationPicker from '@/components/ui/LocationPicker';
 import { supabase } from '@/lib/supabase';
 import logoImg from '@/assets/logo.png';
+import VideoCallModal from '@/components/chat/VideoCallModal';
 
 const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
@@ -101,6 +102,7 @@ export default function FamilyDashboard() {
   const [calSelectedDay, setCalSelectedDay] = useState<number | null>(null);
   const [showPhone, setShowPhone] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<any>(null);
+  const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
 
   // Scheduling states
   const [showBookModal, setShowBookModal] = useState<null | { caregiverId?: string; caregiverName?: string; service?: string }>(null);
@@ -1514,6 +1516,20 @@ export default function FamilyDashboard() {
                               <Calendar className="w-3.5 h-3.5 shrink-0 text-brand-600" />
                               <span className="hidden sm:inline">Book Session</span>
                             </button>
+                            {/* Video Call Button */}
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await post(`/conversations/${activeConv?.id}/video`, {});
+                                } catch (err) {
+                                  showToast('Failed to start video call', 'error');
+                                }
+                              }}
+                              className="w-9 h-9 rounded-full bg-brand-50 hover:bg-brand-100 flex items-center justify-center text-brand-600 transition-colors shrink-0"
+                              title="Start Video Interview"
+                            >
+                              <Video className="w-4 h-4" />
+                            </button>
                             {/* Call button */}
                             <div className="relative shrink-0">
                               <button
@@ -1554,7 +1570,22 @@ export default function FamilyDashboard() {
                                   )}
                                   <div className={cn('flex', msg.fromMe ? 'justify-end' : 'justify-start')}>
                                     <div className={cn('max-w-[80%] sm:max-w-[70%] rounded-2xl px-3.5 py-2 shadow-sm', msg.fromMe ? 'bg-brand-600 text-white rounded-br-md' : 'bg-white text-gray-800 border border-gray-100 rounded-bl-md')}>
-                                      <p className="text-sm whitespace-pre-wrap break-words">{msg.text}</p>
+                                      {msg.text.startsWith('[VIDEO_CALL:') ? (
+                                        <div className="flex flex-col items-center justify-center py-2">
+                                          <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center mb-2">
+                                            <Video className="w-6 h-6" />
+                                          </div>
+                                          <p className="font-semibold mb-3">Video Interview Started</p>
+                                          <button
+                                            onClick={() => setActiveVideoUrl(msg.text.replace('[VIDEO_CALL:', '').replace(']', ''))}
+                                            className={cn("px-4 py-2 rounded-full font-bold text-sm transition-colors", msg.fromMe ? "bg-white text-brand-600 hover:bg-gray-50" : "bg-brand-600 text-white hover:bg-brand-700")}
+                                          >
+                                            Join Video Call
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <p className="text-sm whitespace-pre-wrap break-words">{msg.text}</p>
+                                      )}
                                       <p className={cn('text-[10px] mt-0.5 text-right', msg.fromMe ? 'text-brand-200' : 'text-gray-400')}>{msg.time}</p>
                                     </div>
                                   </div>
@@ -2818,7 +2849,9 @@ export default function FamilyDashboard() {
       )}
 
       {/* Replaced by ReportModal component below */}
-
+      {activeVideoUrl && (
+        <VideoCallModal url={activeVideoUrl} onClose={() => setActiveVideoUrl(null)} />
+      )}
     </div>
   );
 }

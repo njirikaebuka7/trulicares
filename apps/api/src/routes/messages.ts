@@ -270,5 +270,111 @@ router.post('/:id/messages', requireAuth, async (req: AuthRequest, res) => {
     res.status(500).json({ error: 'Failed to send message' });
   }
 });
+// POST /api/conversations/:id/video
+router.post('/:id/video', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { id: userId, role } = req.user!;
+    const convId = req.params.id;
+
+    // Verify conversation access
+    const convResult = await query(
+      'SELECT id, family_id, caregiver_id FROM conversations WHERE id = $1 AND (family_id = $2 OR caregiver_id = $2)',
+      [convId, userId]
+    );
+    if (convResult.rows.length === 0) return res.status(404).json({ error: 'Conversation not found' });
+    const conv = convResult.rows[0];
+
+    // Enforce messaging eligibility
+    if (role !== 'admin') {
+      const eligible = await checkMessagingEligible(conv.family_id, conv.caregiver_id);
+      if (!eligible) {
+        return res.status(403).json({ error: 'Messaging is not unlocked or has expired for this match.' });
+      }
+    }
+
+    const DAILY_API_KEY = process.env.DAILY_API_KEY;
+    if (!DAILY_API_KEY) {
+      return res.status(500).json({ error: 'Video calling is not configured properly (missing API key).' });
+    }
+
+    // Call Daily API to create a room
+    const dailyRes = await fetch('https://api.daily.co/v1/rooms', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${DAILY_API_KEY}`,
+      },
+      body: JSON.stringify({
+        properties: {
+          exp: Math.floor(Date.now() / 1000) + 7200, // Expires in 2 hours
+          enable_chat: true,
+          enable_screenshare: true,
+        },
+      }),
+    });
+
+    if (!dailyRes.ok) {
+      const errorText = await dailyRes.text();
+      console.error('Daily API Error:', errorText);
+      return res.status(500).json({ error: 'Failed to generate video room.' });
+    }
+
+    const roomData = await dailyRes.json();
+    const roomUrl = roomData.url;
+
+    // Generate the chat message
+    const content = `[VIDEO_CALL:${roomUrl}]`;
+    const msgResult = await query(
+      `INSERT INTO messages (conversation_id, sender_id, content)
+       VALUES ($1, $2, $3)
+       RETURNING id, conversation_id, sender_id, content, created_at`,
+      [convId, userId, content]
+    );
+
+    await query('UPDATE conversations SET updated_at = NOW() WHERE id = $1', [convId]);
+    const msg = msgResult.rows[0];
+
+    // Realtime Broadcast
+    await supabase
+      .channel(`conversation:${convId}`)
+      .send({
+        type: 'broadcast',
+        event: 'new_message',
+        payload: {
+          id: msg.id,
+          conversationId: msg.conversation_id,
+          senderId: msg.sender_id,
+          content: msg.content,
+          createdAt: msg.created_at,
+        },
+      })
+      .catch(() => {});
+
+    // Notifications
+    const otherId = conv.family_id === userId ? conv.caregiver_id : conv.family_id;
+    query('SELECT name, email FROM users WHERE id = $1', [otherId]).then(async (r: any) => {
+      if (r.rows[0]) {
+        const senderResult = await query('SELECT name FROM users WHERE id = $1', [userId]);
+        const senderName = senderResult.rows[0]?.name || 'Someone';
+        sendMessageNotification(r.rows[0].email, r.rows[0].name, senderName).catch(console.error);
+      }
+    }).catch(console.error);
+
+    res.status(201).json({
+      message: {
+        id: msg.id,
+        conversationId: msg.conversation_id,
+        senderId: msg.sender_id,
+        content: msg.content,
+        createdAt: msg.created_at,
+        isOwn: true,
+      },
+    });
+
+  } catch (err) {
+    console.error('Video room error:', err);
+    res.status(500).json({ error: 'Failed to create video call' });
+  }
+});
 
 export default router;
