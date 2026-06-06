@@ -52,6 +52,15 @@ router.post('/register', registerLimiter, async (req, res) => {
       return res.status(409).json({ error: 'An account with this email already exists' });
     }
 
+    // SECURITY: never let anyone SELF-REGISTER an allowlisted admin email. Otherwise whoever
+    // first claims an unregistered admin address (e.g. admin@trulicares.com) would instantly
+    // gain admin. Admins are provisioned out-of-band (seed/DB) and sign in, not sign up.
+    const adminAllow = (process.env.ADMIN_EMAILS || '')
+      .split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+    if (adminAllow.includes(email.toLowerCase().trim())) {
+      return res.status(403).json({ error: 'This email address cannot be used to register. Please sign in or contact support.' });
+    }
+
     const role = detectRole(email.toLowerCase(), requestedRole);
     const passwordHash = await bcrypt.hash(password, 12);
 
@@ -332,6 +341,12 @@ router.put('/profile', requireAuth, async (req: AuthRequest, res) => {
     let finalPhotoUrl = photoUrl;
     if (photoUrl && photoUrl.startsWith('data:')) {
       finalPhotoUrl = await uploadBase64Image(req.user!.id, photoUrl);
+    } else if (photoUrl) {
+      // SECURITY: reject anything that isn't a plain http(s) URL (blocks stored XSS via
+      // javascript: URIs or HTML payloads like "><script>...). An empty string clears the photo.
+      if (!/^https?:\/\/[^\s"'<>]+$/i.test(photoUrl)) {
+        return res.status(400).json({ error: 'Invalid photo URL.' });
+      }
     }
 
     if (name) { updates.push(`name = $${idx++}`); params.push(name.trim()); }

@@ -98,6 +98,13 @@ router.post('/checkout', requireAuth, async (req: AuthRequest, res) => {
     const { priceId, matchId, isBackgroundCheck } = req.body;
     if (!priceId && !matchId && !isBackgroundCheck) return res.status(400).json({ error: 'priceId, matchId or isBackgroundCheck is required' });
 
+    // SECURITY (IDOR): only let a user start a checkout for a match that belongs to them, so
+    // we never create pending payment rows pointing at other users' matches.
+    if (matchId) {
+      const owns = await query('SELECT 1 FROM matches WHERE id = $1 AND family_id = $2', [matchId, req.user!.id]);
+      if (owns.rows.length === 0) return res.status(403).json({ error: 'Match not found on this account' });
+    }
+
     let stripe: any;
     try {
       stripe = await getUncachableStripeClient();

@@ -109,8 +109,20 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       }
     }
 
-    if (!caregiver_id) {
-      return res.status(400).json({ error: 'Caregiver ID is required' });
+    if (!caregiver_id || !family_id) {
+      return res.status(400).json({ error: 'Both caregiver and family are required' });
+    }
+
+    // SECURITY (IDOR): only allow scheduling between a family + caregiver who are actually
+    // matched (status 'accepted'), and only by one of the two parties (the requester's own id
+    // is forced above). This prevents spamming arbitrary users' schedules and stops abusers
+    // from pushing care_date forward on matches they aren't part of to dodge messaging expiry.
+    const matched = await query(
+      `SELECT 1 FROM matches WHERE family_id = $1 AND caregiver_id = $2 AND status = 'accepted' LIMIT 1`,
+      [family_id, caregiver_id]
+    );
+    if (matched.rows.length === 0) {
+      return res.status(403).json({ error: 'You can only schedule sessions with a matched caregiver/family.' });
     }
 
     const result = await query(

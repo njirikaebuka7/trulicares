@@ -190,14 +190,16 @@ export class WebhookHandlers {
 
     if (hasValidSecret) {
       event = stripe.webhooks.constructEvent(payload, signature, webhookSecret!);
-    } else if (process.env.NODE_ENV !== 'production') {
-      // SECURITY: only accept UNSIGNED events outside production, for local testing.
-      console.warn('[webhook] No valid STRIPE_WEBHOOK_SECRET — accepting UNSIGNED event (dev only).');
+    } else if (process.env.ALLOW_UNSIGNED_WEBHOOKS === 'true') {
+      // SECURITY: unsigned webhooks are accepted ONLY when explicitly opted in via this env
+      // flag (local testing). We intentionally do NOT key this off NODE_ENV — a staging/UAT
+      // box where NODE_ENV isn't 'production' must still reject forged, unsigned events.
+      console.warn('[webhook] ALLOW_UNSIGNED_WEBHOOKS=true — accepting UNSIGNED event (testing only).');
       event = JSON.parse(payload.toString()) as Stripe.Event;
     } else {
-      // In production we refuse to process unsigned webhooks — otherwise anyone could POST a
+      // No valid signing secret and no explicit opt-in → refuse. Otherwise anyone could POST a
       // fake "payment succeeded" event and unlock paid features for free.
-      throw new Error('STRIPE_WEBHOOK_SECRET is not configured; refusing unsigned webhook in production.');
+      throw new Error('STRIPE_WEBHOOK_SECRET is not configured; refusing unsigned webhook.');
     }
 
     switch (event.type) {
