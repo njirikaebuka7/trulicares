@@ -261,8 +261,14 @@ export default function CaregiverList() {
                     <div className="flex-1 min-w-0">
                       <h3 className="font-bold text-gray-900 group-hover:text-brand-700 transition-colors truncate">{cg.name}</h3>
                       <div className="flex items-center gap-1.5 mt-0.5 mb-1">
-                        <StarRow rating={cg.rating} />
-                        <span className="text-xs text-gray-500">{cg.rating} ({cg.reviewCount})</span>
+                        {cg.reviewCount > 0 ? (
+                          <>
+                            <StarRow rating={cg.rating} />
+                            <span className="text-xs text-gray-500">{cg.rating.toFixed(1)} ({cg.reviewCount})</span>
+                          </>
+                        ) : (
+                          <span className="text-xs font-semibold text-brand-600">New</span>
+                        )}
                       </div>
                       <div className="flex items-center gap-1 text-xs text-gray-400">
                         <MapPin className="w-3.5 h-3.5 shrink-0" />

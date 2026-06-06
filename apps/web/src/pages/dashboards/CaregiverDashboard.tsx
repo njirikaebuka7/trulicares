@@ -145,10 +145,14 @@ export default function CaregiverDashboard() {
 
   const [showReportModal, setShowReportModal] = useState<null | { reportedUserId: string; reportedUserName: string; requestId?: string; refId?: string }>(null);
 
+  const toTitleCase = (s: string) =>
+    (s || '').trim().split(/\s+/).map((w) => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w)).join(' ');
+
   const getDisplayName = (familyName: string, unlocked: boolean) => {
-    if (unlocked) return familyName;
-    const parts = (familyName || '').trim().split(' ');
-    if (parts.length <= 1) return familyName || 'Family';
+    const name = toTitleCase(familyName);
+    if (unlocked) return name || 'Family';
+    const parts = name.split(' ');
+    if (parts.length <= 1) return name || 'Family';
     return parts[0] + ' ' + parts[1][0] + '.';
   };
 

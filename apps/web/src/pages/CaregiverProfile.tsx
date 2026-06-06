@@ -249,13 +249,21 @@ export default function CaregiverProfile() {
               </div>
 
               <div className="flex items-center gap-2 mb-3">
-                <div className="flex">
-                  {[1, 2, 3, 4, 5].map(i => (
-                    <Star key={i} className={cn('w-4 h-4', i <= Math.round(caregiver.rating) ? 'text-amber-400 fill-amber-400' : 'text-gray-200')} />
-                  ))}
-                </div>
-                <span className="font-bold text-gray-900">{caregiver.rating}</span>
-                <span className="text-gray-400 text-sm">({caregiver.reviewCount} reviews)</span>
+                {caregiver.reviewCount > 0 ? (
+                  <>
+                    <div className="flex">
+                      {[1, 2, 3, 4, 5].map(i => (
+                        <Star key={i} className={cn('w-4 h-4', i <= Math.round(caregiver.rating) ? 'text-amber-400 fill-amber-400' : 'text-gray-200')} />
+                      ))}
+                    </div>
+                    <span className="font-bold text-gray-900">{caregiver.rating.toFixed(1)}</span>
+                    <span className="text-gray-400 text-sm">({caregiver.reviewCount} review{caregiver.reviewCount === 1 ? '' : 's'})</span>
+                  </>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 bg-brand-50 px-2.5 py-0.5 rounded-full">
+                    <Star className="w-3.5 h-3.5 fill-brand-500 text-brand-500" /> New caregiver
+                  </span>
+                )}
               </div>
 
               <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-600">
@@ -276,7 +284,7 @@ export default function CaregiverProfile() {
           </div>
 
           <div className="flex gap-3 mt-6 pt-6 border-t border-gray-100 flex-wrap">
-            {isOwner ? (
+            {isOwner || user?.role === 'caregiver' ? (
               <Button variant="primary" size="lg" onClick={() => navigate('/dashboard')} className="flex-1 sm:flex-none">
                 Back to Dashboard
               </Button>
@@ -388,11 +396,13 @@ export default function CaregiverProfile() {
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-gray-900">Reviews</h2>
-                <div className="flex items-center gap-1.5">
-                  <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-                  <span className="font-bold text-gray-900">{caregiver.rating}</span>
-                  <span className="text-gray-400 text-sm">· {caregiver.reviewCount} reviews</span>
-                </div>
+                {caregiver.reviewCount > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                    <span className="font-bold text-gray-900">{caregiver.rating.toFixed(1)}</span>
+                    <span className="text-gray-400 text-sm">· {caregiver.reviewCount} review{caregiver.reviewCount === 1 ? '' : 's'}</span>
+                  </div>
+                )}
               </div>
               {reviews.length === 0 ? (
                 <p className="text-gray-400 text-sm text-center py-6">No reviews yet.</p>
@@ -464,7 +474,6 @@ export default function CaregiverProfile() {
                   { label: 'Identity Verified', done: caregiver.verified },
                   { label: 'Background Check', done: caregiver.backgroundChecked },
                   { label: 'Profile Complete', done: true },
-                  { label: 'References Checked', done: caregiver.rating > 4.5 },
                 ].map(cred => (
                   <div key={cred.label} className="flex items-center gap-2.5">
                     <CheckCircle className={cn('w-4 h-4 shrink-0', cred.done ? 'text-green-500' : 'text-gray-300')} />
@@ -474,19 +483,30 @@ export default function CaregiverProfile() {
               </div>
             </div>
 
-            {/* CTA */}
-            <div className="bg-gradient-to-br from-brand-600 to-brand-700 rounded-2xl p-5 text-white text-center">
-              <p className="font-bold mb-1">Ready to book?</p>
-              <p className="text-brand-200 text-xs mb-4">Connect directly with {caregiver.name} in minutes.</p>
-              <Button
-                variant="secondary"
-                fullWidth
-                onClick={handleRequestCare}
-                className="bg-white text-brand-700 border-white hover:bg-brand-50"
-              >
-                Request Care
-              </Button>
-            </div>
+            {/* CTA — families book caregivers; hide for the caregiver previewing their own
+                profile and for caregiver accounts (they don't request care). */}
+            {isOwner ? (
+              <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 text-center">
+                <p className="font-bold text-gray-900 mb-1">This is your public profile</p>
+                <p className="text-gray-500 text-xs mb-4">This is how families see you. Keep it complete to win more requests.</p>
+                <Button variant="secondary" fullWidth onClick={() => navigate('/dashboard')}>
+                  Edit in Dashboard
+                </Button>
+              </div>
+            ) : user?.role === 'caregiver' ? null : (
+              <div className="bg-gradient-to-br from-brand-600 to-brand-700 rounded-2xl p-5 text-white text-center">
+                <p className="font-bold mb-1">Ready to book?</p>
+                <p className="text-brand-200 text-xs mb-4">Connect directly with {caregiver.name} in minutes.</p>
+                <Button
+                  variant="secondary"
+                  fullWidth
+                  onClick={handleRequestCare}
+                  className="bg-white text-brand-700 border-white hover:bg-brand-50"
+                >
+                  Request Care
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>

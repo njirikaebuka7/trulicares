@@ -41,8 +41,10 @@ export default function FindCare() {
   const autoSelectMatchId = state.autoSelectMatchId;
   const resumeRequestId = state.resumeRequestId;
 
-  const [phase, setPhase] = useState<FlowPhase>('care-type');
-  const [careCategory, setCareCategory] = useState<CareCategory | null>(null);
+  // When a caregiver is pre-selected (Request Care from a profile), skip the care-type
+  // selection screen entirely and start at the care-details step for that service.
+  const [phase, setPhase] = useState<FlowPhase>(preselected ? 'care-details' : 'care-type');
+  const [careCategory, setCareCategory] = useState<CareCategory | null>((preselected as CareCategory) || null);
   const [careData, setCareData] = useState<Record<string, unknown>>({});
   const [currentRequestId, setCurrentRequestId] = useState<string | null>(resumeRequestId || null);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);

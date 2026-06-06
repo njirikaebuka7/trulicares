@@ -30,7 +30,7 @@ function formatCaregiver(row: any, includePrivate = false) {
     bio: row.bio || '',
     specialties: row.specialties || [],
     hourlyRate: [row.hourly_rate_min || 15, row.hourly_rate_max || 30] as [number, number],
-    rating: parseFloat(row.rating) || 4.5,
+    rating: row.rating != null ? parseFloat(row.rating) : 0,
     reviewCount: row.review_count || 0,
     location: row.location || 'United States',
     verified: row.verified || false,

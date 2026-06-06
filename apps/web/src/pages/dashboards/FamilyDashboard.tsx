@@ -1003,9 +1003,13 @@ export default function FamilyDashboard() {
                       <div className="mt-4 flex gap-3 flex-wrap">
                         {req.status !== 'cancelled' && req.status !== 'completed' && (
                           <>
-                            <Button variant="ghost" size="sm" onClick={() => { setEditingReq(req); setEditLocation(req.location || ''); setEditDesc(req.details?.description || req.description || ''); setEditSched(req.details?.schedule || ''); }}>
-                              Edit Request
-                            </Button>
+                            {/* Editing only makes sense before a caregiver is matched — once
+                                matched, the request details are locked in for that match. */}
+                            {(req.status === 'matching' || req.status === 'pending') && (
+                              <Button variant="ghost" size="sm" onClick={() => { setEditingReq(req); setEditLocation(req.location || ''); setEditDesc(req.details?.description || req.description || ''); setEditSched(req.details?.schedule || ''); }}>
+                                Edit Request
+                              </Button>
+                            )}
                             <Button variant="ghost" size="sm" className="text-red-500 hover:bg-red-50"
                               onClick={() => setCancelConfirmId(req.id)}>
                               Cancel
