@@ -74,6 +74,7 @@ export default function CaregiverDashboard() {
   const [bookStartTime, setBookStartTime] = useState('09:00');
   const [bookEndTime, setBookEndTime] = useState('17:00');
   const [bookLocation, setBookLocation] = useState('');
+  const [bookSaving, setBookSaving] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -163,8 +164,9 @@ export default function CaregiverDashboard() {
   const [calSelectedDay, setCalSelectedDay] = useState<number | null>(null);
   const [caregiverId, setCaregiverId] = useState<string | null>(null);
 
-  // Background check state: 'none' | 'pending' | 'approved' | 'awaiting_payment'
-  const [bgCheckStatus, setBgCheckStatus] = useState<'none' | 'pending' | 'approved' | 'awaiting_payment'>('none');
+  // Background check state. Backend (Turn flow) returns 'passed' for a cleared check; we
+  // accept both 'approved' and 'passed' as the success state.
+  const [bgCheckStatus, setBgCheckStatus] = useState<'none' | 'pending' | 'approved' | 'passed' | 'awaiting_payment'>('none');
   const [bgStep, setBgStep] = useState(1);
 
   const [jobRequests, setJobRequests] = useState<any[]>([]);
@@ -2103,7 +2105,7 @@ export default function CaregiverDashboard() {
                       </div>
 
                       {/* Display Status Banner */}
-                      {bgCheckStatus === 'approved' ? (
+                      {bgCheckStatus === 'approved' || bgCheckStatus === 'passed' ? (
                         <div className="p-5 rounded-2xl bg-green-50 border border-green-100 flex items-start gap-3">
                           <CheckCircle className="w-6 h-6 text-green-600 shrink-0" />
                           <div>

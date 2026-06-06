@@ -94,6 +94,10 @@ export interface CaregiverProfile extends User {
   availability: string;
   photoUrl?: string;
   serviceZips?: string[];
+  jobTitle?: string;
+  languages?: string[];
+  education?: string;
+  certifications?: { id?: string; name?: string; issuer?: string; year?: string }[] | string[];
 }
 
 export interface CareMatch {

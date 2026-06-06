@@ -138,7 +138,7 @@ function FacilityDashboardInner() {
               <Avatar name={(profile as any)?.facility_name || profile?.name || user?.name} src={(profile as any)?.photo_url} size={36} className="rounded-xl" />
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-white text-sm truncate">{profile?.name || user?.name}</p>
-                <p className="text-xs text-emerald-400 truncate">{profile?.type || 'Facility'}</p>
+                <p className="text-xs text-emerald-400 truncate">{profile?.facility_type || 'Facility'}</p>
               </div>
             </div>
           </div>
@@ -370,7 +370,7 @@ function FacilityOverview({ profile, summary }: { profile: FacilityProfile | nul
         <p className="text-emerald-200 text-sm font-medium mb-1">Welcome back</p>
         <h2 className="text-2xl font-bold mb-1">{profile?.name || 'Facility'}</h2>
         <p className="text-emerald-200 text-sm mb-5 font-semibold">
-          {profile?.type || 'Operational'} Hub • {format(new Date(), 'EEEE, MMMM do')}
+          {profile?.facility_type || 'Operational'} Hub • {format(new Date(), 'EEEE, MMMM do')}
         </p>
         <div className="flex gap-3 flex-wrap">
           <Link 

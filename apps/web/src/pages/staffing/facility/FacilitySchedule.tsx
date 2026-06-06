@@ -18,8 +18,8 @@ export default function FacilitySchedule() {
     async function loadShifts() {
       setLoading(true);
       try {
-        const data = await shiftApi.getFacilityShifts();
-        setShifts(data || []);
+        const data: any = await shiftApi.my();
+        setShifts(data.shifts || []);
       } catch (err) {
         console.error('Failed to load facility shifts', err);
       } finally {

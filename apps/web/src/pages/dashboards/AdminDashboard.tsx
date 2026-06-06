@@ -1738,7 +1738,7 @@ export default function AdminDashboard() {
                       className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-50 text-green-700 text-sm font-semibold hover:bg-green-100 transition-colors">
                       <RotateCcw className="w-4 h-4" /> Restore
                     </button>
-                  : <button onClick={() => handleSuspend(selectedUser.id)}
+                  : <button onClick={() => handleSuspend(selectedUser)}
                       className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 text-amber-700 text-sm font-semibold hover:bg-amber-100 transition-colors">
                       <Ban className="w-4 h-4" /> Suspend
                     </button>
