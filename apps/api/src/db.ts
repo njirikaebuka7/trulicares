@@ -4,11 +4,46 @@ import { supabase } from './supabaseClient.js';
 export { supabase };
 const { Pool } = pg;
 
+/**
+ * SECURITY: Build SSL configuration for database connections.
+ * - Production: TLS certificate verification is ALWAYS enabled (rejectUnauthorized: true).
+ * - Supports DATABASE_CA_CERT for providers requiring a custom CA certificate.
+ * - Dev-only: relaxed verification requires explicit DB_SSL_REJECT_UNAUTHORIZED=false.
+ * - rejectUnauthorized:false is NEVER used in production.
+ */
+function buildSslConfig(): false | Record<string, unknown> {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const needsSsl =
+    process.env.DATABASE_URL?.includes('supabase.co') ||
+    process.env.DATABASE_URL?.includes('supabase.com') ||
+    isProduction;
+
+  if (!needsSsl) return false;
+
+  const sslConfig: Record<string, unknown> = {
+    // SECURITY: default to strict certificate verification
+    rejectUnauthorized: true,
+  };
+
+  // Support provider CA certificate chain (PEM string via env var)
+  const caCert = process.env.DATABASE_CA_CERT;
+  if (caCert) {
+    sslConfig.ca = caCert;
+  }
+
+  // Dev-only: allow relaxed TLS verification with explicit opt-in flag.
+  // NEVER allowed in production — the check is intentionally excluded.
+  if (!isProduction && process.env.DB_SSL_REJECT_UNAUTHORIZED === 'false') {
+    sslConfig.rejectUnauthorized = false;
+    console.warn('⚠ DB TLS certificate verification disabled (dev override via DB_SSL_REJECT_UNAUTHORIZED=false).');
+  }
+
+  return sslConfig;
+}
+
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes('supabase.co') || process.env.DATABASE_URL?.includes('supabase.com') || process.env.NODE_ENV === 'production'
-    ? { rejectUnauthorized: false }
-    : false,
+  ssl: buildSslConfig(),
   max: 20,
   idleTimeoutMillis: 60000,
   connectionTimeoutMillis: 30000,
@@ -32,6 +67,8 @@ pool.query(`
   ALTER TABLE users
     ADD COLUMN IF NOT EXISTS reset_token TEXT,
     ADD COLUMN IF NOT EXISTS reset_token_expires TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS reset_token_hash TEXT,
+    ADD COLUMN IF NOT EXISTS reset_token_used BOOLEAN DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION,
     ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION,
     ADD COLUMN IF NOT EXISTS city TEXT,
@@ -40,7 +77,10 @@ pool.query(`
     ADD COLUMN IF NOT EXISTS country TEXT,
     ADD COLUMN IF NOT EXISTS formatted_address TEXT,
     ADD COLUMN IF NOT EXISTS location_source TEXT;
-`).catch(err => console.error('users reset-token/location auto-migration failed', err));
+`).then(() => pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_users_reset_token_hash ON users(reset_token_hash)
+    WHERE reset_token_hash IS NOT NULL AND reset_token_used = FALSE;
+`)).catch(err => console.error('users reset-token/location auto-migration failed', err));
 
 // Auto-migrate Checkr columns for caregivers
 pool.query(`

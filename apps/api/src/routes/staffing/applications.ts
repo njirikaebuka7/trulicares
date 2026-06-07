@@ -382,6 +382,9 @@ router.get('/shift/:shiftId', requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── PUT /api/staffing/applications/:id/accept — Accept applicant ──
+// SECURITY: This route is protected against race conditions using row-level locks
+// (FOR UPDATE) and transactional re-checks to prevent duplicate bookings, over-filling
+// shifts, and duplicate Stripe checkout sessions from concurrent/replayed requests.
 router.put('/:id/accept', requireAuth, async (req: AuthRequest, res) => {
   const client = await getClient();
   try {
@@ -389,17 +392,30 @@ router.put('/:id/accept', requireAuth, async (req: AuthRequest, res) => {
       return res.status(403).json({ error: 'Facility access only' });
     }
 
+    // Verify facility profile exists before starting transaction
+    const facilityRes = await client.query(
+      'SELECT id FROM facility_profiles WHERE user_id = $1',
+      [req.user!.id]
+    );
+    if (facilityRes.rows.length === 0) {
+      return res.status(403).json({ error: 'Facility profile not found' });
+    }
+    const facilityProfileId = facilityRes.rows[0].id;
+
     await client.query('BEGIN');
 
-    // Get application with shift details
+    // SECURITY: Lock both the application and shift rows with FOR UPDATE to prevent
+    // concurrent accept requests from both passing precondition checks. Only one
+    // transaction can hold the lock at a time; the other blocks until COMMIT/ROLLBACK.
     const appRes = await client.query(
       `SELECT sa.*, s.pay_rate, s.duration_hours, s.total_pay, s.platform_fee_rate,
-              s.facility_id, s.status AS shift_status,
+              s.facility_id, s.status AS shift_status, s.slots_total, s.slots_filled,
               pp.user_id AS pro_user_id
        FROM shift_applications sa
        JOIN shifts s ON s.id = sa.shift_id
        JOIN professional_profiles pp ON pp.id = sa.professional_id
-       WHERE sa.id = $1`,
+       WHERE sa.id = $1
+       FOR UPDATE OF sa, s`,
       [req.params.id]
     );
     if (appRes.rows.length === 0) {
@@ -408,23 +424,26 @@ router.put('/:id/accept', requireAuth, async (req: AuthRequest, res) => {
     }
     const app = appRes.rows[0];
 
+    // Re-check all preconditions inside the transaction (with rows locked):
+    // 1. Application must belong to this facility's shift
+    if (app.facility_id !== facilityProfileId) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    // 2. Application must still be pending
+    if (app.status !== 'pending') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Application has already been processed' });
+    }
+    // 3. Shift must still be open
     if (app.shift_status !== 'open') {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Shift is no longer open' });
     }
-    if (app.status !== 'pending') {
+    // 4. Shift must have available slots
+    if (app.slots_filled >= app.slots_total) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Application is not in pending state' });
-    }
-
-    // Verify facility owns this shift
-    const facilityRes = await client.query(
-      'SELECT id FROM facility_profiles WHERE user_id = $1',
-      [req.user!.id]
-    );
-    if (facilityRes.rows.length === 0 || facilityRes.rows[0].id !== app.facility_id) {
-      await client.query('ROLLBACK');
-      return res.status(403).json({ error: 'Access denied' });
+      return res.status(400).json({ error: 'Shift is already full — no available slots' });
     }
 
     // Calculate financials
@@ -467,7 +486,7 @@ router.put('/:id/accept', requireAuth, async (req: AuthRequest, res) => {
       }).catch(() => {});
     }
 
-    // Create booking
+    // Create booking (the UNIQUE constraint on application_id prevents duplicate bookings)
     const bookingRes = await client.query(
       `INSERT INTO shift_bookings
          (ref_id, application_id, shift_id, professional_id, facility_id,
@@ -475,7 +494,7 @@ router.put('/:id/accept', requireAuth, async (req: AuthRequest, res) => {
        VALUES ('', $1, $2, $3, $4, $5, $6, $7, 'awaiting_payment')
        RETURNING *`,
       [
-        req.params.id, app.shift_id, app.professional_id, facilityRes.rows[0].id,
+        req.params.id, app.shift_id, app.professional_id, facilityProfileId,
         wageAmount, platformFeeAmount, totalCharged,
       ]
     );
@@ -490,56 +509,60 @@ router.put('/:id/accept', requireAuth, async (req: AuthRequest, res) => {
       [req.user!.id, app.pro_user_id, booking.id]
     ).catch(() => {});
 
-    // Mark shift as filled
+    // Mark shift as filled (increment slot count)
     await client.query(
       `UPDATE shifts SET status = 'filled', slots_filled = slots_filled + 1, updated_at = NOW()
        WHERE id = $1`,
       [app.shift_id]
     );
 
-    let stripe: any;
-    try {
-      stripe = await getUncachableStripeClient();
-    } catch {
-      await client.query('ROLLBACK');
-      return res.status(503).json({ error: 'Payment service not configured' });
-    }
-
-    // Create Stripe checkout session for the facility to pay
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      mode: 'payment',
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            unit_amount: Math.round(totalCharged * 100),
-            product_data: {
-              name: `Shift Booking ${booking.ref_id}`,
-              description: `Wage: $${wageAmount} + Platform Fee: $${platformFeeAmount}`,
-            },
-          },
-          quantity: 1,
-        },
-      ],
-      metadata: {
-        booking_id: booking.id,
-        type: 'staffing_shift',
-      },
-      success_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/facility-dashboard?payment=success&booking=${booking.id}`,
-      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/facility-dashboard?payment=cancelled`,
-    });
-
-    // Update booking with session ID
-    await client.query(
-      `UPDATE shift_bookings SET stripe_session_id = $1 WHERE id = $2`,
-      [session.id, booking.id]
-    );
-
+    // COMMIT the DB transaction before Stripe call. The booking is now safely persisted
+    // in 'awaiting_payment' status. If the Stripe call fails, the booking exists but has
+    // no checkout session — the facility can retry or the booking can be cleaned up.
     await client.query('COMMIT');
 
-    // Broadcast and Notify professional
-    const notifRes = await client.query(
+    // Create Stripe checkout session AFTER commit to prevent orphaned DB state.
+    // If this fails, the booking is safely in 'awaiting_payment' and can be retried.
+    let session: any = null;
+    try {
+      const stripe = await getUncachableStripeClient();
+      session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        mode: 'payment',
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              unit_amount: Math.round(totalCharged * 100),
+              product_data: {
+                name: `Shift Booking ${booking.ref_id}`,
+                description: `Wage: $${wageAmount} + Platform Fee: $${platformFeeAmount}`,
+              },
+            },
+            quantity: 1,
+          },
+        ],
+        metadata: {
+          booking_id: booking.id,
+          type: 'staffing_shift',
+        },
+        success_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/facility-dashboard?payment=success&booking=${booking.id}`,
+        cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/facility-dashboard?payment=cancelled`,
+      });
+
+      // Update booking with session ID (non-transactional, idempotent)
+      await query(
+        `UPDATE shift_bookings SET stripe_session_id = $1 WHERE id = $2`,
+        [session.id, booking.id]
+      );
+    } catch (stripeErr: any) {
+      // Stripe failed but the DB booking is committed. Log and return the booking
+      // without a checkout URL — the facility can retry payment later.
+      console.error('Stripe checkout session creation failed (booking saved):', stripeErr?.message);
+    }
+
+    // Broadcast and Notify professional (best-effort, post-commit)
+    const notifRes = await query(
       `INSERT INTO notifications (user_id, type, title, content)
        VALUES ($1, 'shift_application_accepted', 'Application Accepted!', 'Your application for shift ' || $2 || ' has been accepted by the facility. You are hired!')
        RETURNING *`,
@@ -574,17 +597,21 @@ router.put('/:id/accept', requireAuth, async (req: AuthRequest, res) => {
     if (proUser.rows[0]) {
       await enqueueEmail('account-approval', proUser.rows[0].email, {
         name: proUser.rows[0].name,
-        message: 'your application was accepted — you’re hired for the shift!',
+        message: 'your application was accepted — you\'re hired for the shift!',
       }).catch(() => {});
     }
 
     res.json({
-      booking: { ...booking, stripe_session_id: session.id },
-      checkoutUrl: session.url,
+      booking: { ...booking, stripe_session_id: session?.id || null },
+      checkoutUrl: session?.url || null,
       financials: { wageAmount, platformFeeAmount, totalCharged },
     });
-  } catch (err) {
-    await client.query('ROLLBACK');
+  } catch (err: any) {
+    await client.query('ROLLBACK').catch(() => {});
+    // SECURITY: Catch duplicate booking attempts (unique constraint on application_id)
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'This application has already been accepted' });
+    }
     console.error('Accept application error:', err);
     res.status(500).json({ error: 'Failed to accept application' });
   } finally {
@@ -593,23 +620,44 @@ router.put('/:id/accept', requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── PUT /api/staffing/applications/:id/reject ─────────────────
+// SECURITY: Verifies the calling facility owns the shift behind the application
+// before allowing rejection. Prevents cross-facility application manipulation.
 router.put('/:id/reject', requireAuth, async (req: AuthRequest, res) => {
   try {
     if (req.user!.role !== 'facility') {
       return res.status(403).json({ error: 'Facility access only' });
     }
 
+    // Look up the calling facility's profile ID for ownership verification
+    const facilityRes = await query(
+      'SELECT id FROM facility_profiles WHERE user_id = $1',
+      [req.user!.id]
+    );
+    if (facilityRes.rows.length === 0) {
+      return res.status(403).json({ error: 'Facility profile not found' });
+    }
+    const facilityProfileId = facilityRes.rows[0].id;
+
+    // SECURITY: Join through shifts to verify the facility owns the shift
+    // connected to this application. If the application belongs to another
+    // facility's shift, the JOIN fails and no rows are returned/updated.
     const result = await query(
       `UPDATE shift_applications sa
        SET status = 'rejected', reviewed_at = NOW()
-       FROM professional_profiles pp
-       WHERE sa.id = $1 AND sa.status = 'pending' AND pp.id = sa.professional_id
+       FROM professional_profiles pp, shifts s
+       WHERE sa.id = $1
+         AND sa.status = 'pending'
+         AND pp.id = sa.professional_id
+         AND s.id = sa.shift_id
+         AND s.facility_id = $2
        RETURNING sa.id, sa.shift_id, pp.user_id`,
-      [req.params.id]
+      [req.params.id, facilityProfileId]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Application not found or already processed' });
+      // SECURITY: return 403 (not 404) to avoid leaking whether the application exists.
+      // This covers both "not found" and "belongs to another facility" cases.
+      return res.status(403).json({ error: 'Application not found or access denied' });
     }
 
     const appRow = result.rows[0];
@@ -643,20 +691,12 @@ router.put('/:id/reject', requireAuth, async (req: AuthRequest, res) => {
       payload: { shiftId: appRow.shift_id },
     }).catch(() => {});
 
-    const shiftOwner = await query(
-      `SELECT fp.user_id
-       FROM shifts s
-       JOIN facility_profiles fp ON fp.id = s.facility_id
-       WHERE s.id = $1`,
-      [appRow.shift_id]
-    );
-    if (shiftOwner.rows[0]) {
-      await supabase.channel(`facility:${shiftOwner.rows[0].user_id}`).send({
-        type: 'broadcast',
-        event: 'shift_status_change',
-        payload: { shiftId: result.rows[0].shift_id, reason: 'application_rejected' },
-      }).catch(() => {});
-    }
+    await supabase.channel(`facility:${req.user!.id}`).send({
+      type: 'broadcast',
+      event: 'shift_status_change',
+      payload: { shiftId: appRow.shift_id, reason: 'application_rejected' },
+    }).catch(() => {});
+
     res.json({ message: 'Application rejected' });
   } catch (err) {
     console.error('Reject application error:', err);

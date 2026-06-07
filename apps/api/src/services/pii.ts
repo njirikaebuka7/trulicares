@@ -4,17 +4,19 @@
  * Used for sensitive identity data that must be stored but kept confidential:
  * government-ID images (base64), ID numbers, and background-check detail blobs.
  *
- * Gating: encryption activates only when PII_ENCRYPTION_KEY is configured (32 bytes,
- * supplied as 64 hex chars or base64). Without a key, values are stored as-is (the prior
- * behavior) and a one-time warning is logged — so existing deploys keep working until the
- * key is set, at which point all NEW writes are encrypted. Decryption is transparent and
- * back-compatible: plaintext (non-prefixed) values are returned unchanged.
+ * SECURITY hardening (2024):
+ * - In production (NODE_ENV=production), the app REFUSES TO BOOT if
+ *   PII_ENCRYPTION_KEY is missing or invalid. Sensitive data must never be
+ *   stored unencrypted in production.
+ * - In development, plaintext fallback requires explicit ALLOW_PLAINTEXT_PII=true.
+ * - encryptPII() throws in production if no key is available.
  *
  * Token format: `enc:v1:<base64( iv[12] | authTag[16] | ciphertext )>`
  */
 import crypto from 'crypto';
 
 const PREFIX = 'enc:v1:';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 let warned = false;
 
 function getKey(): Buffer | null {
@@ -31,16 +33,59 @@ function getKey(): Buffer | null {
   }
 }
 
+/**
+ * SECURITY: Validate PII encryption configuration on module load.
+ * In production, a missing or invalid key is fatal — the app will not start.
+ * In development, plaintext storage requires an explicit opt-in flag.
+ */
+function validatePiiConfig(): void {
+  const key = getKey();
+  if (IS_PRODUCTION && !key) {
+    throw new Error(
+      'FATAL: PII_ENCRYPTION_KEY is missing or invalid in production. ' +
+      'Refusing to start — sensitive data would be stored unencrypted. ' +
+      'Set PII_ENCRYPTION_KEY to a valid 32-byte key (64 hex chars or base64).'
+    );
+  }
+  if (!IS_PRODUCTION && !key) {
+    if (process.env.ALLOW_PLAINTEXT_PII === 'true') {
+      console.warn('⚠ PII_ENCRYPTION_KEY not set — identity data stored UNENCRYPTED (dev mode, ALLOW_PLAINTEXT_PII=true).');
+    } else {
+      console.warn(
+        '⚠ PII_ENCRYPTION_KEY not set. Set it to enable encryption, or set ALLOW_PLAINTEXT_PII=true to ' +
+        'explicitly allow unencrypted PII storage in development.'
+      );
+    }
+  }
+}
+
+// Run validation at module load (app startup)
+validatePiiConfig();
+
 export function isPiiEncryptionEnabled(): boolean {
   return getKey() !== null;
 }
 
-/** Encrypt a string. Returns an `enc:v1:` token, or the input unchanged if no key is set. */
+/** Encrypt a string. Returns an `enc:v1:` token. Throws in production if no key. */
 export function encryptPII(plain: string | null | undefined): string | null {
   if (plain == null) return plain ?? null;
   const key = getKey();
   if (!key) {
-    if (!warned) { console.warn('⚠ PII_ENCRYPTION_KEY not set — identity data stored unencrypted. Set it to enable encryption at rest.'); warned = true; }
+    // SECURITY: in production, refuse to store plaintext PII
+    if (IS_PRODUCTION) {
+      throw new Error('PII encryption key unavailable — cannot store sensitive data unencrypted in production.');
+    }
+    // In development, require explicit opt-in for plaintext storage
+    if (process.env.ALLOW_PLAINTEXT_PII !== 'true') {
+      throw new Error(
+        'PII_ENCRYPTION_KEY not set and ALLOW_PLAINTEXT_PII is not true. ' +
+        'Set one of them to proceed.'
+      );
+    }
+    if (!warned) {
+      console.warn('⚠ PII_ENCRYPTION_KEY not set — identity data stored unencrypted (dev mode).');
+      warned = true;
+    }
     return plain;
   }
   if (typeof plain === 'string' && plain.startsWith(PREFIX)) return plain; // already encrypted
@@ -80,3 +125,4 @@ export function decryptArray(arr: unknown): string[] {
   if (!Array.isArray(arr)) return [];
   return arr.map((v) => decryptPII(String(v)) as string);
 }
+

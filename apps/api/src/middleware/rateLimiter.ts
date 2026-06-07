@@ -91,6 +91,8 @@ export const byUserOrIp = (req: Request): string => {
 export const loginLimiter = rateLimiter(5, 15 * 60 * 1000, { prefix: 'login', keyBy: byIpAndEmail });
 export const registerLimiter = rateLimiter(5, 60 * 60 * 1000, { prefix: 'register' });
 export const forgotPasswordLimiter = rateLimiter(3, 60 * 60 * 1000, { prefix: 'forgot', keyBy: byIpAndEmail });
+// SECURITY: rate-limit reset-password to prevent brute-force token guessing
+export const resetPasswordLimiter = rateLimiter(5, 15 * 60 * 1000, { prefix: 'reset-pw', keyBy: byIpAndEmail });
 export const otpLimiter = rateLimiter(5, 15 * 60 * 1000, { prefix: 'otp', keyBy: byIpAndEmail });
 export const uploadLimiter = rateLimiter(10, 10 * 60 * 1000, { prefix: 'upload', keyBy: byUserOrIp });
 export const searchLimiter = rateLimiter(60, 60 * 1000, { prefix: 'search' });

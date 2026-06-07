@@ -46,7 +46,15 @@ function geofence(shiftLat: any, shiftLng: any, devLat: any, devLng: any) {
 }
 
 // Helper: get booking with role-based ownership check
+// SECURITY: Fail-closed — only professional and facility roles are allowed.
+// Any other role returns null, and the caller must return 403.
 async function getBookingForUser(bookingId: string, userId: string, role: string) {
+  // SECURITY: reject unsupported roles before querying. Without this guard,
+  // unknown roles would query by booking ID alone, leaking arbitrary booking data.
+  if (role !== 'professional' && role !== 'facility') {
+    return null;
+  }
+
   let whereClause = '';
   const params: any[] = [bookingId];
   if (role === 'professional') {
@@ -621,9 +629,15 @@ router.get('/bookings', requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── GET /api/staffing/bookings/:id — Single booking ──────────
+// SECURITY: Only professional and facility roles may access individual booking details.
 router.get('/bookings/:id', requireAuth, async (req: AuthRequest, res) => {
   try {
-    const booking = await getBookingForUser(req.params.id as string, req.user!.id, req.user!.role);
+    const role = req.user!.role;
+    // SECURITY: fail-closed — reject unsupported roles before querying
+    if (role !== 'professional' && role !== 'facility') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    const booking = await getBookingForUser(req.params.id as string, req.user!.id, role);
     if (!booking) {
       return res.status(404).json({ error: 'Booking not found' });
     }

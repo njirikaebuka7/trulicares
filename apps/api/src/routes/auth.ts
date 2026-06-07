@@ -10,6 +10,7 @@ import {
   loginLimiter,
   registerLimiter,
   forgotPasswordLimiter,
+  resetPasswordLimiter,
   otpLimiter,
   uploadLimiter,
 } from '../middleware/rateLimiter.js';
@@ -483,10 +484,22 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
       const user = result.rows[0];
       const token = crypto.randomBytes(32).toString('hex');
       const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      // SECURITY: store only a SHA-256 hash of the token. The raw token is sent
+      // to the user's email — never stored. If the DB is compromised, the hash
+      // is unusable without the original token.
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+      // Invalidate any previous reset tokens for this user before issuing a new one
       await query(
-        'UPDATE users SET reset_token = $1, reset_token_expires = $2 WHERE id = $3',
-        [token, expires, user.id]
+        `UPDATE users SET reset_token = NULL, reset_token_hash = NULL, reset_token_expires = NULL, reset_token_used = FALSE WHERE id = $1`,
+        [user.id]
       );
+      await query(
+        'UPDATE users SET reset_token_hash = $1, reset_token_expires = $2, reset_token_used = FALSE WHERE id = $3',
+        [tokenHash, expires, user.id]
+      );
+      // NOTE: the raw token is ONLY sent to the user's email; never logged.
       await sendPasswordResetEmail(email, user.name, token).catch((e) =>
         console.error('Reset email failed:', e?.message)
       );
@@ -500,7 +513,8 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
 });
 
 // POST /api/auth/reset-password
-router.post('/reset-password', async (req, res) => {
+// SECURITY: Rate-limited to prevent brute-force token guessing.
+router.post('/reset-password', resetPasswordLimiter, async (req, res) => {
   try {
     const { token, password } = req.body;
     if (!token || !password) return res.status(400).json({ error: 'Token and password are required' });
@@ -508,22 +522,32 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 8 characters and contain at least one uppercase letter, one lowercase letter, one number, and one special character.' });
     }
 
+    // SECURITY: hash the submitted token and look up by hash.
+    // The DB never stores the raw token, so even a DB compromise
+    // cannot reveal usable reset links.
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
     const result = await query(
       `SELECT id, name, email, role FROM users
-       WHERE reset_token = $1 AND reset_token_expires > NOW()`,
-      [token]
+       WHERE reset_token_hash = $1 AND reset_token_expires > NOW() AND (reset_token_used = FALSE OR reset_token_used IS NULL)`,
+      [tokenHash]
     );
     if (result.rows.length === 0) {
-      return res.status(400).json({ error: 'Reset link is invalid or has expired.' });
+      return res.status(400).json({ error: 'Reset link is invalid, expired, or has already been used.' });
     }
 
     const user = result.rows[0];
     const passwordHash = await bcrypt.hash(password, 12);
+
+    // SECURITY: mark the token as used and clear all reset state.
+    // This prevents token reuse and invalidates any other outstanding tokens.
     await query(
-      'UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expires = NULL WHERE id = $2',
+      `UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_hash = NULL,
+       reset_token_expires = NULL, reset_token_used = TRUE WHERE id = $2`,
       [passwordHash, user.id]
     );
 
+    // Issue a fresh JWT (effectively revoking old tokens since the password changed)
     const jwtToken = generateToken({ id: user.id, email: user.email, role: user.role, name: user.name });
     res.json({ message: 'Password reset successfully.', token: jwtToken, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
   } catch (err) {
