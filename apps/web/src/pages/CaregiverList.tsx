@@ -220,7 +220,7 @@ export default function CaregiverList() {
 
         {/* Loading state */}
         {loading ? (
-          <div className="flex flex-col gap-6 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-4xl mx-auto">
             {[1, 2, 3, 4].map(i => (
               <div key={i} className="bg-white rounded-3xl border border-gray-100 p-4 sm:p-5 h-36 sm:h-44 animate-pulse shadow-sm flex gap-4 sm:gap-6 items-center" />
             ))}
@@ -235,7 +235,7 @@ export default function CaregiverList() {
             </Button>
           </div>
         ) : (
-          <div className="flex flex-col gap-6 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-4xl mx-auto">
             {filtered.map((cg, i) => (
               <CaregiverCard
                 key={cg.id}

@@ -133,10 +133,10 @@ export default function CaregiverCard({ caregiver, index = 0 }: CaregiverCardPro
               </div>
             </div>
 
-            {/* Book Care CTA */}
+            {/* Request Care CTA */}
             <div className="shrink-0 flex items-center gap-2">
-              <span className="px-4 py-2 sm:px-5 sm:py-2.5 rounded-full bg-coral-500 hover:bg-coral-600 text-white text-xs sm:text-sm font-bold shadow-md shadow-coral-500/10 transition-colors flex items-center gap-1">
-                Book Care
+              <span className="px-4 py-2 sm:px-5 sm:py-2.5 rounded-full bg-brand-600 hover:bg-brand-700 text-white text-xs sm:text-sm font-bold shadow-md shadow-brand-600/10 transition-colors flex items-center gap-1">
+                Request Care
                 <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
               </span>
             </div>
