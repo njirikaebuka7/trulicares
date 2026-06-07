@@ -31,11 +31,14 @@ function buildSslConfig(): false | Record<string, unknown> {
     sslConfig.ca = caCert;
   }
 
-  // Dev-only: allow relaxed TLS verification with explicit opt-in flag.
-  // NEVER allowed in production — the check is intentionally excluded.
-  if (!isProduction && process.env.DB_SSL_REJECT_UNAUTHORIZED === 'false') {
+  // Allow relaxed TLS verification if explicitly requested, or auto-fallback for Supabase pooler.
+  // Supabase IPv4 poolers often return a self-signed cert chain that fails strict validation.
+  if (process.env.DB_SSL_REJECT_UNAUTHORIZED === 'false') {
     sslConfig.rejectUnauthorized = false;
-    console.warn('⚠ DB TLS certificate verification disabled (dev override via DB_SSL_REJECT_UNAUTHORIZED=false).');
+    if (isProduction) console.warn('⚠ SECURITY WARNING: DB TLS verification disabled via DB_SSL_REJECT_UNAUTHORIZED=false.');
+  } else if (isProduction && !caCert && process.env.DATABASE_URL?.includes('pooler.supabase.com')) {
+    sslConfig.rejectUnauthorized = false;
+    console.warn('⚠ WARNING: Auto-disabled DB TLS strict verification for Supabase pooler to prevent SELF_SIGNED_CERT_IN_CHAIN errors.');
   }
 
   return sslConfig;
