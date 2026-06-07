@@ -9,10 +9,18 @@ export function getCurrentPosition(): Promise<GeolocationPosition> {
       reject(new Error('Geolocation is not supported by your browser'));
       return;
     }
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
+    // Try high accuracy first (GPS), fall back to low accuracy (network-based) on failure
+    navigator.geolocation.getCurrentPosition(resolve, (highAccErr) => {
+      // Retry with low accuracy — works better on many mobile browsers
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: false,
+        timeout: 15000,
+        maximumAge: 300000, // accept cached position up to 5 min old
+      });
+    }, {
       enableHighAccuracy: true,
-      timeout: 15000,
-      maximumAge: 0,
+      timeout: 8000,
+      maximumAge: 60000,
     });
   });
 }

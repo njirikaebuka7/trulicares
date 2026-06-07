@@ -36,11 +36,15 @@ function displayOf(d: LocationData): string {
   return d.formattedAddress || [d.city, d.state, d.zipCode].filter(Boolean).join(', ');
 }
 
+function hasAllRequired(d: LocationData): boolean {
+  return REQUIRED.every((k) => String(d[k] || '').trim().length > 0);
+}
+
 /**
- * Robust location capture: never relies on raw GPS alone. GPS (or manual search) is
- * always reverse/forward-geocoded to a normalized {city,state,zip,address,...}, the user
- * must CONFIRM (editing low-confidence/missing fields), and we surface both the
- * coordinates and the normalized address to the parent via onConfirm.
+ * Robust location capture: GPS (or manual search) is reverse/forward-geocoded to a
+ * normalized {city,state,zip,address,...}. High-confidence results with all required
+ * fields are auto-confirmed; low-confidence or incomplete results open an edit card
+ * for the user to correct. The parent is notified via onConfirm.
  */
 export default function LocationPicker({ initial, onConfirm, accent = 'brand' }: Props) {
   const a = accent === 'emerald'
@@ -49,7 +53,7 @@ export default function LocationPicker({ initial, onConfirm, accent = 'brand' }:
 
   const hasInitial = !!(initial && (initial.city || initial.formattedAddress));
   const [confirmed, setConfirmed] = useState<LocationData | null>(hasInitial ? (initial as LocationData) : null);
-  const [editing, setEditing] = useState<LocationData | null>(null); // the card being confirmed
+  const [editing, setEditing] = useState<LocationData | null>(null);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState<'gps' | 'search' | null>(null);
@@ -63,18 +67,40 @@ export default function LocationPicker({ initial, onConfirm, accent = 'brand' }:
     locationSource: src,
   });
 
+  /** Auto-confirm if high-confidence + all required fields present, otherwise open edit card */
+  const selectCandidate = (data: LocationData) => {
+    if (hasAllRequired(data) && data.formattedAddress) {
+      // Auto-confirm — no extra step needed
+      const final: LocationData = { ...data, formattedAddress: data.formattedAddress || displayOf(data) };
+      setConfirmed(final);
+      setEditing(null);
+      setCandidates([]);
+      onConfirm(displayOf(final), final);
+    } else {
+      // Missing required fields — open edit card for user to fill in
+      setEditing(data);
+    }
+  };
+
   const useMyLocation = async () => {
     setError(''); setLoading('gps'); setCandidates([]);
     try {
       const pos = await getCurrentPosition();
       const d: any = await geoApi.reverse(pos.coords.latitude, pos.coords.longitude);
       const list: Candidate[] = d.candidates || [];
-      if (list.length === 0) { setError('Could not resolve your location. Please search manually.'); return; }
+      if (list.length === 0) { setError('Could not resolve your location. Please type your city or ZIP below.'); return; }
       setSource('gps');
-      // start confirming the best candidate, keep coords from GPS as the source of truth
-      setEditing({ ...toData(list[0], 'gps'), latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+      const data = { ...toData(list[0], 'gps'), latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+      selectCandidate(data);
     } catch (e: any) {
-      setError(e?.message?.includes('denied') ? 'Location permission denied — search manually instead.' : 'Location unavailable. Please search manually.');
+      const msg = e?.message || '';
+      if (msg.includes('denied')) {
+        setError('Location permission denied. Please allow location access in your browser settings, or type your city or ZIP below.');
+      } else if (msg.includes('timeout')) {
+        setError('Location detection timed out. Please type your city or ZIP below.');
+      } else {
+        setError('Could not detect your location. Please type your city or ZIP code in the search box above and tap the search icon.');
+      }
     } finally {
       setLoading(null);
     }
@@ -86,9 +112,16 @@ export default function LocationPicker({ initial, onConfirm, accent = 'brand' }:
     try {
       const d: any = await geoApi.forward(query.trim());
       const list: Candidate[] = d.candidates || [];
-      if (list.length === 0) setError('No matches found. Try a more specific address or ZIP.');
-      setSource('geocoded');
-      setCandidates(list);
+      if (list.length === 0) {
+        setError('No matches found. Try a more specific address or ZIP.');
+      } else if (list.length === 1) {
+        // Single result — auto-select it
+        setSource('geocoded');
+        selectCandidate(toData(list[0], 'geocoded'));
+      } else {
+        setSource('geocoded');
+        setCandidates(list);
+      }
     } catch {
       setError('Address lookup failed. Please try again.');
     } finally {
@@ -120,7 +153,7 @@ export default function LocationPicker({ initial, onConfirm, accent = 'brand' }:
               {confirmed.locationSource === 'gps' ? ' · from your device' : ''}
             </p>
           </div>
-          <button onClick={() => setEditing(confirmed)} className={cn('flex items-center gap-1 text-xs font-semibold', a.text)}>
+          <button type="button" onClick={() => { setConfirmed(null); setEditing(null); setQuery(''); }} className={cn('flex items-center gap-1 text-xs font-semibold', a.text)}>
             <Pencil className="w-3.5 h-3.5" /> Change
           </button>
         </div>
@@ -161,10 +194,10 @@ export default function LocationPicker({ initial, onConfirm, accent = 'brand' }:
         </div>
         {field('address', 'Street address (optional)', false, '123 Main St')}
         <div className="flex gap-2 pt-1">
-          <button onClick={() => { setEditing(null); }} className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-100">
+          <button type="button" onClick={() => { setEditing(null); }} className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-100">
             Cancel
           </button>
-          <button onClick={confirm} disabled={missing.length > 0}
+          <button type="button" onClick={confirm} disabled={missing.length > 0}
             className={cn('flex-1 px-4 py-2 rounded-xl text-sm font-bold text-white transition-colors disabled:opacity-50', a.btn)}>
             Confirm location
           </button>
@@ -186,12 +219,12 @@ export default function LocationPicker({ initial, onConfirm, accent = 'brand' }:
             placeholder="e.g. Brooklyn, NY or 11201"
             className={cn('flex-1 px-4 py-3 rounded-xl border border-gray-200 outline-none focus:ring-2', a.ring)}
           />
-          <button onClick={search} disabled={loading === 'search'}
+          <button type="button" onClick={search} disabled={loading === 'search'}
             className={cn('px-4 rounded-xl text-white shrink-0 disabled:opacity-60', a.btn)}>
             {loading === 'search' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
           </button>
         </div>
-        <button onClick={useMyLocation} disabled={loading === 'gps'}
+        <button type="button" onClick={useMyLocation} disabled={loading === 'gps'}
           className={cn('flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl font-medium text-sm transition-colors disabled:opacity-60', a.bg, a.text, a.bgH)}>
           {loading === 'gps' ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
           {loading === 'gps' ? 'Detecting your location…' : 'Use my current location'}
@@ -200,17 +233,20 @@ export default function LocationPicker({ initial, onConfirm, accent = 'brand' }:
       </div>
 
       {candidates.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-200 divide-y divide-gray-50 overflow-hidden">
-          {candidates.map((c, i) => (
-            <button key={i} onClick={() => setEditing(toData(c, source))}
-              className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors">
-              <MapPin className={cn('w-4 h-4 mt-0.5 shrink-0', a.text)} />
-              <div className="min-w-0">
-                <p className="text-sm text-gray-800 truncate">{c.formattedAddress || [c.city, c.state, c.zipCode].filter(Boolean).join(', ')}</p>
-                {c.confidence === 'low' && <p className="text-[11px] text-amber-600">Low confidence — please verify the details</p>}
-              </div>
-            </button>
-          ))}
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+          <p className="px-4 pt-3 pb-1 text-xs font-semibold text-gray-500">Select your location:</p>
+          <div className="divide-y divide-gray-50">
+            {candidates.map((c, i) => (
+              <button type="button" key={i} onClick={() => selectCandidate(toData(c, source))}
+                className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+                <MapPin className={cn('w-4 h-4 mt-0.5 shrink-0', a.text)} />
+                <div className="min-w-0">
+                  <p className="text-sm text-gray-800 truncate">{c.formattedAddress || [c.city, c.state, c.zipCode].filter(Boolean).join(', ')}</p>
+                  {c.confidence === 'low' && <p className="text-[11px] text-amber-600">Low confidence — please verify the details</p>}
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>
