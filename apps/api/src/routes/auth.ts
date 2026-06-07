@@ -542,9 +542,12 @@ router.post('/email/send-code', otpLimiter, async (req, res) => {
     const email = String(req.body?.email || '').toLowerCase().trim();
     if (!EMAIL_REGEX.test(email)) return res.status(400).json({ error: 'A valid email is required' });
 
-    // If an account already exists and is verified, short-circuit.
-    const existing = await query('SELECT name, email_verified FROM users WHERE email = $1', [email]);
-    if (existing.rows[0]?.email_verified) return res.json({ message: 'Email already verified', alreadyVerified: true, email });
+    // If an ACTIVE account already exists and is verified, short-circuit.
+    // Deleted accounts should still be allowed to re-verify during re-registration.
+    const existing = await query('SELECT name, email_verified, status FROM users WHERE email = $1', [email]);
+    if (existing.rows[0]?.email_verified && existing.rows[0]?.status !== 'deleted') {
+      return res.json({ message: 'Email already verified', alreadyVerified: true, email });
+    }
 
     const name = existing.rows[0]?.name || 'there';
     const code = Math.floor(100000 + Math.random() * 900000).toString();

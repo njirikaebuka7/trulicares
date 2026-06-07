@@ -110,8 +110,13 @@ export default function ProvideCare() {
     setLoading(true);
     setPhoneError('');
     try {
-      await authApi.sendEmailCode(email);
-      setOtpSent(true);
+      const res: any = await authApi.sendEmailCode(email);
+      if (res?.alreadyVerified) {
+        // Email was already verified in a previous session — skip OTP
+        setIsPhoneVerified(true);
+      } else {
+        setOtpSent(true);
+      }
     } catch (err: any) {
       setPhoneError(err.message || 'Failed to send code');
     } finally {
