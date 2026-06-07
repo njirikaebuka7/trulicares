@@ -43,9 +43,9 @@ export default function CaregiverCard({ caregiver, index = 0 }: CaregiverCardPro
       to={`/caregivers/${caregiver.id}`}
       className="group block bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-brand-200 transition-all duration-300 overflow-hidden p-4 sm:p-5"
     >
-      <div className="flex flex-col xs:flex-row items-center xs:items-stretch gap-4 sm:gap-6">
+      <div className="flex flex-row items-center gap-4 sm:gap-6">
         {/* Left Side: Photo */}
-        <div className="relative w-full xs:w-28 xs:h-28 sm:w-36 sm:h-36 aspect-square shrink-0">
+        <div className="relative w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 aspect-square shrink-0">
           {caregiver.photoUrl ? (
             <img
               src={caregiver.photoUrl}
@@ -55,7 +55,7 @@ export default function CaregiverCard({ caregiver, index = 0 }: CaregiverCardPro
             />
           ) : (
             <div className={cn(
-              'w-full h-full rounded-2xl flex items-center justify-center text-white text-3xl font-black',
+              'w-full h-full rounded-2xl flex items-center justify-center text-white text-2xl sm:text-3xl font-black',
               avatarColors[index % avatarColors.length]
             )}>
               {caregiver.name.charAt(0).toUpperCase()}
@@ -63,8 +63,8 @@ export default function CaregiverCard({ caregiver, index = 0 }: CaregiverCardPro
           )}
           
           {caregiver.verified && (
-            <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-coral-500 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
-              <Check className="w-3.5 h-3.5 text-white stroke-[3px]" />
+            <div className="absolute -bottom-1 -right-1 w-5 h-5 sm:w-6 sm:h-6 bg-coral-500 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+              <Check className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-white stroke-[3px]" />
             </div>
           )}
         </div>
@@ -75,22 +75,22 @@ export default function CaregiverCard({ caregiver, index = 0 }: CaregiverCardPro
             {/* Top row: Name & Price */}
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-1.5 min-w-0">
-                <h3 className="font-bold text-gray-900 text-lg group-hover:text-brand-600 transition-colors truncate">
+                <h3 className="font-bold text-gray-900 text-sm sm:text-base md:text-lg group-hover:text-brand-600 transition-colors truncate">
                   {caregiver.name}
                 </h3>
                 {caregiver.verified && (
-                  <span className="shrink-0 w-5 h-5 rounded-full bg-coral-50 flex items-center justify-center border border-coral-200" title="Verified Professional">
-                    <Check className="w-3 h-3 text-coral-500 stroke-[3px]" />
+                  <span className="shrink-0 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-coral-50 flex items-center justify-center border border-coral-200" title="Verified Professional">
+                    <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-coral-500 stroke-[3px]" />
                   </span>
                 )}
               </div>
               <div className="text-right shrink-0">
-                <span className="text-lg font-bold text-gray-900">{rateDisplay}</span>
+                <span className="text-sm sm:text-base md:text-lg font-bold text-gray-900">{rateDisplay}</span>
               </div>
             </div>
 
             {/* Specialty / Job Title */}
-            <p className="text-sm font-medium text-gray-400 mt-0.5 capitalize">
+            <p className="text-xs sm:text-sm font-medium text-gray-400 mt-0.5 capitalize">
               {caregiver.jobTitle || (caregiver.specialties && caregiver.specialties[0] ? caregiver.specialties[0].replace('-', ' ') : 'Caregiver')}
             </p>
 

@@ -112,15 +112,15 @@ export default function TopCaregivers() {
 
         {/* Caregivers Cards List */}
         {loading ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="flex flex-col gap-6 max-w-4xl mx-auto">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="bg-white rounded-3xl border border-gray-100 p-6 h-48 animate-pulse shadow-sm flex gap-6">
-                <div className="w-28 h-28 bg-gray-100 rounded-2xl shrink-0" />
-                <div className="flex-1 space-y-4">
+              <div key={i} className="bg-white rounded-3xl border border-gray-100 p-4 sm:p-5 h-36 sm:h-44 animate-pulse shadow-sm flex gap-4 sm:gap-6 items-center">
+                <div className="w-20 h-20 sm:w-28 sm:h-28 bg-gray-100 rounded-2xl shrink-0" />
+                <div className="flex-1 space-y-3 min-w-0">
                   <div className="h-4 bg-gray-100 rounded w-1/3" />
                   <div className="h-3 bg-gray-100 rounded w-1/4" />
-                  <div className="h-6 bg-gray-100 rounded w-1/2" />
-                  <div className="h-8 bg-gray-100 rounded w-1/4 mt-auto" />
+                  <div className="h-4 bg-gray-100 rounded w-1/2" />
+                  <div className="h-6 bg-gray-100 rounded w-1/4 mt-auto" />
                 </div>
               </div>
             ))}
@@ -135,7 +135,7 @@ export default function TopCaregivers() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="flex flex-col gap-6 max-w-4xl mx-auto">
             {caregivers.map((cg, i) => (
               <CaregiverCard
                 key={cg.id}
