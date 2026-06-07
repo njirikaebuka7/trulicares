@@ -52,6 +52,19 @@ export async function reverseGeocode(lat: number, lon: number): Promise<GeoResul
 
 export async function detectLocationWithZip(): Promise<GeoResult> {
   const position = await getCurrentPosition();
+  try {
+    const { geo } = await import('@/lib/api');
+    const d: any = await geo.reverse(position.coords.latitude, position.coords.longitude);
+    const candidate = d.candidates?.[0];
+    if (candidate) {
+      return {
+        address: candidate.formattedAddress || `${candidate.city}, ${candidate.state}`,
+        zip: candidate.zipCode
+      };
+    }
+  } catch (err) {
+    console.warn('Backend geocoding failed, trying client-side fallback:', err);
+  }
   return reverseGeocode(position.coords.latitude, position.coords.longitude);
 }
 

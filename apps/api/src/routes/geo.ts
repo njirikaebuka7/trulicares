@@ -1,11 +1,10 @@
-import { Router } from 'express';
-import { requireAuth, AuthRequest } from '../middleware/auth.js';
+import { Router, Request } from 'express';
 import { searchLimiter } from '../middleware/rateLimiter.js';
 import { reverseGeocode, forwardGeocode, type GeoResult } from '../services/geocode.js';
 
 /**
- * Geocoding endpoints used by the location picker. Auth + rate-limited; provider keys
- * stay server-side. Results are normalized + cached in the geocode service.
+ * Geocoding endpoints used by the location picker. Publicly accessible + rate-limited;
+ * provider keys stay server-side. Results are normalized + cached in the geocode service.
  */
 const router = Router();
 
@@ -24,7 +23,7 @@ function toClient(r: GeoResult) {
 }
 
 // POST /api/geo/reverse — { lat, lng } → normalized candidate(s)
-router.post('/reverse', requireAuth, searchLimiter, async (req: AuthRequest, res) => {
+router.post('/reverse', searchLimiter, async (req: Request, res) => {
   try {
     const lat = Number(req.body?.lat);
     const lng = Number(req.body?.lng);
@@ -40,7 +39,7 @@ router.post('/reverse', requireAuth, searchLimiter, async (req: AuthRequest, res
 });
 
 // POST /api/geo/forward — { query } → normalized candidates (manual entry / ZIP)
-router.post('/forward', requireAuth, searchLimiter, async (req: AuthRequest, res) => {
+router.post('/forward', searchLimiter, async (req: Request, res) => {
   try {
     const q = String(req.body?.query || '').trim();
     if (q.length < 3) return res.status(400).json({ error: 'Enter at least 3 characters' });
