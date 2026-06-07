@@ -47,9 +47,55 @@ router.post('/register', registerLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 8 characters and contain at least one uppercase letter, one lowercase letter, one number, and one special character.' });
     }
 
-    const existing = await query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+    const existing = await query('SELECT id, status FROM users WHERE email = $1', [email.toLowerCase()]);
     if (existing.rows.length > 0) {
-      return res.status(409).json({ error: 'An account with this email already exists' });
+      const existingUser = existing.rows[0];
+      if (existingUser.status === 'deleted') {
+        // Reactivate deleted account with new credentials
+        const passwordHash = await bcrypt.hash(password, 12);
+        const reactivated = await query(
+          `UPDATE users SET name = $1, password_hash = $2, role = $3, status = 'active', 
+           deleted_at = NULL, phone = $4, updated_at = NOW()
+           WHERE id = $5
+           RETURNING id, name, email, role, status, photo_url, phone`,
+          [name.trim(), passwordHash, detectRole(email.toLowerCase(), requestedRole), phone || null, existingUser.id]
+        );
+        const user = reactivated.rows[0];
+        if (user.role === 'caregiver' && caregiverData) {
+          // Upsert caregiver profile
+          await query(
+            `INSERT INTO caregiver_profiles (user_id, bio, specialties, hourly_rate_min, hourly_rate_max,
+              years_experience, availability, location, service_zips, job_title, languages, certifications)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+             ON CONFLICT (user_id) DO UPDATE SET
+              bio = EXCLUDED.bio, specialties = EXCLUDED.specialties,
+              hourly_rate_min = EXCLUDED.hourly_rate_min, hourly_rate_max = EXCLUDED.hourly_rate_max,
+              years_experience = EXCLUDED.years_experience, location = EXCLUDED.location,
+              service_zips = EXCLUDED.service_zips`,
+            [
+              user.id,
+              caregiverData?.bio || '',
+              caregiverData?.specialties || [],
+              caregiverData?.hourlyRateMin || 15,
+              caregiverData?.hourlyRateMax || 30,
+              caregiverData?.yearsExperience || 0,
+              caregiverData?.availability || 'Flexible',
+              caregiverData?.location || '',
+              caregiverData?.serviceZips || [],
+              caregiverData?.jobTitle || 'Caregiver',
+              caregiverData?.languages || ['English'],
+              caregiverData?.certifications || [],
+            ]
+          );
+        }
+        const token = generateToken({ id: user.id, email: user.email, role: user.role, name: user.name });
+        sendWelcomeEmail(user.email, user.name, user.role).catch(console.error);
+        return res.status(201).json({
+          token,
+          user: { id: user.id, name: user.name, email: user.email, role: user.role, photoUrl: user.photo_url },
+        });
+      }
+      return res.status(409).json({ error: 'An account with this email already exists. Please log in instead.' });
     }
 
     // SECURITY: never let anyone SELF-REGISTER an allowlisted admin email. Otherwise whoever

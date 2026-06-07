@@ -267,9 +267,7 @@ export default function ProvideCare() {
             </p>
           )}
         </div>
-        {error && (
-          <div className="bg-red-50 text-red-600 text-sm p-3 rounded-xl">{error}</div>
-        )}
+
       </div>
     </>,
     <>
@@ -554,6 +552,9 @@ export default function ProvideCare() {
 
         {steps[step]}
 
+        {error && (
+          <div className="bg-red-50 text-red-600 text-sm p-3 rounded-xl mb-4">{error}</div>
+        )}
         <div className="mt-8">
           <Button
             variant="primary"
@@ -562,9 +563,9 @@ export default function ProvideCare() {
             onClick={handleNext}
             disabled={isNextDisabled()}
             loading={loading}
-            icon={step < 4 ? <ArrowRight className="w-5 h-5" /> : <Check className="w-5 h-5" />}
+            icon={step < 5 ? <ArrowRight className="w-5 h-5" /> : <Check className="w-5 h-5" />}
           >
-            {step < 4 ? 'Continue' : 'Create Account'}
+            {step < 5 ? 'Continue' : 'Create Account'}
           </Button>
 
           {step > 0 && (

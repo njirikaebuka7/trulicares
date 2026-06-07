@@ -153,7 +153,7 @@ export default function LocationPicker({ initial, onConfirm, accent = 'brand' }:
               {confirmed.locationSource === 'gps' ? ' · from your device' : ''}
             </p>
           </div>
-          <button type="button" onClick={() => { setConfirmed(null); setEditing(null); setQuery(''); }} className={cn('flex items-center gap-1 text-xs font-semibold', a.text)}>
+          <button type="button" onClick={() => setEditing(confirmed)} className={cn('flex items-center gap-1 text-xs font-semibold', a.text)}>
             <Pencil className="w-3.5 h-3.5" /> Change
           </button>
         </div>
