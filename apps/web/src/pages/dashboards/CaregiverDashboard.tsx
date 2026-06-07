@@ -12,7 +12,7 @@ import BackgroundCheckCard from '@/components/BackgroundCheckCard';
 import ReportModal from '@/components/ReportModal';
 import { useAuth } from '@/context/AuthContext';
 import LocationPicker from '@/components/ui/LocationPicker';
-import { auth as authApi, get, post, put } from '@/lib/api';
+import { auth as authApi, get, post, put, siteSettings } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import { sameDay, dayLabel, listStamp } from '@/utils/chatTime';
 import { supabase } from '@/lib/supabase';
@@ -176,6 +176,20 @@ export default function CaregiverDashboard() {
   // accept both 'approved' and 'passed' as the success state.
   const [bgCheckStatus, setBgCheckStatus] = useState<'none' | 'pending' | 'approved' | 'passed' | 'awaiting_payment'>('none');
   const [bgStep, setBgStep] = useState(1);
+  const [bgFee, setBgFee] = useState('39.00');
+
+  useEffect(() => {
+    siteSettings.getPublic().then((s) => {
+      if (s?.backgroundCheckFee) {
+        const val = Number(s.backgroundCheckFee);
+        if (!isNaN(val)) {
+          setBgFee(val.toFixed(2));
+        } else {
+          setBgFee(s.backgroundCheckFee);
+        }
+      }
+    }).catch(() => {});
+  }, []);
 
   const [jobRequests, setJobRequests] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
@@ -3887,7 +3901,7 @@ export default function CaregiverDashboard() {
                         <div className="bg-emerald-50/30 rounded-2xl p-6 border border-emerald-100 mb-8">
                           <div className="flex items-center justify-between mb-6">
                             <span className="text-sm font-bold text-emerald-900">Background Screening Fee</span>
-                            <span className="text-2xl font-bold text-emerald-600">$39.00</span>
+                            <span className="text-2xl font-bold text-emerald-600">${bgFee}</span>
                           </div>
                           <ul className="text-sm text-gray-600 space-y-3">
                             <li className="flex items-center gap-3">

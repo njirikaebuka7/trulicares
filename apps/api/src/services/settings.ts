@@ -120,9 +120,12 @@ export async function getPublicSettings(): Promise<{
   emails: string[];
   phones: string[];
   addresses: string[];
+  familyMatchingFee: string;
+  backgroundCheckFee: string;
 }> {
   const all = await loadAll();
   const g = (k: string) => all[k] ?? GENERAL_DEFAULTS[k]?.value ?? '';
+  const p = (k: string) => all[k] ?? PRICING_DEFAULTS[k]?.value ?? '';
   return {
     platformName: g('platform_name'),
     socials: {
@@ -133,5 +136,7 @@ export async function getPublicSettings(): Promise<{
     emails: parseArraySetting(all['contact_emails'], parseArraySetting(GENERAL_DEFAULTS.contact_emails.value, [])),
     phones: parseArraySetting(all['contact_phones'], parseArraySetting(GENERAL_DEFAULTS.contact_phones.value, [])),
     addresses: parseArraySetting(all['contact_addresses'], parseArraySetting(GENERAL_DEFAULTS.contact_addresses.value, [])),
+    familyMatchingFee: p('family_matching_fee') || '9.99',
+    backgroundCheckFee: p('background_check_fee') || '39',
   };
 }

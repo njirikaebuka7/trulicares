@@ -1,38 +1,11 @@
-import { HelpCircle, ChevronRight, Clock, User } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { HelpCircle, ChevronRight, Clock, User } from 'lucide-react';
 import { cn } from '@/utils/cn';
-import { resources as resourcesApi } from '@/lib/api';
+import { resources as resourcesApi, siteSettings } from '@/lib/api';
 import Seo from '@/components/Seo';
 
 const categories = ['All', 'Child Care', 'Senior Care', 'Adult Care', 'Cleaning'];
-
-const faqs = [
-  {
-    q: 'How does TruliCares verify caregivers?',
-    a: 'All caregivers undergo email verification and identity verification before they can receive matches. Optional background checks are available and clearly indicated with a badge on caregiver profiles.',
-  },
-  {
-    q: 'When do I pay for care services?',
-    a: 'You only pay a small match-unlock fee ($9.99) when a caregiver accepts your request and you want to message them. Caregiver wages are paid directly to them — TruliCares never holds caregiver earnings.',
-  },
-  {
-    q: 'Can I interview caregivers before hiring?',
-    a: 'Absolutely! Once messaging is unlocked, you can schedule phone calls, video chats, or in-person interviews before making any commitments. We encourage families to take their time finding the right fit.',
-  },
-  {
-    q: 'What if a match doesn\'t work out?',
-    a: 'If your first match isn\'t the right fit, our system will automatically rematch you with other available caregivers in your area. You can also submit a new care request at any time.',
-  },
-  {
-    q: 'Is it really free for caregivers to join?',
-    a: 'Yes — caregivers register, create profiles, and receive matches completely free. Optional paid features include background check badges and profile boosts for increased visibility.',
-  },
-  {
-    q: 'What care categories does TruliCares support?',
-    a: 'We currently support four categories: Child Care (nannies, babysitters, daycare), Senior Care (companions, personal care, live-in), Adult Care (personal, behavioral, community support), and Cleaning Services (standard, deep clean, move-in/out).',
-  },
-];
 
 // Gradient placeholders for articles without images
 const placeholderGradients: Record<string, string> = {
@@ -44,6 +17,13 @@ export default function Resources() {
   const [activeCategory, setActiveCategory] = useState('All');
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [cmsPosts, setCmsPosts] = useState<any[]>([]);
+  const [matchingFee, setMatchingFee] = useState('9.99');
+
+  useEffect(() => {
+    siteSettings.getPublic().then((s) => {
+      if (s?.familyMatchingFee) setMatchingFee(s.familyMatchingFee);
+    }).catch(() => {});
+  }, []);
 
   // Pull published CMS posts
   useEffect(() => {
@@ -66,6 +46,33 @@ export default function Resources() {
     ? allArticles
     : allArticles.filter(a => a.category === activeCategory);
 
+  const dynamicFaqs = [
+    {
+      q: 'How does TruliCares verify caregivers?',
+      a: 'All caregivers undergo email verification and identity verification before they can receive matches. Optional background checks are available and clearly indicated with a badge on caregiver profiles.',
+    },
+    {
+      q: 'When do I pay for care services?',
+      a: `You only pay a small match-unlock fee ($${matchingFee}) when a caregiver accepts your request and you want to message them. Caregiver wages are paid directly to them — TruliCares never holds caregiver earnings.`,
+    },
+    {
+      q: 'Can I interview caregivers before hiring?',
+      a: 'Absolutely! Once messaging is unlocked, you can schedule phone calls, video chats, or in-person interviews before making any commitments. We encourage families to take their time finding the right fit.',
+    },
+    {
+      q: 'What if a match doesn\'t work out?',
+      a: 'If your first match isn\'t the right fit, our system will automatically rematch you with other available caregivers in your area. You can also submit a new care request at any time.',
+    },
+    {
+      q: 'Is it really free for caregivers to join?',
+      a: 'Yes — caregivers register, create profiles, and receive matches completely free. Optional paid features include background check badges and profile boosts for increased visibility.',
+    },
+    {
+      q: 'What care categories does TruliCares support?',
+      a: 'We currently support four categories: Child Care (nannies, babysitters, daycare), Senior Care (companions, personal care, live-in), Adult Care (personal, behavioral, community support), and Cleaning Services (standard, deep clean, move-in/out).',
+    },
+  ];
+
   return (
     <div className="bg-white">
       <Seo
@@ -85,27 +92,29 @@ export default function Resources() {
           </span>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight">
             Care knowledge &{' '}
-            <span className="bg-gradient-to-r from-brand-300 to-coral-400 bg-clip-text text-transparent">insights</span>
+            <span className="bg-gradient-to-r from-brand-300 to-coral-400 bg-clip-text text-transparent">
+              expert guides
+            </span>
           </h1>
-          <p className="text-lg text-brand-200 max-w-2xl mx-auto leading-relaxed">
-            Expert articles, practical guides, and answers to help you make informed care decisions for your family.
+          <p className="text-brand-200 max-w-xl mx-auto text-base sm:text-lg leading-relaxed">
+            Hiring advice, caregiver verification guides, activity ideas, and deep dives into family wellness.
           </p>
         </div>
       </section>
 
-      {/* Category filter */}
-      <section className="py-6 border-b border-gray-100 sticky top-16 lg:top-[72px] bg-white/95 backdrop-blur-lg z-10">
+      {/* Categories Filter */}
+      <section className="py-8 bg-gray-50 border-b border-gray-150 sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {categories.map(cat => (
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+            {categories.map((cat) => (
               <button
                 key={cat}
                 onClick={() => setActiveCategory(cat)}
                 className={cn(
-                  'px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors',
+                  'px-5 py-2.5 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-200',
                   activeCategory === cat
-                    ? 'bg-brand-500 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    ? 'bg-brand-600 text-white shadow-md shadow-brand-600/10'
+                    : 'bg-white text-gray-650 hover:bg-gray-100 hover:text-gray-900 border border-gray-200'
                 )}
               >
                 {cat}
@@ -115,68 +124,78 @@ export default function Resources() {
         </div>
       </section>
 
-      {/* Articles */}
+      {/* Main Articles Grid */}
       <section className="py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredArticles.map(article => (
-              <Link
-                key={article.id}
-                to={`/resources/${article.id}`}
-                className="group bg-white rounded-3xl border border-gray-100 overflow-hidden hover:shadow-xl hover:border-transparent transition-all duration-300 block"
-              >
-                {/* Thumbnail */}
-                <div className="relative h-48 overflow-hidden">
-                  {article.image ? (
-                    <img
-                      src={article.image}
-                      alt={article.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                  ) : (
-                    <div className={cn(
-                      'w-full h-full bg-gradient-to-br flex items-center justify-center',
-                      placeholderGradients[article.category] || 'from-gray-400 to-gray-600'
-                    )}>
-                      <span className="text-5xl opacity-40">
-                        {article.category === 'Adult Care' ? '🧑' : article.category === 'Senior Care' ? '❤️' : '📝'}
+          {filteredArticles.length === 0 ? (
+            <div className="text-center py-20 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+              <span className="text-4xl block mb-3">📂</span>
+              <p className="text-gray-400 text-sm font-medium">No articles published in this category yet.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {filteredArticles.map((article) => (
+                <Link
+                  key={article.id}
+                  to={`/resources/${article.id}`}
+                  className="group bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 flex flex-col"
+                >
+                  {/* Card cover image */}
+                  <div className="relative aspect-[16/10] overflow-hidden bg-gray-150 shrink-0">
+                    {article.image ? (
+                      <img
+                        src={article.image}
+                        alt={article.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className={cn(
+                        'w-full h-full bg-gradient-to-br flex items-center justify-center',
+                        placeholderGradients[article.category] || 'from-gray-400 to-gray-600'
+                      )}>
+                        <span className="text-5xl opacity-40">
+                          {article.category === 'Adult Care' ? '🧑' : article.category === 'Senior Care' ? '❤️' : '📝'}
+                        </span>
+                      </div>
+                    )}
+                    {/* Category badge */}
+                    <div className="absolute top-3 left-3">
+                      <span className="px-3 py-1 rounded-full bg-white/90 backdrop-blur-sm text-xs font-bold text-gray-800 shadow-sm">
+                        {article.category}
                       </span>
                     </div>
-                  )}
-                  {/* Category badge */}
-                  <div className="absolute top-3 left-3">
-                    <span className="px-3 py-1 rounded-full bg-white/90 backdrop-blur-sm text-xs font-bold text-gray-800 shadow-sm">
-                      {article.category}
-                    </span>
+                    {/* Type badge */}
+                    <div className="absolute top-3 right-3">
+                      <span className={cn(
+                        'px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider',
+                        article.type === 'guide' ? 'bg-brand-500 text-white' : article.type === 'video' ? 'bg-coral-500 text-white' : 'bg-white/90 text-gray-700'
+                      )}>
+                        {article.type}
+                      </span>
+                    </div>
                   </div>
-                  {/* Type badge */}
-                  <div className="absolute top-3 right-3">
-                    <span className={cn(
-                      'px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider',
-                      article.type === 'guide' ? 'bg-brand-500 text-white' : article.type === 'video' ? 'bg-coral-500 text-white' : 'bg-white/90 text-gray-700'
-                    )}>
-                      {article.type}
-                    </span>
-                  </div>
-                </div>
 
-                <div className="p-6">
-                  <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-brand-600 transition-colors leading-snug">
-                    {article.title}
-                  </h3>
-                  <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">{article.excerpt}</p>
-                  <div className="flex items-center gap-4 mt-4 text-xs text-gray-400">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5" /> {article.readTime}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <User className="w-3.5 h-3.5" /> {article.author}
-                    </span>
+                  <div className="p-6 flex-1 flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-brand-600 transition-colors leading-snug">
+                        {article.title}
+                      </h3>
+                      <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">{article.excerpt}</p>
+                    </div>
+                    <div className="flex items-center gap-4 mt-4 text-xs text-gray-400 pt-3 border-t border-gray-50">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5" /> {article.readTime}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <User className="w-3.5 h-3.5" /> {article.author}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -192,7 +211,7 @@ export default function Resources() {
           </div>
 
           <div className="space-y-3">
-            {faqs.map((faq, i) => (
+            {dynamicFaqs.map((faq, i) => (
               <div
                 key={i}
                 className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow"

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { getNumberSetting } from '../services/settings.js';
 import { query } from '../db.js';
 import { requireAuth, AuthRequest } from '../middleware/auth.js';
 import { getUncachableStripeClient } from '../stripeClient.js';
@@ -124,6 +125,12 @@ router.post('/checkout', requireAuth, async (req: AuthRequest, res) => {
 
     const host = req.get('origin') || process.env.APP_URL || 'http://localhost:5000';
     
+    const bgFeeDollars = await getNumberSetting('background_check_fee', 39);
+    const bgFeeCents = Math.round(bgFeeDollars * 100);
+
+    const matchingFeeDollars = await getNumberSetting('family_matching_fee', 9.99);
+    const matchingFeeCents = Math.round(matchingFeeDollars * 100);
+
     let session;
     if (isBackgroundCheck) {
       session = await stripe.checkout.sessions.create({
@@ -136,7 +143,7 @@ router.post('/checkout', requireAuth, async (req: AuthRequest, res) => {
               name: 'TruliCares Premium Background Check',
               description: 'Identity verification, national criminal database search, sex offender registry search, and professional certification checks',
             },
-            unit_amount: 3900, // $39.00
+            unit_amount: bgFeeCents,
           },
           quantity: 1,
         }],
@@ -150,7 +157,7 @@ router.post('/checkout', requireAuth, async (req: AuthRequest, res) => {
       await query(
         `INSERT INTO payments (user_id, amount_cents, currency, stripe_payment_intent_id, description, status, ref_id)
          VALUES ($1, $2, 'usd', $3, 'TruliCares Premium Background Check', 'pending', generate_payment_ref())`,
-         [req.user!.id, 3900, session.id]
+         [req.user!.id, bgFeeCents, session.id]
       );
     } else if (matchId) {
       // One-time payment for messaging unlock
@@ -164,7 +171,7 @@ router.post('/checkout', requireAuth, async (req: AuthRequest, res) => {
               name: 'Direct Messaging Unlock',
               description: 'Unlock direct messaging with your selected caregiver',
             },
-            unit_amount: 999, // $9.99
+            unit_amount: matchingFeeCents,
           },
           quantity: 1,
         }],
@@ -178,7 +185,7 @@ router.post('/checkout', requireAuth, async (req: AuthRequest, res) => {
       await query(
         `INSERT INTO payments (user_id, match_id, amount_cents, currency, stripe_payment_intent_id, description, status, ref_id)
          VALUES ($1, $2, $3, 'usd', $4, 'Messaging Unlock', 'pending', generate_payment_ref())`,
-        [req.user!.id, matchId, 999, session.id]
+        [req.user!.id, matchId, matchingFeeCents, session.id]
       );
     } else {
       // Subscription

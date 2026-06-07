@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Lock, Check, ExternalLink, ShieldCheck, CreditCard, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { caregivers as caregiversApi, get, post } from '@/lib/api';
+import { caregivers as caregiversApi, get, post, siteSettings } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
 
@@ -26,7 +26,14 @@ const features = [
 export default function PaymentStep({ matchId, caregiverId, onComplete, onBack, onCancel, cancelLabel }: Props) {
   const [state, setState] = useState<PaymentState>('idle');
   const [caregiver, setCaregiver] = useState<any>(null);
+  const [matchingFee, setMatchingFee] = useState('9.99');
   void onComplete;
+
+  useEffect(() => {
+    siteSettings.getPublic().then((s) => {
+      if (s?.familyMatchingFee) setMatchingFee(s.familyMatchingFee);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -180,7 +187,7 @@ export default function PaymentStep({ matchId, caregiverId, onComplete, onBack, 
           <div className="flex items-center justify-between mb-5">
             <div>
               <p className="text-brand-200 text-sm mb-0.5">One-time unlock fee</p>
-              <p className="text-4xl font-bold">$9.99</p>
+              <p className="text-4xl font-bold">${matchingFee}</p>
             </div>
             <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center">
               <ShieldCheck className="w-6 h-6 text-white" />
@@ -239,7 +246,7 @@ export default function PaymentStep({ matchId, caregiverId, onComplete, onBack, 
             <svg viewBox="0 0 28 28" className="w-5 h-5 shrink-0" fill="none">
               <path d="M13.76 9.6c0-1.15.94-1.6 2.5-1.6 2.24 0 5.06.68 7.3 1.89V3.63A19.4 19.4 0 0 0 16.26 2C10.58 2 6.76 5 6.76 9.86c0 7.52 10.34 6.32 10.34 9.57 0 1.36-1.18 1.8-2.83 1.8-2.44 0-5.56-.99-8.02-2.34v6.35A20.32 20.32 0 0 0 14.26 27c5.84 0 9.86-2.88 9.86-7.82-.02-8.12-10.36-6.68-10.36-9.58z" fill="white"/>
             </svg>
-            Pay $9.99 with Stripe
+            Pay ${matchingFee} with Stripe
             <ExternalLink className="w-4 h-4 shrink-0" />
           </button>
           <div className="flex items-center justify-center gap-1.5 text-xs text-gray-400">

@@ -268,6 +268,8 @@ export interface PublicSettings {
   emails: string[];
   phones: string[];
   addresses: string[];
+  familyMatchingFee?: string;
+  backgroundCheckFee?: string;
 }
 export const siteSettings = {
   getPublic: () => get('/settings/public') as Promise<PublicSettings>,
