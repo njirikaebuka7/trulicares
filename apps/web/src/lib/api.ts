@@ -110,6 +110,12 @@ export const caregivers = {
     if (params?.search) q.set('search', params.search);
     return get(`/caregivers?${q.toString()}`);
   },
+  listPublic: (params?: { lat?: number; lng?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.lat) q.set('lat', String(params.lat));
+    if (params?.lng) q.set('lng', String(params.lng));
+    return get(`/caregivers/public?${q.toString()}`);
+  },
   get: (id: string) => get(`/caregivers/${id}`),
   getProfile: () => get('/caregivers/profile/me'),
   updateProfile: (data: any) => put('/caregivers/profile', data),

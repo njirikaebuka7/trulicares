@@ -1,5 +1,6 @@
 import HeroSection from '@/components/home/HeroSection';
 import ServicesSection from '@/components/home/ServicesSection';
+import TopCaregivers from '@/components/home/TopCaregivers';
 import HowItWorks from '@/components/home/HowItWorks';
 import TrustSafety from '@/components/home/TrustSafety';
 import CaregiverSection from '@/components/home/CaregiverSection';
@@ -32,6 +33,7 @@ export default function Home() {
       />
       <HeroSection />
       <ServicesSection />
+      <TopCaregivers />
       <HowItWorks />
       <TrustSafety />
       <CaregiverSection />

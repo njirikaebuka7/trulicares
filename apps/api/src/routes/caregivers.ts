@@ -75,6 +75,76 @@ function formatCaregiver(row: any, includePrivate = false) {
   };
 }
 
+// GET /api/caregivers/public — unauthenticated browse for homepage; returns top 4 caregivers near a location (or by rating)
+router.get('/public', searchLimiter, async (req, res) => {
+  try {
+    const { lat, lng } = req.query;
+    const cacheKey = `caregivers:public:${lat}:${lng}`;
+    const cached = await cacheGet<any>(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+
+    const hasCoords = lat && lng && !isNaN(Number(lat)) && !isNaN(Number(lng));
+    let result;
+    if (hasCoords) {
+      const latitude = Number(lat);
+      const longitude = Number(lng);
+      result = await query(
+        `SELECT u.id, u.name, u.photo_url, u.status, u.created_at,
+                cp.bio, cp.specialties, cp.hourly_rate_min, cp.hourly_rate_max,
+                cp.rating, cp.review_count, cp.location, cp.service_zips,
+                cp.verified, cp.background_checked, cp.years_experience, cp.availability,
+                cp.job_title, cp.languages, cp.education, cp.certifications,
+                cp.id_verification_status, cp.background_check_status,
+                cp.resume_url, cp.resumes,
+                cp.latitude, cp.longitude, cp.address, cp.city, cp.state, cp.zip_code,
+                cp.country, cp.formatted_address, cp.location_source, cp.service_radius_miles,
+                CASE WHEN cp.geo IS NOT NULL THEN ST_Distance(cp.geo, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) END AS distance_meters
+         FROM users u
+         JOIN caregiver_profiles cp ON cp.user_id = u.id
+         WHERE u.status = 'active' AND u.role = 'caregiver'
+         ORDER BY CASE WHEN cp.geo IS NOT NULL THEN ST_Distance(cp.geo, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) END ASC NULLS LAST, cp.rating DESC
+         LIMIT 4`,
+        [longitude, latitude]
+      );
+    } else {
+      result = await query(
+        `SELECT u.id, u.name, u.photo_url, u.status, u.created_at,
+                cp.bio, cp.specialties, cp.hourly_rate_min, cp.hourly_rate_max,
+                cp.rating, cp.review_count, cp.location, cp.service_zips,
+                cp.verified, cp.background_checked, cp.years_experience, cp.availability,
+                cp.job_title, cp.languages, cp.education, cp.certifications,
+                cp.id_verification_status, cp.background_check_status,
+                cp.resume_url, cp.resumes,
+                cp.latitude, cp.longitude, cp.address, cp.city, cp.state, cp.zip_code,
+                cp.country, cp.formatted_address, cp.location_source, cp.service_radius_miles
+         FROM users u
+         JOIN caregiver_profiles cp ON cp.user_id = u.id
+         WHERE u.status = 'active' AND u.role = 'caregiver'
+         ORDER BY cp.rating DESC, cp.review_count DESC
+         LIMIT 4`
+      );
+    }
+
+    const caregiversList = result.rows.map((row: any) => {
+      const formatted: any = formatCaregiver(row, false);
+      if (row.distance_meters != null) {
+        // Convert to miles and round to 1 decimal place
+        formatted.distanceMiles = Number((Number(row.distance_meters) * 0.000621371).toFixed(1));
+      }
+      return formatted;
+    });
+
+    const payload = { caregivers: caregiversList };
+    await cacheSet(cacheKey, payload, 60); // Cache for 60 seconds
+    res.json(payload);
+  } catch (err) {
+    console.error('Public caregivers fetch error:', err);
+    res.status(500).json({ error: 'Failed to fetch public caregivers' });
+  }
+});
+
 // GET /api/caregivers — authenticated browse; returns PUBLIC fields only (no PII)
 router.get('/', requireAuth, searchLimiter, async (req, res) => {
   try {

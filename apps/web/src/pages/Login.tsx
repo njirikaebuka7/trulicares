@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, Navigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Shield, Check, ArrowLeft } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
@@ -8,6 +8,7 @@ import logoImg from '@/assets/logo.png';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, isLoading: authLoading, isAuthenticated } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -49,10 +50,18 @@ export default function Login() {
     setError('');
     try {
       const userData = await login(email, password);
-      // Role-based redirection
-      if (userData.role === 'professional') navigate('/professional-dashboard');
-      else if (userData.role === 'facility') navigate('/facility-dashboard');
-      else navigate('/dashboard');
+      // Redirect back if coming from a guarded route, otherwise use role defaults
+      const locState = location.state as any;
+      const redirectPath = locState?.from;
+      if (redirectPath) {
+        navigate(redirectPath);
+      } else if (userData.role === 'professional') {
+        navigate('/professional-dashboard');
+      } else if (userData.role === 'facility') {
+        navigate('/facility-dashboard');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err: any) {
       setError(err?.message || 'Invalid email or password.');
     } finally {

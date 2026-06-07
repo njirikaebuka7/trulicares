@@ -98,6 +98,7 @@ export interface CaregiverProfile extends User {
   languages?: string[];
   education?: string;
   certifications?: { id?: string; name?: string; issuer?: string; year?: string }[] | string[];
+  distanceMiles?: number;
 }
 
 export interface CareMatch {
