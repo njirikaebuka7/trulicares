@@ -23,9 +23,12 @@ function headers(extra?: Record<string, string>): Record<string, string> {
 
 async function handleResponse(res: Response) {
   if (res.status === 401) {
-    clearToken();
-    window.location.href = '/login';
-    throw new Error('Session expired');
+    const isPublicAuth = res.url.includes('/auth/login') || res.url.includes('/auth/register') || res.url.includes('/auth/verify-otp');
+    if (!isPublicAuth) {
+      clearToken();
+      window.location.href = '/login';
+      throw new Error('Session expired');
+    }
   }
   if (!res.ok) {
     let msg = `Request failed: ${res.status}`;

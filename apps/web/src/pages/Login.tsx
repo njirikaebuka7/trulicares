@@ -53,8 +53,8 @@ export default function Login() {
       if (userData.role === 'professional') navigate('/professional-dashboard');
       else if (userData.role === 'facility') navigate('/facility-dashboard');
       else navigate('/dashboard');
-    } catch {
-      setError('Invalid email or password.');
+    } catch (err: any) {
+      setError(err?.message || 'Invalid email or password.');
     } finally {
       setLoading(false);
     }
