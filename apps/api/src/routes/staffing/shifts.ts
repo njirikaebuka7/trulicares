@@ -29,7 +29,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
 
     // Get facility profile + verify approved
     const facilityRes = await query(
-      'SELECT id, verification_status FROM facility_profiles WHERE user_id = $1',
+      'SELECT id, verification_status, address, city, state, zip FROM facility_profiles WHERE user_id = $1',
       [req.user!.id]
     );
     if (facilityRes.rows.length === 0) {
@@ -52,11 +52,16 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Role, pay rate, duration, start time, and location are required' });
     }
 
+    const shiftAddress = address || facility.address;
+    const shiftCity = city || facility.city;
+    const shiftState = state || facility.state;
+    const shiftZip = zip || facility.zip;
+
     // Get current platform fee rate (admin-configurable + cached)
     const feeRate = await getNumberSetting('staffing_platform_fee_rate', 0.20);
 
     // Geocode the shift location so professionals can be matched/ranked by distance.
-    const { lat, lng } = await geocodeShift({ address, city, state, zip, location });
+    const { lat, lng } = await geocodeShift({ address: shiftAddress, city: shiftCity, state: shiftState, zip: shiftZip, location });
 
     const result = await query(
       `INSERT INTO shifts
@@ -69,7 +74,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
         facility.id, role, specialty || null, description || null,
         parseFloat(payRate), parseFloat(durationHours),
         startTime, location,
-        address || null, city || null, state || null, zip || null,
+        shiftAddress || null, shiftCity || null, shiftState || null, shiftZip || null,
         feeRate, slotsTotal || 1, lat, lng, instantBook === true,
       ]
     );
@@ -395,7 +400,10 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
 
     // We only allow editing if the shift is still 'open'
     const currentShiftRes = await query(
-      `SELECT status FROM shifts WHERE id = $1 AND facility_id = $2`,
+      `SELECT s.*, fp.address AS fac_address, fp.city AS fac_city, fp.state AS fac_state, fp.zip AS fac_zip
+       FROM shifts s
+       JOIN facility_profiles fp ON fp.id = s.facility_id
+       WHERE s.id = $1 AND s.facility_id = $2`,
       [req.params.id, facilityRes.rows[0].id]
     );
 
@@ -403,8 +411,33 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Shift not found' });
     }
 
-    if (currentShiftRes.rows[0].status !== 'open') {
+    const currentShift = currentShiftRes.rows[0];
+    if (currentShift.status !== 'open') {
       return res.status(400).json({ error: 'Only open shifts can be edited' });
+    }
+
+    let lat = currentShift.latitude;
+    let lng = currentShift.longitude;
+
+    const hasAddressChange = address !== undefined || city !== undefined || state !== undefined || zip !== undefined || location !== undefined;
+    if (hasAddressChange) {
+      const targetAddress = address !== undefined ? address : currentShift.address;
+      const targetCity = city !== undefined ? city : currentShift.city;
+      const targetState = state !== undefined ? state : currentShift.state;
+      const targetZip = zip !== undefined ? zip : currentShift.zip;
+      const targetLocation = location !== undefined ? location : currentShift.location;
+
+      const { lat: newLat, lng: newLng } = await geocodeShift({
+        address: targetAddress || currentShift.fac_address,
+        city: targetCity || currentShift.fac_city,
+        state: targetState || currentShift.fac_state,
+        zip: targetZip || currentShift.fac_zip,
+        location: targetLocation
+      });
+      if (newLat !== null && newLng !== null) {
+        lat = newLat;
+        lng = newLng;
+      }
     }
 
     const result = await query(
@@ -422,6 +455,8 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
            zip = COALESCE($11, zip),
            slots_total = COALESCE($12, slots_total),
            instant_book = COALESCE($15, instant_book),
+           latitude = $16,
+           longitude = $17,
            updated_at = NOW()
        WHERE id = $13 AND facility_id = $14 AND status = 'open'
        RETURNING *, (pay_rate * duration_hours) AS total_pay`,
@@ -432,6 +467,8 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
         startTime, location, address, city, state, zip, slotsTotal,
         req.params.id, facilityRes.rows[0].id,
         typeof instantBook === 'boolean' ? instantBook : null,
+        lat,
+        lng,
       ]
     );
 

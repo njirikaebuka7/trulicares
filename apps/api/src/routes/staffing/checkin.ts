@@ -3,6 +3,7 @@ import { query, getClient, supabase } from '../../db.js';
 import { requireAuth, AuthRequest } from '../../middleware/auth.js';
 import { transferToProfessional } from '../../services/connect.js';
 import { getUncachableStripeClient } from '../../stripeClient.js';
+import { forwardGeocode } from '../../services/geocode.js';
 
 const router = Router();
 
@@ -59,7 +60,8 @@ async function getBookingForUser(bookingId: string, userId: string, role: string
   const result = await query(
     `SELECT sb.*, pp.user_id AS pro_user_id, fp.user_id AS facility_user_id,
             s.start_time, s.duration_hours, s.role AS shift_role,
-            s.location AS shift_location, s.latitude AS shift_lat, s.longitude AS shift_lng
+            s.location AS shift_location, s.latitude AS shift_lat, s.longitude AS shift_lng,
+            fp.address AS fac_address, fp.city AS fac_city, fp.state AS fac_state, fp.zip AS fac_zip
      FROM shift_bookings sb
      JOIN professional_profiles pp ON pp.id = sb.professional_id
      JOIN facility_profiles fp ON fp.id = sb.facility_id
@@ -68,6 +70,39 @@ async function getBookingForUser(bookingId: string, userId: string, role: string
     params
   );
   return result.rows[0] || null;
+}
+
+/** Resolves shift coordinates from shift profile or geocodes facility address on the fly. */
+async function getOrGeocodeShiftCoords(booking: any): Promise<{ lat: number | null; lng: number | null }> {
+  const sLat = Number(booking.shift_lat);
+  const sLng = Number(booking.shift_lng);
+  
+  if (Number.isFinite(sLat) && Number.isFinite(sLng)) {
+    return { lat: sLat, lng: sLng };
+  }
+
+  try {
+    const q = [booking.fac_address, booking.fac_city, booking.fac_state, booking.fac_zip].filter(Boolean).join(', ') || booking.shift_location || '';
+    if (!q) return { lat: null, lng: null };
+    
+    const cands = await forwardGeocode(q);
+    if (cands[0] && cands[0].latitude != null && cands[0].longitude != null) {
+      const lat = cands[0].latitude;
+      const lng = cands[0].longitude;
+      
+      // Update shift table to cache the geocoded values
+      await query(
+        `UPDATE shifts SET latitude = $1, longitude = $2, updated_at = NOW() WHERE id = $3`,
+        [lat, lng, booking.shift_id]
+      ).catch(err => console.error('Failed to cache geocoded shift coordinates:', err));
+
+      return { lat, lng };
+    }
+  } catch (err) {
+    console.error('On-the-fly geocoding failed:', err);
+  }
+  
+  return { lat: null, lng: null };
 }
 
 async function broadcastShiftState(booking: any, bookingId: string, event: string, payload: Record<string, unknown> = {}) {
@@ -108,7 +143,8 @@ router.post('/:bookingId', requireAuth, async (req: AuthRequest, res) => {
 
     // Geofenced clock-in: the check-in IS the shift start (no separate facility confirm).
     const { lat, lng } = req.body || {};
-    const { distance, verified } = geofence(booking.shift_lat, booking.shift_lng, lat, lng);
+    const coords = await getOrGeocodeShiftCoords(booking);
+    const { distance, verified } = geofence(coords.lat, coords.lng, lat, lng);
 
     const result = await query(
       `UPDATE shift_bookings
@@ -189,7 +225,8 @@ router.post('/checkout/:bookingId', requireAuth, async (req: AuthRequest, res) =
     }
 
     const { lat, lng } = req.body || {};
-    const { distance, verified } = geofence(booking.shift_lat, booking.shift_lng, lat, lng);
+    const coords = await getOrGeocodeShiftCoords(booking);
+    const { distance, verified } = geofence(coords.lat, coords.lng, lat, lng);
 
     const checkedInAt = new Date(booking.checked_in_at || booking.facility_confirmed_start_at);
     const hoursWorked = Math.max(0, (Date.now() - checkedInAt.getTime()) / 3600000);

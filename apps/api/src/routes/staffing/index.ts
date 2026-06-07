@@ -15,7 +15,7 @@ router.use('/professionals', professionalsRouter);
 router.use('/facilities', facilitiesRouter);
 router.use('/shifts', shiftsRouter);
 router.use('/applications', applicationsRouter);
-router.use('/', checkinRouter);          // /api/staffing/checkin/:id etc.
+router.use('/checkin', checkinRouter);    // /api/staffing/checkin/:bookingId etc.
 router.use('/wallet', walletRouter);
 router.use('/disputes', disputesRouter);
 router.use('/conversations', messagesRouter); // in-app chat (facility <-> professional)
