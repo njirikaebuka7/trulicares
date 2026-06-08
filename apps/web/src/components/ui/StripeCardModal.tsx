@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { loadStripe, StripeCardElementOptions } from '@stripe/stripe-js';
+import type { StripeCardElementOptions } from '@stripe/stripe-js';
+import { loadStripe } from '@stripe/stripe-js/pure';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { X, CreditCard, Loader2, AlertCircle } from 'lucide-react';
 import { payments as paymentsApi } from '@/lib/api';

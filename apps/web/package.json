@@ -7,8 +7,9 @@
     "dev": "vite",
     "generate:sitemap": "node scripts/generate-sitemap.mjs",
     "prebuild": "node scripts/generate-sitemap.mjs",
-    "build": "vite build",
-    "build:ssg": "node scripts/generate-sitemap.mjs && vite build && node scripts/prerender.mjs",
+    "build:csr": "vite build",
+    "build": "npm run build:csr && node scripts/prerender.mjs",
+    "build:ssg": "npm run build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },

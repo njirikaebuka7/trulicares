@@ -60,7 +60,9 @@ export default function TopCaregivers() {
           }
         },
         (error) => {
-          console.warn('Geolocation error:', error.message);
+          if (import.meta.env.DEV) {
+            console.info('Geolocation unavailable:', error.message);
+          }
           if (!active) return;
           setLocating(false);
           // Geolocation denied or failed, load fallback rating list

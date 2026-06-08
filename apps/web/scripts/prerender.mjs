@@ -1,13 +1,8 @@
-// Opt-in static prerendering (SSG-style) for SEO.
+// Static prerendering (SSG-style) for SEO.
 //
 // After `vite build`, this serves dist/ locally, loads each public route in headless
 // Chromium, and writes the fully-rendered HTML back to dist/<route>/index.html. Crawlers and
 // social scrapers then get complete HTML (content + meta + JSON-LD) without executing JS.
-//
-// Requires puppeteer (kept OUT of the default install so the normal Vercel build stays light):
-//     npm i -D puppeteer
-// Then build with:
-//     npm run build:ssg
 //
 // The app still hydrates client-side as usual; these files are just the first paint crawlers see.
 
@@ -21,6 +16,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
 const dist = resolve(root, 'dist');
 const PORT = 4178;
+const LOCAL_BROWSER_CANDIDATES = [
+  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+  'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+  'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+  'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+];
 
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
@@ -37,6 +38,10 @@ function routesToPrerender() {
     '/locations', '/provide-care', '/contact', '/privacy-policy', '/terms', '/cookie-policy',
   ];
   return [...staticRoutes, ...cities.map((c) => `/care/${c.slug}`)];
+}
+
+function findLocalBrowserExecutable() {
+  return LOCAL_BROWSER_CANDIDATES.find((candidate) => existsSync(candidate));
 }
 
 async function startServer() {
@@ -73,8 +78,10 @@ async function main() {
 
   // Launch headless Chromium. On Vercel/CI, full puppeteer's bundled Chromium usually can't
   // run (missing system libraries), so prefer @sparticuz/chromium + puppeteer-core there.
-  // Locally, use full puppeteer. ANY launch failure is non-fatal: we warn and let the build
-  // succeed (the site still ships client-rendered, with per-page meta + sitemap).
+  // Locally, prefer the bundled Puppeteer install, but fall back to an installed Chrome/Edge
+  // binary so prerendering still works on machines without Puppeteer's managed browser cache.
+  // ANY launch failure is non-fatal: we warn and let the build succeed (the site still ships
+  // client-rendered, with per-page meta + sitemap).
   let browser;
   try {
     if (process.env.VERCEL || process.env.CI || process.env.USE_SPARTICUZ) {
@@ -87,7 +94,12 @@ async function main() {
       });
     } else {
       const puppeteer = (await import('puppeteer')).default;
-      browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+      const localExecutable = findLocalBrowserExecutable();
+      browser = await puppeteer.launch({
+        headless: 'new',
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        ...(localExecutable ? { executablePath: localExecutable } : {}),
+      });
     }
   } catch (e) {
     console.warn(`\n⚠ Prerender skipped — could not launch headless Chromium: ${e.message}`);
@@ -102,9 +114,9 @@ async function main() {
     for (const route of routes) {
       const page = await browser.newPage();
       try {
-        await page.goto(`http://localhost:${PORT}${route}`, { waitUntil: 'networkidle0', timeout: 30000 });
+        await page.goto(`http://localhost:${PORT}${route}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
         // Give React 19 a tick to hoist <title>/<meta> into <head>.
-        await new Promise((r) => setTimeout(r, 250));
+        await new Promise((r) => setTimeout(r, 1500));
         const html = '<!DOCTYPE html>\n' + (await page.evaluate(() => document.documentElement.outerHTML));
         const outDir = route === '/' ? dist : join(dist, route);
         await mkdir(outDir, { recursive: true });

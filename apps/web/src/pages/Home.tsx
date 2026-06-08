@@ -27,7 +27,7 @@ export default function Home() {
     <>
       <Seo
         title="TruliCares — Find Trusted, Verified Caregivers & Healthcare Staffing"
-        description="TruliCares connects families with verified caregivers for child, senior, and adult care, and staffs healthcare facilities with licensed nursing professionals across the United States."
+        description="TruliCares helps families find verified caregivers for child, senior, and adult care, and helps healthcare facilities hire licensed professionals."
         path="/"
         jsonLd={[organizationSchema, websiteSchema]}
       />
