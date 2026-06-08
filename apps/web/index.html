@@ -4,43 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="google-site-verification" content="CzzTRr0MCMHgfOvwOnd8Cl2wqFr4kUFRPBBGQiB37vg" />
-    <!--
-      NOTE: page-specific tags (title, description, canonical, og:title/description/url,
-      twitter:title/description) are injected per-route by the <Seo> component (React 19
-      metadata hoisting). They are intentionally NOT hardcoded here — React appends rather
-      than replaces meta/link tags, so duplicating them would create conflicting canonicals.
-      Only constant, non-varying defaults live in this static shell.
-    -->
-    <title>TruliCares — Find Trusted, Verified Caregivers & Healthcare Staffing</title>
     <meta name="keywords" content="caregivers, nursing professionals, child care, senior care, healthcare staffing, per diem nursing, find care, verified caregivers, TruliCares" />
     <meta name="theme-color" content="#2d6a4f" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico" />
-
-    <!-- Constant social defaults (per-route title/description/url come from <Seo>) -->
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="TruliCares" />
-    <meta property="og:image" content="https://www.trulicares.com/logo.png" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:image" content="https://www.trulicares.com/logo.png" />
-
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "Organization",
-        "name": "TruliCares",
-        "url": "https://www.trulicares.com",
-        "logo": "https://www.trulicares.com/logo.png",
-        "description": "TruliCares connects families and healthcare facilities with trusted, verified caregivers and licensed nursing professionals across the United States.",
-        "contactPoint": {
-          "@type": "ContactPoint",
-          "contactType": "customer support",
-          "email": "support@trulicares.com",
-          "areaServed": "US",
-          "availableLanguage": "English"
-        }
-      }
-    </script>
+    <!--
+      NOTE: page-specific tags (title, description, canonical, og:*, twitter:*, json-ld) 
+      are injected per-route by the <Seo> component (React 19 metadata hoisting). 
+      They are intentionally NOT hardcoded here to prevent duplicates for crawlers like Bing.
+    -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet" />
