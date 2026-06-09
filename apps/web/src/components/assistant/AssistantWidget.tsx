@@ -5,7 +5,6 @@ import { assistant as assistantApi, type AssistantMessage } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from '@/components/ui/Toaster';
 import { cn } from '@/utils/cn';
-import logoImg from '@/assets/logo.png';
 import assistantPortraitImg from '@/assets/blog-nanny-interview.jpg';
 
 const GUEST_TOKEN_KEY = 'tc_assistant_guest_token';
@@ -185,48 +184,42 @@ export default function AssistantWidget() {
       {open && (
         <div
           className={cn(
-            'fixed left-3 right-3 top-3 z-[960] flex flex-col overflow-hidden rounded-[30px] border border-brand-100/80 bg-white shadow-[0_28px_90px_rgba(18,59,46,0.22)]',
+            'fixed left-3 right-3 top-3 z-[960] flex flex-col overflow-hidden rounded-3xl border border-brand-100/80 bg-white shadow-[0_28px_90px_rgba(18,59,46,0.22)]',
             mobilePanelOffset,
-            'sm:left-auto sm:right-6 sm:top-auto sm:h-[calc(100dvh-2.5rem)] sm:max-h-[46rem] sm:w-[calc(100vw-3rem)] sm:max-w-[28rem]',
+            'sm:left-auto sm:right-6 sm:top-auto sm:h-[min(34rem,calc(100dvh-3rem))] sm:w-[21rem] sm:max-w-[calc(100vw-3rem)]',
             desktopPanelOffset
           )}
         >
-          <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-brand-950 via-brand-900 to-brand-800 px-4 pb-4 pt-4 text-white sm:px-5 sm:pb-5">
+          <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-brand-950 via-brand-900 to-brand-800 px-4 py-3 text-white">
             <div className="pointer-events-none absolute inset-0 opacity-60">
               <div className="absolute -left-10 top-6 h-24 w-24 rounded-full bg-brand-400/20 blur-2xl" />
               <div className="absolute right-0 top-0 h-28 w-28 rounded-full bg-coral-400/15 blur-2xl" />
-              <div className="absolute bottom-0 left-1/3 h-24 w-24 rounded-full bg-white/10 blur-3xl" />
             </div>
-            <div className="relative">
-              <div className="flex items-center gap-3">
-                <img
-                  src={assistantPortraitImg}
-                  alt="TruliCares assistant"
-                  className="h-12 w-12 shrink-0 rounded-2xl border border-white/20 object-cover shadow-[0_10px_24px_rgba(0,0,0,0.18)]"
-                  style={{ objectPosition: ASSISTANT_AVATAR_POSITION }}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h2 className="truncate text-base font-bold sm:text-lg">TruliCares Assistant</h2>
-                    <span className="shrink-0 rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-100">
-                      24/7
-                    </span>
-                  </div>
-                  <p className="mt-0.5 truncate text-xs text-brand-100/80">
-                    {user ? 'Secure account-aware guidance' : 'Warm care and staffing guidance'}
-                  </p>
+            <div className="relative flex items-center gap-3">
+              <img
+                src={assistantPortraitImg}
+                alt="TruliCares assistant"
+                className="h-10 w-10 shrink-0 rounded-full border border-white/20 object-cover shadow-[0_8px_18px_rgba(0,0,0,0.18)]"
+                style={{ objectPosition: ASSISTANT_AVATAR_POSITION }}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h2 className="truncate text-sm font-bold sm:text-base">TruliCares Assistant</h2>
+                  <span className="shrink-0 rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-100">
+                    24/7
+                  </span>
                 </div>
-                <button
-                  onClick={() => setOpen(false)}
-                  className="shrink-0 rounded-full border border-white/10 bg-white/10 p-2 text-white/80 transition hover:bg-white/15 hover:text-white"
-                  aria-label="Close assistant"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                <p className="mt-0.5 truncate text-xs text-brand-100/80">
+                  {user ? 'Secure account-aware guidance' : 'Warm care and staffing guidance'}
+                </p>
               </div>
-              <p className="mt-3 text-sm leading-6 text-brand-100/85">
-                Real-time help for care, staffing, support, and the next step that fits your account.
-              </p>
+              <button
+                onClick={() => setOpen(false)}
+                className="shrink-0 rounded-full border border-white/10 bg-white/10 p-1.5 text-white/80 transition hover:bg-white/15 hover:text-white"
+                aria-label="Close assistant"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
           </div>
 
@@ -325,13 +318,13 @@ export default function AssistantWidget() {
               )}
             </div>
 
-            <div className="shrink-0 border-t border-slate-100 bg-white/95 px-4 pb-4 pt-3 backdrop-blur sm:px-5">
-              <div className="mb-3 flex items-start gap-2 rounded-2xl bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">
-                <Shield className="h-3.5 w-3.5 text-brand-600" />
-                Never share card numbers, passwords, or government ID numbers here.
+            <div className="shrink-0 border-t border-slate-100 bg-white/95 px-3 pb-3 pt-2 backdrop-blur">
+              <div className="mb-2 flex items-center gap-1.5 px-1 text-[10px] leading-4 text-slate-400">
+                <Shield className="h-3 w-3 shrink-0 text-brand-600" />
+                <span className="truncate">Never share card numbers, passwords, or ID numbers here.</span>
               </div>
 
-              <div className="rounded-[24px] border border-slate-200 bg-white p-2 shadow-sm">
+              <div className="flex items-end gap-2 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
                 <textarea
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
@@ -341,43 +334,34 @@ export default function AssistantWidget() {
                       void handleSend(draft);
                     }
                   }}
-                  rows={2}
-                  placeholder="Ask about care, staffing, support, or your next step..."
-                  className="min-h-[4.5rem] w-full resize-none border-0 bg-transparent px-2 py-1 text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400"
+                  rows={1}
+                  placeholder="Ask about care, staffing, or support..."
+                  className="max-h-28 min-h-[2.5rem] w-full resize-none border-0 bg-transparent px-2 py-2 text-sm leading-5 text-slate-700 outline-none placeholder:text-slate-400"
                 />
-                <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-[11px] text-slate-400">Press Enter to send</p>
-                  <button
-                    onClick={() => void handleSend(draft)}
-                    disabled={!draft.trim() || sending}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto"
-                  >
-                    Send
-                    <Send className="h-4 w-4" />
-                  </button>
-                </div>
+                <button
+                  onClick={() => void handleSend(draft)}
+                  disabled={!draft.trim() || sending}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-700 text-white transition hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  aria-label="Send message"
+                >
+                  <Send className="h-4 w-4" />
+                </button>
               </div>
+              <p className="mt-1 px-1 text-[10px] text-slate-400">Press Enter to send</p>
             </div>
           </div>
         </div>
       )}
 
-      <button
-        onClick={() => setOpen((current) => !current)}
-        className="group flex max-w-[calc(100vw-2rem)] items-center gap-3 rounded-full border border-brand-200 bg-white/95 px-3 py-3 shadow-[0_18px_42px_rgba(14,58,47,0.16)] backdrop-blur transition hover:-translate-y-0.5 hover:shadow-[0_22px_48px_rgba(14,58,47,0.2)] sm:px-4"
-        aria-label="Open TruliCares Assistant"
-      >
-        <span className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-brand-50 to-white shadow-inner ring-1 ring-brand-100">
-          <img src={logoImg} alt="" className="h-8 w-auto" aria-hidden="true" />
-          <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-brand-700 text-white shadow">
-            <MessageCircle className="h-3 w-3" />
-          </span>
-        </span>
-        <span className="hidden text-left sm:block">
-          <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-brand-700">Need Help?</span>
-          <span className="block text-sm font-semibold text-slate-800">Ask TruliCares</span>
-        </span>
-      </button>
+      {!open && (
+        <button
+          onClick={() => setOpen(true)}
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-700 text-white shadow-[0_18px_42px_rgba(14,58,47,0.3)] transition hover:-translate-y-0.5 hover:bg-brand-800 hover:shadow-[0_22px_48px_rgba(14,58,47,0.35)]"
+          aria-label="Open TruliCares Assistant"
+        >
+          <MessageCircle className="h-6 w-6" />
+        </button>
+      )}
     </div>
   );
 }
