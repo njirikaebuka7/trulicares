@@ -61,43 +61,70 @@ function ensureGuestToken() {
 }
 
 const MARKDOWN_LINK = /\[([^\]]+)\]\(([^)\s]+)\)/g;
+// Bare internal paths in prose (e.g. "/contact"), not preceded by an alphanumeric.
+const BARE_PATH = /(^|[^A-Za-z0-9/])(\/[a-z][a-z0-9-]*(?:\/[a-z0-9-]+)*)/g;
+const LINK_CLASS =
+  'font-semibold text-brand-700 underline decoration-brand-300 underline-offset-2 transition hover:text-brand-800';
 
-function renderRichSegments(text: string, onNavigate: () => void) {
-  const nodes: ReactNode[] = [];
-  const regex = new RegExp(MARKDOWN_LINK);
-  const linkClass =
-    'font-semibold text-brand-700 underline decoration-brand-300 underline-offset-2 transition hover:text-brand-800';
+function renderLink(label: string, target: string, onNavigate: () => void, key: number | string) {
+  if (target.startsWith('/')) {
+    return (
+      <Link key={key} to={target} onClick={onNavigate} className={LINK_CLASS}>
+        {label}
+      </Link>
+    );
+  }
+  const isWeb = /^https?:/i.test(target);
+  return (
+    <a
+      key={key}
+      href={target}
+      target={isWeb ? '_blank' : undefined}
+      rel={isWeb ? 'noreferrer' : undefined}
+      className={LINK_CLASS}
+    >
+      {label}
+    </a>
+  );
+}
+
+// Turns bare "/path" mentions inside a plain-text run into in-app links.
+function linkifyBarePaths(text: string, onNavigate: () => void, keyBase: string): ReactNode[] {
+  const out: ReactNode[] = [];
+  const regex = new RegExp(BARE_PATH);
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(text)) !== null) {
-    const [full, label, target] = match;
-    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
+    const [, prefix, path] = match;
+    const start = match.index + prefix.length;
+    if (start > lastIndex) out.push(text.slice(lastIndex, start));
+    out.push(renderLink(path, path, onNavigate, `${keyBase}-${out.length}`));
+    lastIndex = start + path.length;
+  }
 
-    if (target.startsWith('/')) {
-      nodes.push(
-        <Link key={nodes.length} to={target} onClick={onNavigate} className={linkClass}>
-          {label}
-        </Link>
-      );
-    } else {
-      const isWeb = /^https?:/i.test(target);
-      nodes.push(
-        <a
-          key={nodes.length}
-          href={target}
-          target={isWeb ? '_blank' : undefined}
-          rel={isWeb ? 'noreferrer' : undefined}
-          className={linkClass}
-        >
-          {label}
-        </a>
-      );
-    }
+  if (lastIndex < text.length) out.push(text.slice(lastIndex));
+  return out;
+}
+
+function renderRichSegments(text: string, onNavigate: () => void) {
+  const nodes: ReactNode[] = [];
+  const regex = new RegExp(MARKDOWN_LINK);
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  const pushPlain = (chunk: string) => {
+    nodes.push(...linkifyBarePaths(chunk, onNavigate, `p${nodes.length}`));
+  };
+
+  while ((match = regex.exec(text)) !== null) {
+    const [full, label, target] = match;
+    if (match.index > lastIndex) pushPlain(text.slice(lastIndex, match.index));
+    nodes.push(renderLink(label, target, onNavigate, nodes.length));
     lastIndex = match.index + full.length;
   }
 
-  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  if (lastIndex < text.length) pushPlain(text.slice(lastIndex));
   return nodes;
 }
 

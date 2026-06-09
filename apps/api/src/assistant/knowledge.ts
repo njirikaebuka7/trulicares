@@ -111,12 +111,22 @@ const SNIPPETS: KnowledgeSnippet[] = [
   },
 ];
 
+// Common words that should not, on their own, make a snippet look relevant.
+const STOP_WORDS = new Set([
+  'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'can', 'do', 'does', 'for',
+  'from', 'how', 'i', 'in', 'is', 'it', 'me', 'my', 'of', 'on', 'or', 'should',
+  'the', 'this', 'that', 'to', 'we', 'what', 'when', 'where', 'which', 'who',
+  'why', 'will', 'with', 'you', 'your',
+]);
+
 function normalizeToken(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9/-]+/g, ' ').trim();
 }
 
 function tokenize(value: string) {
-  return normalizeToken(value).split(/\s+/).filter(Boolean);
+  return normalizeToken(value)
+    .split(/\s+/)
+    .filter((token) => token.length >= 3 && !STOP_WORDS.has(token));
 }
 
 function audienceWeight(snippet: KnowledgeSnippet, audience: AssistantAudience) {
@@ -125,23 +135,36 @@ function audienceWeight(snippet: KnowledgeSnippet, audience: AssistantAudience) 
   return 0;
 }
 
+function matchesRoute(snippet: KnowledgeSnippet, pagePath?: string) {
+  if (!pagePath || !snippet.routes) return false;
+  return snippet.routes.some((route) =>
+    route === '/' ? pagePath === '/' : pagePath.startsWith(route)
+  );
+}
+
 function scoreSnippet(snippet: KnowledgeSnippet, query: string, audience: AssistantAudience, pagePath?: string) {
   const queryTokens = tokenize(query);
-  const haystack = normalizeToken(
-    `${snippet.title} ${snippet.content} ${snippet.keywords.join(' ')} ${snippet.routes?.join(' ') || ''}`
-  );
+  // Only match against the curated title + keywords, not the prose body or
+  // route paths, so loose words don't make every snippet look relevant.
+  const haystack = normalizeToken(`${snippet.title} ${snippet.keywords.join(' ')}`);
+  const loweredQuery = query.toLowerCase();
 
-  let score = audienceWeight(snippet, audience);
+  // Relevance must come from the query actually matching this snippet. Audience
+  // membership only boosts ranking once a snippet is already relevant — it can
+  // no longer pull generic snippets into every single reply.
+  let relevance = 0;
   for (const token of queryTokens) {
-    if (haystack.includes(token)) score += 2;
+    if (haystack.includes(token)) relevance += 2;
   }
   for (const keyword of snippet.keywords) {
-    if (query.toLowerCase().includes(keyword.toLowerCase())) score += 3;
+    if (loweredQuery.includes(keyword.toLowerCase())) relevance += 3;
   }
-  if (pagePath && snippet.routes?.some((route) => pagePath.startsWith(route))) {
-    score += 2;
-  }
-  return score;
+
+  // No query relevance => snippet stays out, regardless of audience or page.
+  if (relevance === 0) return 0;
+
+  // Audience and current page only boost ranking of already-relevant snippets.
+  return relevance + audienceWeight(snippet, audience) + (matchesRoute(snippet, pagePath) ? 2 : 0);
 }
 
 export function getStarterPrompts(audience: AssistantAudience) {
