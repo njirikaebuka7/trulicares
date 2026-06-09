@@ -323,9 +323,39 @@ pool.query(`
   CREATE INDEX IF NOT EXISTS idx_audit_action ON admin_audit_logs(action);
 `).catch(err => console.error('Admin audit log auto-migration failed', err));
 
-// Soft-delete for users (archive instead of hard delete).
+// Soft-delete column retained for backward compatibility / audit history.
 pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;`)
   .catch(err => console.error('users.deleted_at auto-migration failed', err));
+
+// Make a HARD delete of a user safe: the remaining FK references to users(id)
+// that are NOT ALREADY cascade/set-null would otherwise block `DELETE FROM users`.
+// Owned data already cascades; these audit/reference columns are converted so
+// deleting a user removes their email entirely and frees it for re-signup.
+pool.query(`
+  DO $$ BEGIN
+    ALTER TABLE shift_escrow DROP CONSTRAINT IF EXISTS shift_escrow_released_to_fkey;
+    ALTER TABLE shift_escrow ADD CONSTRAINT shift_escrow_released_to_fkey
+      FOREIGN KEY (released_to) REFERENCES users(id) ON DELETE SET NULL;
+  EXCEPTION WHEN undefined_table THEN NULL; WHEN undefined_column THEN NULL; END $$;
+
+  DO $$ BEGIN
+    ALTER TABLE shift_disputes DROP CONSTRAINT IF EXISTS shift_disputes_raised_by_fkey;
+    ALTER TABLE shift_disputes ADD CONSTRAINT shift_disputes_raised_by_fkey
+      FOREIGN KEY (raised_by) REFERENCES users(id) ON DELETE CASCADE;
+  EXCEPTION WHEN undefined_table THEN NULL; WHEN undefined_column THEN NULL; END $$;
+
+  DO $$ BEGIN
+    ALTER TABLE shift_disputes DROP CONSTRAINT IF EXISTS shift_disputes_resolved_by_fkey;
+    ALTER TABLE shift_disputes ADD CONSTRAINT shift_disputes_resolved_by_fkey
+      FOREIGN KEY (resolved_by) REFERENCES users(id) ON DELETE SET NULL;
+  EXCEPTION WHEN undefined_table THEN NULL; WHEN undefined_column THEN NULL; END $$;
+
+  DO $$ BEGIN
+    ALTER TABLE staffing_verification_queue DROP CONSTRAINT IF EXISTS staffing_verification_queue_reviewed_by_fkey;
+    ALTER TABLE staffing_verification_queue ADD CONSTRAINT staffing_verification_queue_reviewed_by_fkey
+      FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL;
+  EXCEPTION WHEN undefined_table THEN NULL; WHEN undefined_column THEN NULL; END $$;
+`).catch(err => console.error('Hard-delete FK auto-migration failed', err));
 
 // Drop legacy plaintext PII columns — Turn.ai now handles all sensitive bg-check data.
 pool.query(`

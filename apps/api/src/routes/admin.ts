@@ -201,16 +201,20 @@ router.put('/users/:id', requireAdmin, async (req: AuthRequest, res) => {
   }
 });
 
-// DELETE /api/admin/users/:id — SOFT delete (archive). Data is retained + auditable.
+// DELETE /api/admin/users/:id — HARD delete. Permanently removes the user and
+// all owned data via ON DELETE CASCADE so the email is freed and can be used to
+// sign up fresh next time. An audit record (keyed to the acting admin) is kept.
 router.delete('/users/:id', requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const result = await query(
-      `UPDATE users SET status = 'deleted', deleted_at = NOW(), updated_at = NOW()
-       WHERE id = $1 AND deleted_at IS NULL RETURNING id, name, email, role`,
-      [req.params.id]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found or already deleted' });
-    await auditFromReq(req, 'user.delete', 'user', req.params.id, { archived: result.rows[0] });
+    if (req.params.id === req.user?.id) {
+      return res.status(400).json({ error: 'You cannot delete your own admin account.' });
+    }
+
+    const existing = await query('SELECT id, name, email, role FROM users WHERE id = $1', [req.params.id]);
+    if (existing.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+    await query('DELETE FROM users WHERE id = $1', [req.params.id]);
+    await auditFromReq(req, 'user.delete', 'user', req.params.id, { hardDeleted: existing.rows[0] });
     res.json({ success: true, deleted: req.params.id });
   } catch (err) {
     console.error('Admin delete user error:', err);
