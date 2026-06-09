@@ -192,46 +192,41 @@ export default function AssistantWidget() {
           )}
         >
           <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-brand-950 via-brand-900 to-brand-800 px-4 pb-4 pt-4 text-white sm:px-5 sm:pb-5">
-            <div className="absolute inset-0 opacity-60">
+            <div className="pointer-events-none absolute inset-0 opacity-60">
               <div className="absolute -left-10 top-6 h-24 w-24 rounded-full bg-brand-400/20 blur-2xl" />
               <div className="absolute right-0 top-0 h-28 w-28 rounded-full bg-coral-400/15 blur-2xl" />
               <div className="absolute bottom-0 left-1/3 h-24 w-24 rounded-full bg-white/10 blur-3xl" />
             </div>
-            <div className="relative pr-12">
-              <div className="flex items-start gap-3">
-                <div className="flex shrink-0 items-center rounded-[22px] border border-white/15 bg-white/95 px-3 py-2 shadow-[0_14px_30px_rgba(0,0,0,0.16)]">
-                  <img src={logoImg} alt="TruliCares" className="h-7 w-auto sm:h-8" />
-                </div>
+            <div className="relative">
+              <div className="flex items-center gap-3">
+                <img
+                  src={assistantPortraitImg}
+                  alt="TruliCares assistant"
+                  className="h-12 w-12 shrink-0 rounded-2xl border border-white/20 object-cover shadow-[0_10px_24px_rgba(0,0,0,0.18)]"
+                  style={{ objectPosition: ASSISTANT_AVATAR_POSITION }}
+                />
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-100">
-                      24/7 Help
-                    </div>
-                    <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-medium text-white/80">
-                      {user ? 'Secure account-aware guidance' : 'Warm care and staffing guidance'}
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="truncate text-base font-bold sm:text-lg">TruliCares Assistant</h2>
+                    <span className="shrink-0 rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-100">
+                      24/7
+                    </span>
                   </div>
-                  <h2 className="mt-3 text-lg font-bold sm:text-[1.15rem]">TruliCares Assistant</h2>
-                  <p className="mt-1 max-w-xs text-sm leading-6 text-brand-100/85">
-                    Real-time help for care, staffing, support, and the next step that fits your account.
+                  <p className="mt-0.5 truncate text-xs text-brand-100/80">
+                    {user ? 'Secure account-aware guidance' : 'Warm care and staffing guidance'}
                   </p>
                 </div>
-                <div className="shrink-0 rounded-[22px] border border-white/15 bg-white/10 p-1.5 shadow-[0_14px_30px_rgba(0,0,0,0.12)] backdrop-blur">
-                  <img
-                    src={assistantPortraitImg}
-                    alt="TruliCares assistant"
-                    className="h-12 w-12 rounded-[16px] object-cover sm:h-14 sm:w-14"
-                    style={{ objectPosition: ASSISTANT_AVATAR_POSITION }}
-                  />
-                </div>
+                <button
+                  onClick={() => setOpen(false)}
+                  className="shrink-0 rounded-full border border-white/10 bg-white/10 p-2 text-white/80 transition hover:bg-white/15 hover:text-white"
+                  aria-label="Close assistant"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <button
-                onClick={() => setOpen(false)}
-                className="absolute right-0 top-0 rounded-full border border-white/10 bg-white/10 p-2 text-white/80 transition hover:bg-white/15 hover:text-white"
-                aria-label="Close assistant"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <p className="mt-3 text-sm leading-6 text-brand-100/85">
+                Real-time help for care, staffing, support, and the next step that fits your account.
+              </p>
             </div>
           </div>
 
