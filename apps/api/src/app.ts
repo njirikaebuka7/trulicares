@@ -53,7 +53,35 @@ app.post(
 app.use('/api/turn', turnRouter);
 
 // ── Global middleware ─────────────────────────────────────────────────────────
-app.use(cors({ origin: true, credentials: true }));
+// Lock CORS to known origins. The web app calls /api/* same-origin (proxied by
+// Vercel) so most browser requests carry no cross-origin restriction; this only
+// blocks other sites from making credentialed calls directly to the API.
+const allowedOrigins = (
+  process.env.CORS_ORIGINS || 'https://trulicares.com,https://www.trulicares.com'
+)
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      // Allow same-origin / non-browser clients (curl, server-to-server, health checks).
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      // Allow this project's own Vercel deployments (production + preview URLs).
+      if (/^https:\/\/trulicares-(frontend|api)[a-z0-9-]*\.vercel\.app$/.test(origin)) {
+        return callback(null, true);
+      }
+      // Allow localhost during development only.
+      if (process.env.NODE_ENV !== 'production' && /^http:\/\/localhost(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
+    credentials: true,
+  })
+);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 

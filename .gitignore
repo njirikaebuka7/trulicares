@@ -42,3 +42,13 @@ brain/
 scratch/
 apps/web/build_log.txt
 
+# Ad-hoc local DB/test scripts (never commit — may contain DB credentials)
+/test_*.js
+/test_*.cjs
+/check_*.js
+/check_*.cjs
+/fix_*.cjs
+/run_migration.js
+/temp_*.ts
+apps/api/*.cjs
+
