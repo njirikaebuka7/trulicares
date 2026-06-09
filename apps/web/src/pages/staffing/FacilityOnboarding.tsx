@@ -13,6 +13,7 @@ import {
 import logoImg from '@/assets/logo.png';
 import Button from '@/components/ui/Button';
 import SelectCard from '@/components/ui/SelectCard';
+import GoogleSignInButton, { GOOGLE_ENABLED, decodeGoogleCredential } from '@/components/auth/GoogleSignInButton';
 import { cn } from '@/utils/cn';
 
 const FACILITY_TYPES = [
@@ -41,8 +42,11 @@ const benefits = [
 
 export default function FacilityOnboarding() {
   const navigate = useNavigate();
-  const { signup } = useAuth();
+  const { signup, loginWithGoogle } = useAuth();
   const [step, setStep] = useState(0);
+  // Deferred Google sign-up: captured at the account step, used at final submit.
+  const [googleCredential, setGoogleCredential] = useState<string | null>(null);
+  const [googleLinked, setGoogleLinked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -110,13 +114,22 @@ export default function FacilityOnboarding() {
     if (digit && idx < 5) contactOtpRefs.current[idx + 1]?.focus();
   };
 
+  const handleGoogle = (credential: string) => {
+    const { email } = decodeGoogleCredential(credential);
+    setForm(prev => ({ ...prev, email: email || prev.email }));
+    setGoogleCredential(credential);
+    setGoogleLinked(true);
+    setIsContactPhoneVerified(true); // Google has already verified the email address
+    setError('');
+  };
+
   const validateStep = () => {
     setError('');
     if (step === 1) {
       if (!form.facilityName.trim()) return setError('Facility name is required'), false;
       if (!form.facilityType) return setError('Facility type is required'), false;
       if (!form.email.trim()) return setError('Email is required'), false;
-      if (form.password.length < 8) return setError('Password must be at least 8 characters'), false;
+      if (!googleLinked && form.password.length < 8) return setError('Password must be at least 8 characters'), false;
     }
     if (step === 2) {
       if (!form.legalBusinessName.trim()) return setError('Legal business name is required'), false;
@@ -147,13 +160,17 @@ export default function FacilityOnboarding() {
     setError('');
     try {
       // Step 1: Create auth account and sign in via AuthContext
-      await signup(
-        form.email,
-        form.password,
-        form.facilityName,
-        'facility',
-        form.phone
-      );
+      if (googleLinked && googleCredential) {
+        await loginWithGoogle(googleCredential, 'facility');
+      } else {
+        await signup(
+          form.email,
+          form.password,
+          form.facilityName,
+          'facility',
+          form.phone
+        );
+      }
 
       // Step 2: Create facility profile (best-effort)
       try {
@@ -264,7 +281,22 @@ export default function FacilityOnboarding() {
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">Facility Information</h2>
                 <p className="text-gray-500 text-sm">Tell us about your healthcare organization.</p>
               </div>
-              
+
+              {GOOGLE_ENABLED && !googleLinked && (
+                <div className="mb-4">
+                  <GoogleSignInButton onCredential={handleGoogle} text="signup_with" />
+                  <div className="relative my-5">
+                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+                    <div className="relative flex justify-center text-xs"><span className="bg-white px-4 text-gray-400 font-medium">or sign up with email</span></div>
+                  </div>
+                </div>
+              )}
+              {googleLinked && (
+                <div className="mb-4 flex items-center justify-center gap-2 rounded-2xl bg-emerald-50 border border-emerald-100 px-4 py-3 text-sm font-semibold text-emerald-700">
+                  <CheckCircle className="w-4 h-4" /> Continuing with Google as {form.email}
+                </div>
+              )}
+
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Facility Name</label>
@@ -307,22 +339,24 @@ export default function FacilityOnboarding() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                  <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type={showPass ? 'text' : 'password'}
-                      className="w-full pl-12 pr-12 py-3.5 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
-                      placeholder="At least 8 characters"
-                      value={form.password}
-                      onChange={e => set('password', e.target.value)}
-                    />
-                    <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
-                      {showPass ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
+                {!googleLinked && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                    <div className="relative">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        type={showPass ? 'text' : 'password'}
+                        className="w-full pl-12 pr-12 py-3.5 rounded-2xl border border-gray-200 bg-white focus:border-brand-500 transition-all outline-none font-medium"
+                        placeholder="At least 8 characters"
+                        value={form.password}
+                        onChange={e => set('password', e.target.value)}
+                      />
+                      <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
+                        {showPass ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           )}

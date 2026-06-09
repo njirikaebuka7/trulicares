@@ -6,6 +6,20 @@ const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
 export const GOOGLE_ENABLED = !!CLIENT_ID;
 
+/**
+ * Reads name/email from a Google ID token for UI prefill only. The token is still
+ * verified server-side before any account is created — never trust this client-side.
+ */
+export function decodeGoogleCredential(credential: string): { email?: string; name?: string; picture?: string } {
+  try {
+    const part = credential.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(decodeURIComponent(escape(atob(part))));
+    return { email: payload.email, name: payload.name, picture: payload.picture };
+  } catch {
+    return {};
+  }
+}
+
 let scriptPromise: Promise<void> | null = null;
 
 /** Loads the Google Identity Services script once and resolves when ready. */

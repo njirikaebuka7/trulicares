@@ -8,7 +8,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<User>;
-  loginWithGoogle: (credential: string) => Promise<User>;
+  loginWithGoogle: (credential: string, role?: 'family' | 'caregiver' | 'professional' | 'facility') => Promise<User>;
   signup: (email: string, password: string, name: string, role: 'family' | 'caregiver' | 'professional' | 'facility', phone?: string, caregiverData?: any) => Promise<User>;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
@@ -61,8 +61,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return newUser;
   };
 
-  const loginWithGoogle = async (credential: string) => {
-    const data: any = await authApi.oauthGoogle(credential);
+  const loginWithGoogle = async (
+    credential: string,
+    role?: 'family' | 'caregiver' | 'professional' | 'facility'
+  ) => {
+    const data: any = await authApi.oauthGoogle(credential, role);
     setToken(data.token);
     const newUser = {
       id: data.user.id,

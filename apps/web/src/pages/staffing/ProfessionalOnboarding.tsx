@@ -13,6 +13,7 @@ import {
 import logoImg from '@/assets/logo.png';
 import Button from '@/components/ui/Button';
 import SelectCard from '@/components/ui/SelectCard';
+import GoogleSignInButton, { GOOGLE_ENABLED, decodeGoogleCredential } from '@/components/auth/GoogleSignInButton';
 import { cn } from '@/utils/cn';
 
 // ── Role definitions ──────────────────────────────────────────
@@ -73,8 +74,11 @@ function PasswordChecklist({ password }: { password: string }) {
 
 export default function ProfessionalOnboarding() {
   const navigate = useNavigate();
-  const { signup } = useAuth();
+  const { signup, loginWithGoogle } = useAuth();
   const photoInputRef = useRef<HTMLInputElement>(null);
+  // Deferred Google sign-up: captured at the account step, used at final submit.
+  const [googleCredential, setGoogleCredential] = useState<string | null>(null);
+  const [googleLinked, setGoogleLinked] = useState(false);
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -118,6 +122,15 @@ export default function ProfessionalOnboarding() {
       ...prev,
       specialties: prev.specialties.includes(s) ? prev.specialties.filter(x => x !== s) : [...prev.specialties, s],
     }));
+  };
+
+  const handleGoogle = (credential: string) => {
+    const { email, name } = decodeGoogleCredential(credential);
+    setForm(prev => ({ ...prev, email: email || prev.email, name: name || prev.name }));
+    setGoogleCredential(credential);
+    setGoogleLinked(true);
+    setIsPhoneVerified(true); // Google has already verified the email address
+    setError('');
   };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -164,7 +177,11 @@ export default function ProfessionalOnboarding() {
   const TOTAL_STEPS = 6;
 
   const isNextDisabled = () => {
-    if (step === 1) return !form.name || !form.email || !STRONG_PASSWORD_REGEX.test(form.password) || !photoBase64;
+    if (step === 1) {
+      if (!form.name || !form.email) return true;
+      if (googleLinked) return false; // password/photo not required for Google sign-up
+      return !STRONG_PASSWORD_REGEX.test(form.password) || !photoBase64;
+    }
     if (step === 2) return !isPhoneVerified;
     if (step === 3) {
       if (form.roles.length === 0) return true;
@@ -190,7 +207,11 @@ export default function ProfessionalOnboarding() {
       const finalRoles = form.roles.map(r => r === 'Other' ? form.otherRole.trim() : r).filter(Boolean);
       const primaryRole = finalRoles[0] || 'Other';
 
-      await signup(form.email, form.password, form.name, 'professional', phone);
+      if (googleLinked && googleCredential) {
+        await loginWithGoogle(googleCredential, 'professional');
+      } else {
+        await signup(form.email, form.password, form.name, 'professional', phone);
+      }
 
       // Upload photo if provided
       if (photoBase64) {
@@ -303,6 +324,21 @@ export default function ProfessionalOnboarding() {
                 <p className="text-gray-500 text-sm">Start your journey as a TruliCares professional.</p>
               </div>
 
+              {GOOGLE_ENABLED && !googleLinked && (
+                <div className="mb-2">
+                  <GoogleSignInButton onCredential={handleGoogle} text="signup_with" />
+                  <div className="relative my-5">
+                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+                    <div className="relative flex justify-center text-xs"><span className="bg-white px-4 text-gray-400 font-medium">or sign up with email</span></div>
+                  </div>
+                </div>
+              )}
+              {googleLinked && (
+                <div className="mb-2 flex items-center justify-center gap-2 rounded-2xl bg-emerald-50 border border-emerald-100 px-4 py-3 text-sm font-semibold text-emerald-700">
+                  <CheckCircle className="w-4 h-4" /> Continuing with Google as {form.email}
+                </div>
+              )}
+
               {/* Profile photo upload */}
               <div className="flex flex-col items-center mb-2">
                 <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
@@ -350,23 +386,25 @@ export default function ProfessionalOnboarding() {
                     />
                   </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                  <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type={showPass ? 'text' : 'password'}
-                      className="w-full pl-12 pr-12 py-3.5 rounded-2xl border border-gray-200 bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 transition-all outline-none"
-                      placeholder="Create a strong password"
-                      value={form.password}
-                      onChange={e => set('password', e.target.value)}
-                    />
-                    <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                      {showPass ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
+                {!googleLinked && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                    <div className="relative">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        type={showPass ? 'text' : 'password'}
+                        className="w-full pl-12 pr-12 py-3.5 rounded-2xl border border-gray-200 bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 transition-all outline-none"
+                        placeholder="Create a strong password"
+                        value={form.password}
+                        onChange={e => set('password', e.target.value)}
+                      />
+                      <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        {showPass ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
+                    {form.password && <PasswordChecklist password={form.password} />}
                   </div>
-                  {form.password && <PasswordChecklist password={form.password} />}
-                </div>
+                )}
               </div>
             </div>
           )}

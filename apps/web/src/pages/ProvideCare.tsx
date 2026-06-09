@@ -5,6 +5,7 @@ import { detectLocationWithZip } from '@/utils/geolocation';
 import Button from '@/components/ui/Button';
 import SelectCard from '@/components/ui/SelectCard';
 import { useAuth } from '@/context/AuthContext';
+import GoogleSignInButton, { GOOGLE_ENABLED, decodeGoogleCredential } from '@/components/auth/GoogleSignInButton';
 import { caregivers as caregiversApi, auth as authApi } from '@/lib/api';
 import type { CareCategory } from '@/types';
 import logoImg from '@/assets/logo.png';
@@ -27,9 +28,12 @@ const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9])
 
 export default function ProvideCare() {
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading, signup } = useAuth();
+  const { isAuthenticated, isLoading, signup, loginWithGoogle } = useAuth();
 
   const [step, setStep] = useState(0);
+  // Deferred Google sign-up: captured at the account step, used at final submit.
+  const [googleCredential, setGoogleCredential] = useState<string | null>(null);
+  const [googleLinked, setGoogleLinked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -152,6 +156,16 @@ export default function ProvideCare() {
     'Less than 1 year': 0, '1-3 years': 2, '4-6 years': 5, '7-10 years': 8, '10+ years': 12,
   };
 
+  const handleGoogle = (credential: string) => {
+    const { email: gEmail, name: gName } = decodeGoogleCredential(credential);
+    if (gEmail) setEmail(gEmail);
+    if (gName) setName(gName);
+    setGoogleCredential(credential);
+    setGoogleLinked(true);
+    setIsPhoneVerified(true); // Google has already verified the email address
+    setError('');
+  };
+
   const handleSubmit = async () => {
     setLoading(true);
     setError('');
@@ -165,7 +179,11 @@ export default function ProvideCare() {
         serviceZips,
         location: serviceZips[0] || 'United States',
       };
-      await signup(email, password, name, 'caregiver', phone, formattedCaregiverData);
+      if (googleLinked && googleCredential) {
+        await loginWithGoogle(googleCredential, 'caregiver');
+      } else {
+        await signup(email, password, name, 'caregiver', phone, formattedCaregiverData);
+      }
       if (photoBase64) {
         await authApi.updateProfile({ photoUrl: photoBase64 }).catch(console.error);
       }
@@ -187,7 +205,7 @@ export default function ProvideCare() {
 
   const isNextDisabled = () => {
     switch (step) {
-      case 0: return !name || !email || !password || !STRONG_PASSWORD_REGEX.test(password) || !photoBase64;
+      case 0: return googleLinked ? (!name || !email) : (!name || !email || !password || !STRONG_PASSWORD_REGEX.test(password) || !photoBase64);
       case 1: return !isPhoneVerified;
       case 2: return specialties.length === 0;
       case 3: return serviceZips.length === 0;
@@ -205,6 +223,21 @@ export default function ProvideCare() {
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Join TruliCares</h2>
         <p className="text-gray-500 text-sm">Create your caregiver account for free.</p>
       </div>
+
+      {GOOGLE_ENABLED && !googleLinked && (
+        <div className="mb-5">
+          <GoogleSignInButton onCredential={handleGoogle} text="signup_with" />
+          <div className="relative my-5">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+            <div className="relative flex justify-center text-xs"><span className="bg-white px-4 text-gray-400 font-medium">or sign up with email</span></div>
+          </div>
+        </div>
+      )}
+      {googleLinked && (
+        <div className="mb-5 flex items-center justify-center gap-2 rounded-2xl bg-emerald-50 border border-emerald-100 px-4 py-3 text-sm font-semibold text-emerald-700">
+          <Check className="w-4 h-4" /> Continuing with Google as {email}
+        </div>
+      )}
 
       {/* Photo upload */}
       <div className="flex flex-col items-center mb-5">
@@ -256,22 +289,24 @@ export default function ProvideCare() {
               className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none" />
           </div>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-          <div className="relative">
-            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Create a password"
-              className="w-full pl-12 pr-12 py-3.5 rounded-2xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm transition-all" />
-            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-            </button>
+        {!googleLinked && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+            <div className="relative">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Create a password"
+                className="w-full pl-12 pr-12 py-3.5 rounded-2xl border border-gray-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 outline-none text-sm transition-all" />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+            {password && !STRONG_PASSWORD_REGEX.test(password) && (
+              <p className="text-xs text-red-500 mt-1.5 font-medium leading-tight">
+                Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.
+              </p>
+            )}
           </div>
-          {password && !STRONG_PASSWORD_REGEX.test(password) && (
-            <p className="text-xs text-red-500 mt-1.5 font-medium leading-tight">
-              Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.
-            </p>
-          )}
-        </div>
+        )}
 
       </div>
     </>,

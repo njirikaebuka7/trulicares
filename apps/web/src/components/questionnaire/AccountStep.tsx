@@ -4,6 +4,7 @@ import Button from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { auth as authApi } from '@/lib/api';
+import GoogleSignInButton, { GOOGLE_ENABLED } from '@/components/auth/GoogleSignInButton';
 
 interface Props {
   onComplete: () => void;
@@ -15,7 +16,7 @@ interface Props {
 const STRONG_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
 export default function AccountStep({ onComplete, onBack, onCancel, cancelLabel }: Props) {
-  const { isAuthenticated, signup } = useAuth();
+  const { isAuthenticated, signup, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,6 +31,18 @@ export default function AccountStep({ onComplete, onBack, onCancel, cancelLabel 
     onComplete();
     return null;
   }
+
+  const handleGoogle = async (credential: string) => {
+    setLoading(true);
+    setError('');
+    try {
+      await loginWithGoogle(credential, 'family');
+      onComplete();
+    } catch (err: any) {
+      setError(err.message || 'Google sign-up failed. Please try again.');
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,6 +148,16 @@ export default function AccountStep({ onComplete, onBack, onCancel, cancelLabel 
         </div>
 
         {!otpSent ? (
+          <>
+          {GOOGLE_ENABLED && (
+            <div className="mb-5">
+              <GoogleSignInButton onCredential={handleGoogle} text="signup_with" />
+              <div className="relative my-5">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+                <div className="relative flex justify-center text-xs"><span className="bg-white px-4 text-gray-400 font-medium">or sign up with email</span></div>
+              </div>
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Email address</label>
@@ -184,6 +207,7 @@ export default function AccountStep({ onComplete, onBack, onCancel, cancelLabel 
               Create Account & Continue
             </Button>
           </form>
+          </>
         ) : (
           <div className="space-y-6">
             <p className="text-center text-sm text-gray-500">
