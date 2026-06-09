@@ -116,6 +116,10 @@ export const disputes = {
     post('/staffing/disputes', { bookingId, reason, description }),
   my: () => get('/staffing/disputes/my'),
   all: (status?: string) => get(`/staffing/disputes${status ? `?status=${status}` : ''}`),
-  resolve: (id: string, status: 'resolved' | 'dismissed', resolutionNotes?: string) =>
-    put(`/staffing/disputes/${id}`, { status, resolutionNotes }),
+  resolve: (
+    id: string,
+    status: 'resolved' | 'dismissed',
+    outcome: 'release' | 'refund' | 'none' = 'none',
+    resolutionNotes?: string
+  ) => put(`/staffing/disputes/${id}`, { status, outcome, resolutionNotes }),
 };

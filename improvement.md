@@ -311,7 +311,16 @@ Each step compiles (`tsc`) and is pushed so Vercel redeploys incrementally.
 ### Still open (documented, lower priority)
 
 - Stripe Connect payouts for real wallet withdrawals (table + status tracking are in place).
-- Geofenced check-in: needs shift lat/lng stored; the real `CheckInTimer` is wired and
-  `utils/geolocation` exists — capture+compare is the remaining step.
-- Admin dashboard UI for the new dispute `outcome` (release/refund) control.
-- Housekeeping: gitignore tracked `dist/`, `dist-server/`, scratch scripts.
+
+### Resolved since last update
+
+- **Geofenced check-in — DONE.** Shift coords are stored/geocoded on demand
+  (`checkin.ts` `getOrGeocodeShiftCoords`), `CheckInTimer` captures device coords via
+  `navigator.geolocation` and sends them on check-in/out, the backend computes Haversine
+  distance + `check_in_verified`/`check_out_verified`, and the UI shows
+  "Location verified / not verified" badges. Soft enforcement (records, does not block).
+- **Admin dispute outcome UI — DONE.** AdminDashboard "Resolve Dispute" modal has
+  Release / Refund / Close-only buttons that send `outcome` to `PUT /staffing/disputes/:id`,
+  which releases escrow to the pro or refunds the facility via Stripe.
+- **Housekeeping — DONE.** `dist/`, `dist-server/`, `scratch/` untracked; ad-hoc
+  secret-bearing scripts removed and blocked via `.gitignore`. CORS locked to known origins.
