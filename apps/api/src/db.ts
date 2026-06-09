@@ -226,6 +226,38 @@ pool.query(`
   CREATE INDEX IF NOT EXISTS idx_admin_notes_entity ON admin_notes(entity_type, entity_id, created_at DESC);
 `).catch(err => console.error('support/notes auto-migration failed', err));
 
+// Assistant conversations + messages.
+pool.query(`
+  CREATE TABLE IF NOT EXISTS assistant_conversations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    guest_token TEXT,
+    role_snapshot TEXT NOT NULL DEFAULT 'guest'
+      CHECK (role_snapshot IN ('guest','family','caregiver','professional','facility','admin')),
+    page_path TEXT,
+    status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','escalated','closed')),
+    title TEXT,
+    last_message_at TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_assistant_conversations_user
+    ON assistant_conversations(user_id, last_message_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_assistant_conversations_guest
+    ON assistant_conversations(guest_token, last_message_at DESC);
+
+  CREATE TABLE IF NOT EXISTS assistant_messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id UUID NOT NULL REFERENCES assistant_conversations(id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK (role IN ('user','assistant','tool')),
+    content TEXT NOT NULL,
+    meta JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_assistant_messages_conversation
+    ON assistant_messages(conversation_id, created_at);
+`).catch(err => console.error('assistant auto-migration failed', err));
+
 // Blog / resources CMS.
 pool.query(`
   CREATE TABLE IF NOT EXISTS blog_posts (

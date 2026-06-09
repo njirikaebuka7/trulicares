@@ -20,6 +20,7 @@ import supportRouter from './routes/support.js';
 import cronRouter from './routes/cron.js';
 import geoRouter from './routes/geo.js';
 import settingsRouter from './routes/settings.js';
+import assistantRouter from './routes/assistant.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
 import { redisHealthCheck } from './services/redis.js';
 
@@ -86,6 +87,7 @@ app.use('/api/support', supportRouter); // public support ticket creation
 app.use('/api/cron', cronRouter); // Vercel Cron maintenance jobs
 app.use('/api/geo', geoRouter); // geocoding (reverse/forward) for the location picker
 app.use('/api/settings', settingsRouter); // public site settings (footer + contact)
+app.use('/api/assistant', assistantRouter); // unified guest/auth-aware assistant
 
 // ── 404 handler for unknown API routes ────────────────────────────────────────
 app.use('/api/*path', (_req, res) => {

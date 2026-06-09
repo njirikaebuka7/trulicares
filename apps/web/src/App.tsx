@@ -4,6 +4,7 @@ import ScrollToTop from '@/components/ScrollToTop';
 import Layout from '@/components/layout/Layout';
 import ProtectedRoute from '@/components/layout/ProtectedRoute';
 import { Toaster } from '@/components/ui/Toaster';
+import AssistantWidget from '@/components/assistant/AssistantWidget';
 import Home from '@/pages/Home';
 import About from '@/pages/About';
 import Services from '@/pages/Services';
@@ -36,6 +37,7 @@ export default function App() {
       <BrowserRouter>
         <ScrollToTop />
         <Toaster />
+        <AssistantWidget />
         <Routes>
           {/* Pages with standard layout (navbar + footer) */}
           <Route element={<Layout />}>

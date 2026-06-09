@@ -271,6 +271,48 @@ export const support = {
 };
 
 // ── Public site settings (footer + contact page) ────────────────────────────────
+export interface AssistantContext {
+  role: 'guest' | 'family' | 'caregiver' | 'professional' | 'facility' | 'admin';
+  isAuthenticated: boolean;
+  canUseAccountTools: boolean;
+}
+
+export interface AssistantMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+}
+
+export interface AssistantConversation {
+  conversationId: string;
+  guestToken?: string;
+  messages: AssistantMessage[];
+  context: AssistantContext;
+  starterPrompts: string[];
+}
+
+export interface AssistantChatResponse {
+  conversationId: string;
+  guestToken?: string;
+  assistantMessage: AssistantMessage;
+  context: AssistantContext;
+  starterPrompts: string[];
+  escalated: boolean;
+}
+
+export const assistant = {
+  getConversation: (conversationId: string, guestToken?: string) =>
+    get(`/assistant/conversations/${conversationId}${guestToken ? `?guestToken=${encodeURIComponent(guestToken)}` : ''}`) as Promise<AssistantConversation>,
+  chat: (data: {
+    conversationId?: string;
+    guestToken?: string;
+    message: string;
+    pagePath?: string;
+    pageTitle?: string;
+  }) => post('/assistant/chat', data) as Promise<AssistantChatResponse>,
+};
+
 export interface PublicSettings {
   platformName: string;
   socials: { facebook: string; instagram: string; youtube: string };
