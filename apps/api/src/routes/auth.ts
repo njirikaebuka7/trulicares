@@ -222,6 +222,94 @@ router.post('/login', loginLimiter, async (req, res) => {
   }
 });
 
+// POST /api/auth/oauth/google — sign in / sign up with a Google identity token.
+// The browser obtains a signed ID token from Google Identity Services and posts the
+// `credential` here. We verify it was issued for our app, then find-or-create the
+// user by their verified Google email and issue our normal JWT.
+router.post('/oauth/google', loginLimiter, async (req, res) => {
+  try {
+    const { credential, role: requestedRole } = req.body || {};
+    if (!credential) return res.status(400).json({ error: 'Missing Google credential' });
+
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) return res.status(503).json({ error: 'Google sign-in is not configured' });
+
+    // Verify the ID token directly with Google.
+    let payload: any;
+    try {
+      const r = await fetch(
+        `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`
+      );
+      if (!r.ok) throw new Error('token verification failed');
+      payload = await r.json();
+    } catch {
+      return res.status(401).json({ error: 'Could not verify Google sign-in. Please try again.' });
+    }
+
+    const audOk = payload.aud === clientId;
+    const issOk = payload.iss === 'https://accounts.google.com' || payload.iss === 'accounts.google.com';
+    const emailVerified = payload.email_verified === true || payload.email_verified === 'true';
+    const email = (payload.email || '').toLowerCase().trim();
+    if (!audOk || !issOk || !email || !emailVerified) {
+      return res.status(401).json({ error: 'Invalid Google sign-in.' });
+    }
+
+    const name = (payload.name || email.split('@')[0]).toString().trim().slice(0, 120);
+    const picture = typeof payload.picture === 'string' ? payload.picture : null;
+
+    const existing = await query(
+      'SELECT id, name, email, role, status, photo_url, phone FROM users WHERE email = $1',
+      [email]
+    );
+    let user = existing.rows[0];
+
+    if (user) {
+      if (user.status === 'suspended') {
+        return res.status(403).json({ error: 'This account has been suspended. Contact support.' });
+      }
+      // Link the provider + backfill a photo if missing; never overwrite existing data.
+      await query(
+        `UPDATE users SET auth_provider = COALESCE(auth_provider, 'google'),
+           email_verified = TRUE,
+           photo_url = COALESCE(photo_url, $2),
+           updated_at = NOW()
+         WHERE id = $1`,
+        [user.id, picture]
+      ).catch(() => {});
+    } else {
+      // New account. Admin is granted only via the ADMIN_EMAILS allowlist (inside
+      // detectRole); everyone else defaults to family. Role-specific users (caregiver/
+      // professional/facility) still onboard through their dedicated flows.
+      const role = detectRole(email, requestedRole);
+      const ins = await query(
+        `INSERT INTO users (name, email, role, status, photo_url, email_verified, auth_provider)
+         VALUES ($1, $2, $3, 'active', $4, TRUE, 'google')
+         RETURNING id, name, email, role, status, photo_url, phone`,
+        [name, email, role, picture]
+      );
+      user = ins.rows[0];
+      enqueueEmail('welcome', email, { name }).catch(() => {});
+    }
+
+    const token = generateToken({ id: user.id, email: user.email, role: user.role, name: user.name });
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        photoUrl: user.photo_url,
+        status: user.status,
+        phone: user.phone,
+      },
+    });
+  } catch (err) {
+    console.error('Google OAuth error:', err);
+    res.status(500).json({ error: 'Google sign-in failed. Please try again.' });
+  }
+});
+
 // GET /api/auth/me
 router.get('/me', requireAuth, async (req: AuthRequest, res) => {
   try {

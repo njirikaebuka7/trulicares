@@ -79,6 +79,8 @@ export const auth = {
   register: (name: string, email: string, password: string, role: string, phone?: string, caregiverData?: any) =>
     post('/auth/register', { name, email, password, role, phone, caregiverData }),
   me: () => get('/auth/me'),
+  oauthGoogle: (credential: string, role?: string) =>
+    post('/auth/oauth/google', { credential, role }),
   settings: () => get('/auth/settings'),
   stats: () => get('/auth/stats'),
   updateProfile: (data: any) => put('/auth/profile', data),

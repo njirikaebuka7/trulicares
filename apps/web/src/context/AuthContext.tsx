@@ -8,6 +8,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<User>;
+  loginWithGoogle: (credential: string) => Promise<User>;
   signup: (email: string, password: string, name: string, role: 'family' | 'caregiver' | 'professional' | 'facility', phone?: string, caregiverData?: any) => Promise<User>;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
@@ -60,6 +61,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return newUser;
   };
 
+  const loginWithGoogle = async (credential: string) => {
+    const data: any = await authApi.oauthGoogle(credential);
+    setToken(data.token);
+    const newUser = {
+      id: data.user.id,
+      email: data.user.email,
+      name: data.user.name,
+      role: data.user.role,
+      verified: true,
+      photoUrl: data.user.photoUrl,
+      status: data.user.status,
+      phone: data.user.phone,
+    };
+    setUser(newUser);
+    return newUser;
+  };
+
   const signup = async (
     email: string,
     password: string,
@@ -94,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, signup, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, loginWithGoogle, signup, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

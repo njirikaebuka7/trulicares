@@ -327,6 +327,13 @@ pool.query(`
 pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;`)
   .catch(err => console.error('users.deleted_at auto-migration failed', err));
 
+// OAuth (Google) sign-in: provider-created users have no password, and we record
+// which provider an account used. Safe to run repeatedly.
+pool.query(`
+  ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider TEXT;
+`).catch(err => console.error('OAuth users auto-migration failed', err));
+
 // Make a HARD delete of a user safe: the remaining FK references to users(id)
 // that are NOT ALREADY cascade/set-null would otherwise block `DELETE FROM users`.
 // Owned data already cascades; these audit/reference columns are converted so
