@@ -1,5 +1,5 @@
-import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { startTransition, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { MessageCircle, Send, Shield, Sparkles, X } from 'lucide-react';
 import { assistant as assistantApi, type AssistantMessage } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -58,6 +58,51 @@ function ensureGuestToken() {
   const generated = window.crypto?.randomUUID?.() || `guest-${Date.now()}`;
   localStorage.setItem(GUEST_TOKEN_KEY, generated);
   return generated;
+}
+
+const MARKDOWN_LINK = /\[([^\]]+)\]\(([^)\s]+)\)/g;
+
+function renderRichSegments(text: string, onNavigate: () => void) {
+  const nodes: ReactNode[] = [];
+  const regex = new RegExp(MARKDOWN_LINK);
+  const linkClass =
+    'font-semibold text-brand-700 underline decoration-brand-300 underline-offset-2 transition hover:text-brand-800';
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    const [full, label, target] = match;
+    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
+
+    if (target.startsWith('/')) {
+      nodes.push(
+        <Link key={nodes.length} to={target} onClick={onNavigate} className={linkClass}>
+          {label}
+        </Link>
+      );
+    } else {
+      const isWeb = /^https?:/i.test(target);
+      nodes.push(
+        <a
+          key={nodes.length}
+          href={target}
+          target={isWeb ? '_blank' : undefined}
+          rel={isWeb ? 'noreferrer' : undefined}
+          className={linkClass}
+        >
+          {label}
+        </a>
+      );
+    }
+    lastIndex = match.index + full.length;
+  }
+
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  return nodes;
+}
+
+function RichText({ content, onNavigate }: { content: string; onNavigate: () => void }) {
+  return <p className="whitespace-pre-wrap">{renderRichSegments(content, onNavigate)}</p>;
 }
 
 export default function AssistantWidget() {
@@ -285,13 +330,17 @@ export default function AssistantWidget() {
                     )}
                     <div
                       className={cn(
-                        'max-w-[88%] break-words rounded-[24px] px-4 py-3 text-sm leading-6 shadow-sm sm:max-w-[26rem]',
+                        'max-w-[88%] break-words rounded-[24px] px-4 py-3 text-sm leading-6 shadow-sm sm:max-w-[20rem]',
                         message.role === 'user'
                           ? 'bg-slate-900 text-white'
                           : 'border border-brand-100 bg-white text-slate-700'
                       )}
                     >
-                      <p className="whitespace-pre-wrap">{message.content}</p>
+                      {message.role === 'user' ? (
+                        <p className="whitespace-pre-wrap">{message.content}</p>
+                      ) : (
+                        <RichText content={message.content} onNavigate={() => setOpen(false)} />
+                      )}
                     </div>
                   </div>
                 ))
