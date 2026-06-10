@@ -35,7 +35,7 @@ const MIME = {
 // prerendering is skipped or the homepage fails, we still inject the homepage's
 // critical SEO tags into dist/index.html so crawlers (Bing, social, AI) never see
 // a blank shell. Mirrors what <Seo> renders on the home route.
-const SITE_URL = 'https://www.trulicares.com';
+const SITE_URL = 'https://trulicares.com';
 const HOME_TITLE = 'TruliCares — Find Trusted, Verified Caregivers & Healthcare Staffing';
 const HOME_DESC =
   'TruliCares helps families find verified caregivers for child, senior, and adult care, and helps healthcare facilities hire licensed nursing professionals across the United States.';

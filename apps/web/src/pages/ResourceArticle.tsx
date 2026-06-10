@@ -444,7 +444,19 @@ export default function ResourceArticle() {
         author: p.author_name || 'TruliCares',
         date: p.published_at ? new Date(p.published_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '',
         image: p.featured_image || '',
-        content: String(p.content || p.excerpt || '').split(/\n{2,}/).map((t: string) => ({ type: 'paragraph', text: t.trim() })).filter((b: any) => b.text),
+        content: String(p.content || p.excerpt || '')
+          .split(/\n{2,}/)
+          .map((raw: string) => {
+            const t = raw.trim();
+            if (!t) return null;
+            // Lightweight markup so authored posts can use headings/callouts:
+            //   "## Heading"  -> section heading
+            //   "> Callout"   -> highlighted callout box
+            if (t.startsWith('## ')) return { type: 'heading', text: t.slice(3).trim() };
+            if (t.startsWith('> ')) return { type: 'callout', text: t.slice(2).trim() };
+            return { type: 'paragraph', text: t };
+          })
+          .filter((b: any): b is { type: string; text: string } => !!b && !!b.text),
       });
     }).catch(() => {}).finally(() => active && setLoading(false));
     return () => { active = false; };
@@ -529,7 +541,7 @@ export default function ResourceArticle() {
       {/* Article body */}
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
         <div className="space-y-6">
-          {article.content.map((block, i) => {
+          {article.content.map((block: { type: string; text: string }, i: number) => {
             if (block.type === 'intro') {
               return (
                 <p key={i} className="text-lg text-gray-700 leading-relaxed font-medium border-l-4 border-brand-400 pl-5 py-1">

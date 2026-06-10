@@ -10,4 +10,4 @@ Disallow: /facility-onboarding
 Disallow: /reset-password
 Disallow: /login
 
-Sitemap: https://www.trulicares.com/sitemap.xml
+Sitemap: https://trulicares.com/sitemap.xml

@@ -8,7 +8,7 @@
  * No external dependency required.
  */
 
-export const SITE_URL = 'https://www.trulicares.com';
+export const SITE_URL = 'https://trulicares.com';
 const DEFAULT_IMAGE = `${SITE_URL}/logo.png`;
 
 interface SeoProps {

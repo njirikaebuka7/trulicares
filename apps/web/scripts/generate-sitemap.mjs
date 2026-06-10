@@ -6,7 +6,7 @@ import { dirname, resolve } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
-const SITE = 'https://www.trulicares.com';
+const SITE = 'https://trulicares.com';
 const today = new Date().toISOString().slice(0, 10);
 
 // [path, changefreq, priority]
