@@ -30,6 +30,71 @@ const MIME = {
   '.xml': 'application/xml', '.txt': 'text/plain',
 };
 
+// ── Browser-free SEO fallback ────────────────────────────────────────────────
+// Headless Chromium cannot always launch in CI/Vercel build containers. If
+// prerendering is skipped or the homepage fails, we still inject the homepage's
+// critical SEO tags into dist/index.html so crawlers (Bing, social, AI) never see
+// a blank shell. Mirrors what <Seo> renders on the home route.
+const SITE_URL = 'https://www.trulicares.com';
+const HOME_TITLE = 'TruliCares — Find Trusted, Verified Caregivers & Healthcare Staffing';
+const HOME_DESC =
+  'TruliCares helps families find verified caregivers for child, senior, and adult care, and helps healthcare facilities hire licensed nursing professionals across the United States.';
+
+function baselineHeadTags() {
+  const org = {
+    '@context': 'https://schema.org', '@type': 'Organization', name: 'TruliCares',
+    url: SITE_URL, logo: `${SITE_URL}/logo.png`,
+    description:
+      'TruliCares connects families and healthcare facilities with trusted, verified caregivers and licensed nursing professionals across the United States.',
+    sameAs: [
+      'https://www.facebook.com/trulicares', 'https://twitter.com/trulicares',
+      'https://www.instagram.com/trulicares', 'https://www.linkedin.com/company/trulicares',
+    ],
+    contactPoint: {
+      '@type': 'ContactPoint', contactType: 'customer support',
+      email: 'support@trulicares.com', areaServed: 'US', availableLanguage: 'English',
+    },
+  };
+  const website = {
+    '@context': 'https://schema.org', '@type': 'WebSite', name: 'TruliCares', url: SITE_URL,
+    potentialAction: {
+      '@type': 'SearchAction', target: `${SITE_URL}/caregivers?search={search_term_string}`,
+      'query-input': 'required name=search_term_string',
+    },
+  };
+  return [
+    `<title>${HOME_TITLE}</title>`,
+    `<meta name="description" content="${HOME_DESC}" />`,
+    `<link rel="canonical" href="${SITE_URL}/" />`,
+    `<meta name="robots" content="index,follow" />`,
+    `<meta property="og:title" content="${HOME_TITLE}" />`,
+    `<meta property="og:description" content="${HOME_DESC}" />`,
+    `<meta property="og:type" content="website" />`,
+    `<meta property="og:url" content="${SITE_URL}/" />`,
+    `<meta property="og:image" content="${SITE_URL}/logo.png" />`,
+    `<meta property="og:site_name" content="TruliCares" />`,
+    `<meta name="twitter:card" content="summary_large_image" />`,
+    `<meta name="twitter:title" content="${HOME_TITLE}" />`,
+    `<meta name="twitter:description" content="${HOME_DESC}" />`,
+    `<meta name="twitter:image" content="${SITE_URL}/logo.png" />`,
+    `<script type="application/ld+json">${JSON.stringify(org)}</script>`,
+    `<script type="application/ld+json">${JSON.stringify(website)}</script>`,
+  ].join('\n    ');
+}
+
+// Ensures dist/index.html has a <title>. If prerendering already produced one,
+// this is a no-op (so there's never a duplicate title); otherwise it injects the
+// homepage baseline tags before </head>.
+async function ensureHomepageSeo() {
+  const file = join(dist, 'index.html');
+  if (!existsSync(file)) return;
+  let html = await readFile(file, 'utf8');
+  if (/<title>/i.test(html)) return; // prerender succeeded — leave it alone
+  html = html.replace(/<\/head>/i, `    ${baselineHeadTags()}\n  </head>`);
+  await writeFile(file, html, 'utf8');
+  console.log('  ↳ injected baseline homepage SEO into dist/index.html (browser-free fallback)');
+}
+
 // Routes to prerender. Skips API-driven (/resources) and interactive/auth flows.
 function routesToPrerender() {
   const { cities } = JSON.parse(readFileSync(resolve(root, 'src/data/locations.json'), 'utf8'));
@@ -103,7 +168,8 @@ async function main() {
     }
   } catch (e) {
     console.warn(`\n⚠ Prerender skipped — could not launch headless Chromium: ${e.message}`);
-    console.warn('  Build continues; the site ships client-rendered with per-page meta + sitemap.\n');
+    console.warn('  Injecting baseline homepage SEO so crawlers still get title/meta/JSON-LD.\n');
+    await ensureHomepageSeo();
     process.exit(0);
   }
 
@@ -133,6 +199,9 @@ async function main() {
     await browser.close();
     server.close();
   }
+  // Safety net: if the homepage route itself failed, index.html could still be a
+  // bare shell — inject the baseline so it's never naked for crawlers.
+  await ensureHomepageSeo();
   console.log(`\n✓ Prerendered ${ok}/${routes.length} routes into dist/`);
 }
 
