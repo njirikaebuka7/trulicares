@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, X, Loader2, ExternalLink } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Loader2, ExternalLink, ImageIcon } from 'lucide-react';
 import { admin as adminApi } from '@/lib/api';
 import { cn } from '@/utils/cn';
 
@@ -100,8 +100,17 @@ export default function AdminContent() {
           <div className="p-10 text-center text-sm text-gray-400">No posts yet. Create your first one.</div>
         ) : posts.map((p) => (
           <div key={p.id} className="flex items-center gap-4 p-4 border-b border-gray-50 last:border-0">
-            <div className="w-12 h-12 rounded-xl bg-gray-100 overflow-hidden shrink-0">
-              {p.featured_image && <img src={p.featured_image} alt="" className="w-full h-full object-cover" />}
+            <div className="w-12 h-12 rounded-xl bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
+              {p.featured_image ? (
+                <img
+                  src={p.featured_image}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                />
+              ) : (
+                <ImageIcon className="w-5 h-5 text-gray-300" />
+              )}
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-gray-900 truncate">{p.title}</p>

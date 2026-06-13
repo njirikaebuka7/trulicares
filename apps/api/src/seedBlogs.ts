@@ -20,6 +20,7 @@ interface SeedPost {
   seoTitle: string;
   seoDescription: string;
   readTime: string;
+  featuredImage: string;
   content: string;
 }
 
@@ -27,6 +28,7 @@ const POSTS: SeedPost[] = [
   {
     title: 'What Is TruliCares? Trusted Care and Healthcare Staffing, Explained',
     slug: 'what-is-trulicares',
+    featuredImage: '/blog/what-is-trulicares.jpg',
     category: 'About',
     tags: ['trulicares', 'about', 'care marketplace', 'healthcare staffing'],
     seoTitle: 'What Is TruliCares? Verified Caregivers & Healthcare Staffing',
@@ -66,6 +68,7 @@ TruliCares exists to remove the guesswork from care. Verified people, transparen
   {
     title: 'How to Find a Trusted, Verified Caregiver Near You',
     slug: 'how-to-find-a-trusted-caregiver',
+    featuredImage: '/blog/find-a-caregiver.jpg',
     category: 'Finding Care',
     tags: ['find a caregiver', 'verified caregivers', 'hiring help', 'care tips'],
     seoTitle: 'How to Find a Trusted, Verified Caregiver Near You',
@@ -105,6 +108,7 @@ A good platform does the heavy lifting: verified profiles, secure messaging, and
   {
     title: 'In-Home Senior Care: A Complete Guide for Families',
     slug: 'in-home-senior-care-guide',
+    featuredImage: '/blog/senior-care.jpg',
     category: 'Senior Care',
     tags: ['senior care', 'elderly care', 'in-home care', 'aging in place'],
     seoTitle: 'In-Home Senior Care: A Complete Guide for Families',
@@ -144,6 +148,7 @@ The hardest part is knowing the person in your loved one's home is genuinely qua
   {
     title: 'Child Care Options Compared: Nanny vs Babysitter vs Daycare',
     slug: 'child-care-options-compared',
+    featuredImage: '/blog/child-care.jpg',
     category: 'Child Care',
     tags: ['child care', 'nanny', 'babysitter', 'daycare', 'parenting'],
     seoTitle: 'Nanny vs Babysitter vs Daycare: Which Child Care Is Right?',
@@ -179,6 +184,7 @@ No matter which path you take, prioritize verified, background-checked caregiver
   {
     title: 'Per-Diem Nursing: How to Earn More with Flexible Shifts',
     slug: 'per-diem-nursing-earn-more',
+    featuredImage: '/blog/per-diem-nursing.jpg',
     category: 'For Professionals',
     tags: ['per diem nursing', 'nursing shifts', 'healthcare jobs', 'flexible work'],
     seoTitle: 'Per-Diem Nursing: How to Earn More with Flexible Shifts',
@@ -218,6 +224,7 @@ If you are a nurse, aide, therapist, or allied-health professional, set up your 
   {
     title: 'How Facilities Fill Nursing Shifts Fast with Verified Professionals',
     slug: 'fill-nursing-shifts-fast',
+    featuredImage: '/blog/facility-staffing.jpg',
     category: 'For Facilities',
     tags: ['healthcare staffing', 'nursing shifts', 'facilities', 'per diem staffing'],
     seoTitle: 'How Facilities Fill Nursing Shifts Fast with Verified Pros',
@@ -264,13 +271,14 @@ async function seedBlogs() {
   for (const p of POSTS) {
     const res = await pool.query(
       `INSERT INTO blog_posts
-         (title, slug, excerpt, content, category, tags, seo_title, seo_description,
+         (title, slug, excerpt, content, featured_image, category, tags, seo_title, seo_description,
           author_name, read_time, status, published_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'published', NOW())
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'published', NOW())
        ON CONFLICT (slug) DO UPDATE SET
          title = EXCLUDED.title,
          excerpt = EXCLUDED.excerpt,
          content = EXCLUDED.content,
+         featured_image = EXCLUDED.featured_image,
          category = EXCLUDED.category,
          tags = EXCLUDED.tags,
          seo_title = EXCLUDED.seo_title,
@@ -282,7 +290,7 @@ async function seedBlogs() {
          updated_at = NOW()
        RETURNING (xmax = 0) AS inserted`,
       [
-        p.title, p.slug, p.excerpt, p.content, p.category, p.tags,
+        p.title, p.slug, p.excerpt, p.content, p.featuredImage, p.category, p.tags,
         p.seoTitle, p.seoDescription, 'TruliCares Team', p.readTime,
       ]
     );

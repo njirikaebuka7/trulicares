@@ -148,6 +148,12 @@ export default function Resources() {
                         alt={article.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         loading="lazy"
+                        onError={(e) => {
+                          // Broken image URL → fall back to the gradient placeholder.
+                          const el = e.currentTarget as HTMLImageElement;
+                          el.style.display = 'none';
+                          el.parentElement?.classList.add('bg-gradient-to-br', ...(placeholderGradients[article.category] || 'from-gray-400 to-gray-600').split(' '));
+                        }}
                       />
                     ) : (
                       <div className={cn(
