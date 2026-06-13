@@ -276,15 +276,24 @@ function headTagsFor(cfg, route) {
 }
 
 function bodyFor(cfg) {
-  const paras = (cfg.intro || []).map((p) => `<p>${esc(p)}</p>`).join('\n      ');
-  const links = (cfg.links || []).map((l) => `<a href="${l.href}">${esc(l.label)}</a>`).join('\n        ');
-  return `<main>
-      <h1>${esc(cfg.h1)}</h1>
-      ${paras}
-      <nav aria-label="Key links">
-        ${links}
-      </nav>
-    </main>`;
+  const paras = (cfg.intro || []).map((p) => `<p>${esc(p)}</p>`).join('\n          ');
+  const links = (cfg.links || []).map((l) => `<a href="${l.href}">${esc(l.label)}</a>`).join('\n          ');
+  // What humans see while the JS loads: a centered, pulsing logo splash (React
+  // replaces all of #root on mount). What non-JS crawlers read: the SEO content,
+  // kept in the DOM but visually hidden (crawlers ignore CSS, so they still get it).
+  return `<style>@keyframes tc-pulse{0%,100%{opacity:.45;transform:scale(.95)}50%{opacity:1;transform:scale(1)}}</style>
+    <div id="tc-splash" aria-hidden="true" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#ffffff">
+      <img src="/logo.png" alt="TruliCares" style="height:44px;width:auto;animation:tc-pulse 1.1s ease-in-out infinite" />
+    </div>
+    <div style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap">
+      <main>
+        <h1>${esc(cfg.h1)}</h1>
+          ${paras}
+        <nav aria-label="Key links">
+          ${links}
+        </nav>
+      </main>
+    </div>`;
 }
 
 // For each route, write a crawlable SEO shell — UNLESS it was already fully
