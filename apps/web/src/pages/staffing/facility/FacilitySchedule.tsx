@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight as ChevronRightIcon, Clock, MapPin, Briefcase } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight as ChevronRightIcon, Clock, Briefcase } from 'lucide-react';
 import { shifts as shiftApi } from '@/lib/staffingApi';
 import { Shift } from '@/types/staffing';
 import { cn } from '@/utils/cn';

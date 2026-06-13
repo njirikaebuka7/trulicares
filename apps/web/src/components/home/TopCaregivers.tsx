@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Navigation, ArrowRight } from 'lucide-react';
+import { Navigation, ArrowRight } from 'lucide-react';
 import { caregivers as caregiversApi, geo } from '@/lib/api';
 import type { CaregiverProfile } from '@/types';
 import CaregiverCard from '@/components/CaregiverCard';
@@ -11,7 +11,7 @@ export default function TopCaregivers() {
   const [cityName, setCityName] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [locating, setLocating] = useState<boolean>(true);
-  const [coords, setCoords] = useState<{ lat?: number; lng?: number }>({});
+  const [, setCoords] = useState<{ lat?: number; lng?: number }>({});
 
   useEffect(() => {
     let active = true;

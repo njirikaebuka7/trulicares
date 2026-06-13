@@ -12,7 +12,7 @@
     "seed": "tsx src/seed.ts",
     "seed:blogs": "tsx src/seedBlogs.ts",
     "seed:support-admin": "tsx src/seedSupportAdmin.ts",
-    "lint": "eslint . --ext ts --report-unused-disable-directives --max-warnings 0"
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.4",

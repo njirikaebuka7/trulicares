@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, MapPin, Building2, Calendar, FileText, Loader2, CheckCircle, XCircle, ChevronRight, Check, Briefcase, AlertCircle, X, Star } from 'lucide-react';
+import { ArrowLeft, Clock, MapPin, Building2, Calendar, FileText, Loader2, CheckCircle, XCircle, ChevronRight, Briefcase, AlertCircle, X, Star } from 'lucide-react';
 import { shifts as shiftApi, applications as appApi } from '@/lib/staffingApi';
-import { Shift } from '@/types/staffing';
 import { cn } from '@/utils/cn';
 
 export default function ShiftDetails() {

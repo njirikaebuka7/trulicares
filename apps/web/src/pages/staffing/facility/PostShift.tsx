@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
-  PlusCircle, Clock, DollarSign, MapPin, Briefcase, CheckCircle,
+  Clock, DollarSign, MapPin, Briefcase, CheckCircle,
   ArrowRight, ArrowLeft, Loader2, Info, AlertCircle, Calendar,
   Users, FileText, ListChecks, Eye, User, Plus, X, ChevronLeft, ChevronRight
 } from 'lucide-react';

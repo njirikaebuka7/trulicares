@@ -1,22 +1,20 @@
 import { useState, useEffect } from 'react';
-import { toast } from '@/components/ui/Toaster';
 import { Link } from 'react-router-dom';
 import { 
-  Search, Filter, MapPin, Clock, DollarSign, 
-  Building2, ArrowRight, Briefcase, ChevronRight,
-  Info, CheckCircle, AlertCircle, Loader2
+  Search, MapPin, Clock,
+  ArrowRight,
+  Info, CheckCircle, Loader2
 } from 'lucide-react';
 import { Shift } from '@/types/staffing';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { shifts as shiftApi, applications as appApi } from '@/lib/staffingApi';
+import { shifts as shiftApi } from '@/lib/staffingApi';
 import { DistanceChip } from '@/components/ui/CaregiverTrust';
 
 export default function ShiftBrowse() {
   const { user } = useAuth();
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [loading, setLoading] = useState(true);
-  const [applyingId, setApplyingId] = useState<string | null>(null);
   const [filters, setFilters] = useState({
     role: '',
     city: '',
@@ -62,19 +60,6 @@ export default function ShiftBrowse() {
       supabase.removeChannel(channel);
     };
   }, [user]);
-
-  const handleApply = async (shiftId: string) => {
-    setApplyingId(shiftId);
-    try {
-      await appApi.apply(shiftId, "I am interested in this shift and available to work.");
-      toast('Application submitted successfully!');
-      loadShifts(); // Refresh
-    } catch (err: any) {
-      toast(err.message || 'Failed to apply', 'error');
-    } finally {
-      setApplyingId(null);
-    }
-  };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">

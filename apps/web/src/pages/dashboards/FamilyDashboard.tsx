@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import StripeCardModal from '@/components/ui/StripeCardModal';
-import ReportModal from '@/components/ReportModal';
 import { useAuth } from '@/context/AuthContext';
 import { get, post, put, auth as authApi, payments as paymentsApi, notifications as notificationsApi } from '@/lib/api';
 import { cn } from '@/utils/cn';
@@ -69,7 +68,7 @@ export default function FamilyDashboard() {
   const [showAddPayment, setShowAddPayment] = useState(false);
   
   // Dispute Report state
-  const [reportModal, setReportModal] = useState<{
+  const [, setReportModal] = useState<{
     isOpen: boolean;
     reportedUserId: string;
     reportedUserName: string;
@@ -928,7 +927,7 @@ export default function FamilyDashboard() {
                     </div>
                   ) : (
                     <div className="divide-y divide-gray-50">
-                      {matches.slice(0, 3).map((match: any, i: number) => (
+                      {matches.slice(0, 3).map((match: any) => (
                         <div key={match.id} className="flex items-center gap-3 px-5 py-3.5">
                           <Avatar name={match.caregiver?.name} src={match.caregiver?.photoUrl} size={36} className="rounded-xl" />
                           <div className="flex-1 min-w-0">
@@ -1103,7 +1102,7 @@ export default function FamilyDashboard() {
               {matches.filter((m: any) => !m.careRequestId || !requests.some((r: any) => r.id === m.careRequestId)).length > 0 && (
                 <div className="space-y-3">
                   <p className="text-sm font-semibold text-gray-500">Other Matches</p>
-                  {matches.filter((m: any) => !m.careRequestId || !requests.some((r: any) => r.id === m.careRequestId)).map((match: any, i: number) => (
+                  {matches.filter((m: any) => !m.careRequestId || !requests.some((r: any) => r.id === m.careRequestId)).map((match: any) => (
                     <div key={match.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
                       <div className="flex items-start gap-3">
                         <Avatar name={match.caregiver?.name} src={match.caregiver?.photoUrl} size={48} className="rounded-xl" />
@@ -1165,7 +1164,7 @@ export default function FamilyDashboard() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {matches.map((match: any, i: number) => (
+                  {matches.map((match: any) => (
                     <div key={match.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                       <div className="flex items-start gap-4">
                         <Avatar name={match.caregiver?.name} src={match.caregiver?.photoUrl} size={56} className="rounded-2xl" />

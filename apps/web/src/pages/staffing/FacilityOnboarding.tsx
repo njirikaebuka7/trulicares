@@ -1,20 +1,19 @@
 import { useState, useRef } from 'react';
 import { toast } from '@/components/ui/Toaster';
 import { useNavigate, Link } from 'react-router-dom';
-import { auth as authApi, setToken } from '@/lib/api';
+import { auth as authApi } from '@/lib/api';
 import { facility as facilityApi } from '@/lib/staffingApi';
 import { useAuth } from '@/context/AuthContext';
 import {
-  Building2, FileText, User, CheckCircle,
-  ArrowRight, ArrowLeft, Eye, EyeOff, Loader2, Shield, MapPin, X,
-  Briefcase, Globe, Phone, Lock, Heart, Star, LayoutDashboard,
+  Building2, User, CheckCircle,
+  ArrowRight, ArrowLeft, Eye, EyeOff, Loader2, MapPin, X,
+  Globe, Phone, Lock, LayoutDashboard,
   ShieldCheck, Zap, Users, MessageCircle, Mail, AlertCircle
 } from 'lucide-react';
 import logoImg from '@/assets/logo.png';
 import Button from '@/components/ui/Button';
 import SelectCard from '@/components/ui/SelectCard';
 import GoogleSignInButton, { GOOGLE_ENABLED, decodeGoogleCredential } from '@/components/auth/GoogleSignInButton';
-import { cn } from '@/utils/cn';
 
 const FACILITY_TYPES = [
   { value: 'hospital', label: 'Hospital' },
@@ -26,12 +25,6 @@ const FACILITY_TYPES = [
   { value: 'other', label: 'Other' },
 ];
 
-const steps = [
-  { id: 1, title: 'Facility', icon: Building2 },
-  { id: 2, title: 'Business', icon: FileText },
-  { id: 3, title: 'Contact', icon: User },
-  { id: 4, title: 'Finish', icon: CheckCircle },
-];
 
 const benefits = [
   { icon: <ShieldCheck className="w-5 h-5" />, title: 'Verified Talent', desc: 'Every professional is background checked and license verified.' },
@@ -204,7 +197,6 @@ export default function FacilityOnboarding() {
 
 
 
-  const progressPct = step > 0 ? ((step - 1) / (steps.length - 1)) * 100 : 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-coral-50 flex flex-col">

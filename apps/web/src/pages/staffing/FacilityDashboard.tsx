@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link, Routes, Route } from 'react-router-dom';
 import { 
   LayoutDashboard, Search, Calendar, PlusCircle, 
-  Settings, Bell, Menu, X, LogOut, ChevronRight,
-  Shield, CheckCircle, Briefcase, Clock, Building,
+  Bell, X, LogOut, ChevronRight,
+  Shield, CheckCircle, Building,
   ChevronLeft, Users, MessageCircle
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { facility as facApi, shifts as shiftApi } from '@/lib/staffingApi';
+import { shifts as shiftApi } from '@/lib/staffingApi';
 import { notifications as notificationsApi } from '@/lib/api';
 import { FacilityProfile } from '@/types/staffing';
 import logoImg from '@/assets/logo.png';
@@ -40,7 +40,6 @@ function FacilityDashboardInner() {
   const { logout, user } = useAuth();
   const { profile, loading, summary, refresh } = useFacilityDashboard();
   
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false);
   const [apiNotifications, setApiNotifications] = useState<any[]>([]);
@@ -104,7 +103,6 @@ function FacilityDashboardInner() {
     );
   }
 
-  const initials = user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() ?? 'F';
 
   return (
     <div className="min-h-screen bg-gray-50 flex font-sans overflow-x-hidden relative">

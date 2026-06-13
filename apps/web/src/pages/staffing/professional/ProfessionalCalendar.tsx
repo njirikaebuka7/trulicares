@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
 import { 
   ChevronLeft, ChevronRight, Calendar as CalendarIcon, 
-  Clock, MapPin, Building2, CheckCircle, Info, Loader2,
-  Phone, MessageCircle
+  Clock, MapPin, CheckCircle,
+  Phone
 } from 'lucide-react';
 import { bookings as bookingApi } from '@/lib/staffingApi';
 import { ShiftBooking } from '@/types/staffing';
 
 export default function ProfessionalCalendar() {
   const [bookings, setBookings] = useState<ShiftBooking[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
 

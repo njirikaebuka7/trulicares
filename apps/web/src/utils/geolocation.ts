@@ -10,7 +10,7 @@ export function getCurrentPosition(): Promise<GeolocationPosition> {
       return;
     }
     // Try high accuracy first (GPS), fall back to low accuracy (network-based) on failure
-    navigator.geolocation.getCurrentPosition(resolve, (highAccErr) => {
+    navigator.geolocation.getCurrentPosition(resolve, () => {
       // Retry with low accuracy — works better on many mobile browsers
       navigator.geolocation.getCurrentPosition(resolve, reject, {
         enableHighAccuracy: false,

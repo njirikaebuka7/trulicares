@@ -2,9 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Building2, Globe, FileText, MapPin,
   Shield, CheckCircle, Clock, Save, Edit3,
-  X, Loader2, Briefcase, Info, Camera, Lock,
-  Eye, EyeOff, CreditCard, AlertCircle, Phone,
-  ChevronRight, UserCircle, Settings, Plus, Trash2
+  X, Loader2, Info, Camera, Lock,
+  Eye, EyeOff, CreditCard, AlertCircle,
+  UserCircle
 } from 'lucide-react';
 import { facility as facApi } from '@/lib/staffingApi';
 import { auth as authApi } from '@/lib/api';
@@ -578,7 +578,7 @@ export default function FacilityProfileView() {
                   <CheckCircle className="w-4 h-4 shrink-0" /> {pwSuccess}
                 </div>
               )}
-              {['current', 'next', 'confirm'].map((field, i) => (
+              {['current', 'next', 'confirm'].map((field) => (
                 <div key={field}>
                   <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 ml-1">
                     {field === 'current' ? 'Current Password' : field === 'next' ? 'New Password' : 'Confirm New Password'}

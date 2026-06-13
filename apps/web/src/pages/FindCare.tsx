@@ -16,9 +16,9 @@ import MatchesListStep from '@/components/questionnaire/MatchesListStep';
 import PaymentStep from '@/components/questionnaire/PaymentStep';
 import VerificationStep from '@/components/questionnaire/VerificationStep';
 import MessagingStep from '@/components/questionnaire/MessagingStep';
-import { Clock, CheckCircle, ArrowRight, Loader2, MessageCircle } from 'lucide-react';
+import { Clock, CheckCircle, Loader2 } from 'lucide-react';
 import Button from '@/components/ui/Button';
-import { get, post } from '@/lib/api';
+import { get } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
 type FlowPhase = 'care-type' | 'care-details' | 'account' | 'review' | 'matching' | 'matches' | 'payment' | 'verification' | 'messaging' | 'pending-acceptance';
@@ -239,7 +239,7 @@ export default function FindCare() {
 
 function PendingAcceptanceStep({ matchId, onAccepted, onDashboard }: { matchId: string, onAccepted: () => void, onDashboard: () => void }) {
   const [status, setStatus] = useState<'pending' | 'accepted' | 'declined'>('pending');
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   useEffect(() => {
     // 1. Initial fetch and backup polling to check current status

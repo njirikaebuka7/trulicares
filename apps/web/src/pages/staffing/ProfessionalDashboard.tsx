@@ -3,17 +3,16 @@ import { useNavigate, useLocation, Link, Routes, Route } from 'react-router-dom'
 import { 
   LayoutDashboard, Search, Calendar, Wallet, 
   UserCircle, Bell, Menu, X, LogOut, ChevronRight,
-  Shield, CheckCircle, Briefcase, Clock, FileText,
-  ChevronLeft, Info, MessageCircle
+  CheckCircle, Briefcase, Clock, FileText,
+  ChevronLeft, MessageCircle
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { ProfessionalProfile, Shift } from '@/types/staffing';
+import { ProfessionalProfile } from '@/types/staffing';
 import logoImg from '@/assets/logo.png';
 import Avatar from '@/components/ui/Avatar';
 import { get, notifications as notificationsApi } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/utils/cn';
-import { format } from 'date-fns';
 
 // Sub-views
 import ShiftBrowse from './professional/ShiftBrowse';
@@ -40,7 +39,6 @@ function ProfessionalDashboardInner() {
   const { logout, user } = useAuth();
   const { profile, loading, summary, activeShift, refresh } = useDashboard();
   
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false);
@@ -93,7 +91,7 @@ function ProfessionalDashboardInner() {
 
     const profileChannel = supabase
       .channel(`profile:${user.id}`)
-      .on('broadcast', { event: 'verification_update' }, (payload) => {
+      .on('broadcast', { event: 'verification_update' }, () => {
         refresh();
       })
       .subscribe();
@@ -136,7 +134,6 @@ function ProfessionalDashboardInner() {
     );
   }
 
-  const initials = user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() ?? 'P';
 
   return (
     <div className="min-h-screen bg-gray-50 flex font-sans overflow-x-hidden relative">

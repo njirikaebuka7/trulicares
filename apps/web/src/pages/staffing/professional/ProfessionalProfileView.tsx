@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { toast } from '@/components/ui/Toaster';
 import {
   UserCircle, Stethoscope, FileText, MapPin,
-  Shield, CheckCircle, AlertCircle, Clock,
+  Shield, CheckCircle, Clock,
   Upload, Edit3, Save, X, Loader2, Info,
   Camera, Plus, Trash2, Briefcase, Award,
-  Lock, Eye, EyeOff, Phone, Mail, ChevronRight,
+  Lock, Eye, EyeOff, ChevronRight,
   Activity, CalendarDays, Building2
 } from 'lucide-react';
 import { professional as proApi } from '@/lib/staffingApi';
@@ -107,12 +107,7 @@ export default function ProfessionalProfileView() {
   const [govtSubmitting, setGovtSubmitting] = useState(false);
 
   // Background check
-  const [bgForm, setBgForm] = useState({
-    legalName: '', dob: '', ssn: '', currentAddress: '',
-    previousAddress: '', offersTransport: false, driversLicense: '', consent: false,
-  });
-  const [bgSubmitting, setBgSubmitting] = useState(false);
-  const [bgSubmitted, setBgSubmitted] = useState(false);
+  const [, setBgSubmitted] = useState(false);
 
   // Security
   const [secForm, setSecForm] = useState({ currentPwd: '', newPwd: '', confirmPwd: '' });
@@ -290,18 +285,6 @@ export default function ProfessionalProfileView() {
     }
   };
 
-  const handleBgSubmit = async () => {
-    if (!bgForm.consent) { toast('You must acknowledge the consent notice.', 'error'); return; }
-    setBgSubmitting(true);
-    try {
-      await proApi.submitBackgroundCheck(bgForm);
-      setBgSubmitted(true);
-    } catch (err: any) {
-      toast(err.message || 'Submission failed', 'error');
-    } finally {
-      setBgSubmitting(false);
-    }
-  };
 
   const handlePasswordChange = async () => {
     if (secForm.newPwd !== secForm.confirmPwd) { setSecMsg('Passwords do not match'); return; }
@@ -329,7 +312,6 @@ export default function ProfessionalProfileView() {
   }
 
   const verStatus = profile?.verification_status;
-  const bgStatus = profile?.background_check_status;
 
   // ── Profile completeness ────────────────────────────────────
   // A complete profile gets booked faster — surface what's missing with quick jumps.

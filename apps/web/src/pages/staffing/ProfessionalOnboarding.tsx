@@ -5,9 +5,9 @@ import { auth as authApi } from '@/lib/api';
 import { professional as proApi } from '@/lib/staffingApi';
 import { useAuth } from '@/context/AuthContext';
 import {
-  User, FileText, MapPin, CheckCircle,
+  User, MapPin, CheckCircle,
   ArrowRight, ArrowLeft, Eye, EyeOff, Loader2, Shield, AlertCircle,
-  X, Heart, Star, Briefcase, Clock, Phone, DollarSign,
+  X, Star, Briefcase, Clock, Phone, DollarSign,
   Camera, Lock, Mail, Stethoscope
 } from 'lucide-react';
 import logoImg from '@/assets/logo.png';
@@ -241,7 +241,6 @@ export default function ProfessionalOnboarding() {
     }
   };
 
-  const progressPct = step > 0 ? ((step - 1) / (TOTAL_STEPS - 1)) * 100 : 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 flex flex-col">

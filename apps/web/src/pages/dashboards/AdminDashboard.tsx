@@ -64,7 +64,6 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('Overview');
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [notificationsRead, setNotificationsRead] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false);
   const [userFilter, setUserFilter] = useState<'all' | 'family' | 'caregiver' | 'professional' | 'facility'>('all');
@@ -329,9 +328,6 @@ export default function AdminDashboard() {
     }).catch(() => {});
   };
 
-  const maxBarValue = adminStats.monthlyGrowth.length > 0
-    ? Math.max(...adminStats.monthlyGrowth.map(m => m.families + m.caregivers), 1)
-    : 1;
   const initials = 'AD';
 
   return (

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Star, Shield, Check, MapPin, Clock, Filter, X, ChevronRight } from 'lucide-react';
+import { Search, Shield, Check, Filter, X } from 'lucide-react';
 import { caregivers as caregiverApi } from '@/lib/api';
 import type { CareCategory, CaregiverProfile } from '@/types';
 import { cn } from '@/utils/cn';
@@ -21,21 +21,6 @@ const SORT_OPTIONS = [
   { value: 'price-desc', label: 'Price: High to Low' },
   { value: 'experience', label: 'Most Experienced' },
 ];
-
-const avatarColors = ['bg-coral-400', 'bg-brand-400', 'bg-sky-400', 'bg-emerald-400', 'bg-violet-400', 'bg-amber-400', 'bg-pink-400'];
-
-function StarRow({ rating }: { rating: number }) {
-  return (
-    <div className="flex items-center gap-0.5">
-      {[1, 2, 3, 4, 5].map(i => (
-        <Star
-          key={i}
-          className={cn('w-3.5 h-3.5', i <= Math.round(rating) ? 'text-amber-400 fill-amber-400' : 'text-gray-200 fill-gray-200')}
-        />
-      ))}
-    </div>
-  );
-}
 
 export default function CaregiverList() {
   const [search, setSearch] = useState('');

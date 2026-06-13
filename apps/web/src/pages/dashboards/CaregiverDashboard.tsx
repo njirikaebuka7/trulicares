@@ -3,8 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import {
   Bell, MessageCircle, User, Settings, LogOut, MapPin, DollarSign,
   Star, Shield, Check, ChevronRight, Calendar, Clock, TrendingUp,
-  Briefcase, X, CheckCircle, XCircle, Edit3, LayoutDashboard,
-  ChevronLeft, ChevronRight as ChevronRightIcon, Camera, Send, MoreHorizontal, Loader2, Plus, AlertCircle, Phone, Trash2, Upload, Zap, CreditCard, Flag, AlertTriangle, Ban, Award,
+  Briefcase, X, CheckCircle, XCircle, LayoutDashboard,
+  ChevronLeft, ChevronRight as ChevronRightIcon, Camera, Send, MoreHorizontal, Loader2, Plus, AlertCircle, Phone, Trash2, Upload, Zap, CreditCard, Flag, Ban, Award,
   Eye, EyeOff, Video
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
@@ -77,9 +77,7 @@ export default function CaregiverDashboard() {
   const [bookEndTime, setBookEndTime] = useState('17:00');
   const [bookLocation, setBookLocation] = useState('');
   const [bookSaving, setBookSaving] = useState(false);
-  const [dataLoading, setDataLoading] = useState(true);
   const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [cgModal, setCgModal] = useState<null | 'bio' | 'rates' | 'availability' | 'notifications' | 'account' | 'serviceArea'>(null);
   const [selectedJobDetail, setSelectedJobDetail] = useState<any | null>(null);
@@ -90,7 +88,6 @@ export default function CaregiverDashboard() {
   const [cgServiceRadius, setCgServiceRadius] = useState(25);
   const [cgServiceZips, setCgServiceZips] = useState<string[]>([]);
   const [cgZipInput, setCgZipInput] = useState('');
-  const [cgLocating, setCgLocating] = useState(false);
   const [cgNotifPrefs, setCgNotifPrefs] = useState({ email: true, sms: true, push: true, marketing: false });
   const [cgSelectedMsg, setCgSelectedMsg] = useState<string | null>(null);
   const [cgMsgInput, setCgMsgInput] = useState('');
@@ -562,15 +559,6 @@ export default function CaregiverDashboard() {
   const initials = user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() ?? 'C';
   const dbUnreadNotifCount = dbNotifications.filter((n: any) => !(n.read ?? n.isRead ?? false)).length;
   const unread = notificationsRead ? 0 : dbUnreadNotifCount;
-
-  const openBgCheckModal = () => {
-    if (bgCheckStatus === 'awaiting_payment') {
-      setBgStep(2);
-    } else {
-      setBgStep(1);
-    }
-    setBgCheckModalOpen(true);
-  };
 
   const openNotifications = () => {
     setNotifOpen(true);

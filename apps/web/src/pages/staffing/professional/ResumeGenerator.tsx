@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import {
-  FileText, Download, Printer, Shield, MapPin, Phone, Mail,
+  Download, Printer, Shield, MapPin, Mail,
   Award, Briefcase, Star, CheckCircle, Clock, Loader2, User
 } from 'lucide-react';
 import { professional as proApi } from '@/lib/staffingApi';
