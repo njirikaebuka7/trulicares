@@ -3,6 +3,7 @@ import { useAuth } from '@/context/AuthContext';
 import FamilyDashboard from '@/pages/dashboards/FamilyDashboard';
 import CaregiverDashboard from '@/pages/dashboards/CaregiverDashboard';
 import AdminDashboard from '@/pages/dashboards/AdminDashboard';
+import SupportAdminDashboard from '@/pages/dashboards/SupportAdminDashboard';
 import ProfessionalDashboard from '@/pages/staffing/ProfessionalDashboard';
 import FacilityDashboard from '@/pages/staffing/FacilityDashboard';
 import heartLogoImg from '@/assets/heart-logo.png';
@@ -38,6 +39,7 @@ export default function Dashboard() {
   }
 
   if (user.role === 'admin') return <AdminDashboard />;
+  if (user.role === 'support_admin') return <SupportAdminDashboard />;
   if (user.role === 'caregiver') return <CaregiverDashboard />;
   if (user.role === 'professional') return <ProfessionalDashboard />;
   if (user.role === 'facility') return <FacilityDashboard />;

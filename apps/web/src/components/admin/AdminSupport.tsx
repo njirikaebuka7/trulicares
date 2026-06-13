@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2, Mail } from 'lucide-react';
 import { admin as adminApi } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { cn } from '@/utils/cn';
 
 interface Ticket {
@@ -26,6 +27,15 @@ export default function AdminSupport() {
   }, [filter]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Real-time: refresh when a support ticket is created/updated (e.g. contact form).
+  useEffect(() => {
+    const channel = supabase
+      .channel('support_tickets_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_tickets' }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [load]);
 
   const setStatus = async (id: string, status: string) => {
     setTickets((prev) => prev.map((t) => t.id === id ? { ...t, status } : t));

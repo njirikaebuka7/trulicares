@@ -23,6 +23,7 @@ router.post('/tickets', writeLimiter, async (req, res) => {
       subject: 'New support ticket',
       heading: 'New support ticket',
       message: `${name || email}: ${subject}`,
+      includeSupportAdmins: true,
     }).catch(() => {});
     res.status(201).json({ success: true, id: r.rows[0].id });
   } catch (err) {

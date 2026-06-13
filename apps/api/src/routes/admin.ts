@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { query, supabase } from '../db.js';
-import { requireAdmin, AuthRequest } from '../middleware/auth.js';
+import { requireAdmin, requireSupportAdmin, AuthRequest } from '../middleware/auth.js';
 import { sendVerificationStatusEmail } from '../services/email.js';
 import { decryptArray, decryptPII } from '../services/pii.js';
 import { auditFromReq } from '../services/audit.js';
-import { writeLimiter } from '../middleware/rateLimiter.js';
+import { writeLimiter, uploadLimiter } from '../middleware/rateLimiter.js';
+import { uploadBase64Image } from '../services/storage.js';
 import { getPricing, getGeneral, setSetting, PRICING_DEFAULTS, GENERAL_DEFAULTS } from '../services/settings.js';
 import { cacheAside, cacheDel } from '../services/cache.js';
 import { isConnectEnabled } from '../services/connect.js';
@@ -850,7 +851,7 @@ function slugify(s: string): string {
 }
 
 // GET /api/admin/blog — list (paginated, status filter, search)
-router.get('/blog', requireAdmin, async (req: AuthRequest, res) => {
+router.get('/blog', requireSupportAdmin, async (req: AuthRequest, res) => {
   try {
     const { page = '1', status, search } = req.query as any;
     const pageNum = Math.max(1, parseInt(page, 10));
@@ -881,7 +882,7 @@ router.get('/blog', requireAdmin, async (req: AuthRequest, res) => {
 });
 
 // GET /api/admin/blog/:id — single (for editing)
-router.get('/blog/:id', requireAdmin, async (req: AuthRequest, res) => {
+router.get('/blog/:id', requireSupportAdmin, async (req: AuthRequest, res) => {
   try {
     const r = await query('SELECT * FROM blog_posts WHERE id = $1', [req.params.id]);
     if (r.rows.length === 0) return res.status(404).json({ error: 'Post not found' });
@@ -891,8 +892,24 @@ router.get('/blog/:id', requireAdmin, async (req: AuthRequest, res) => {
   }
 });
 
+// POST /api/admin/blog/upload-image — upload a featured image (base64) → stored URL
+router.post('/blog/upload-image', requireSupportAdmin, uploadLimiter, async (req: AuthRequest, res) => {
+  try {
+    const { imageData } = req.body || {};
+    if (!imageData) return res.status(400).json({ error: 'imageData is required' });
+    if (typeof imageData !== 'string' || imageData.length > 4_000_000) {
+      return res.status(413).json({ error: 'Image too large (max ~3 MB)' });
+    }
+    const url = await uploadBase64Image(req.user!.id, imageData);
+    res.json({ url });
+  } catch (err) {
+    console.error('Blog image upload error:', err);
+    res.status(500).json({ error: 'Failed to upload image' });
+  }
+});
+
 // POST /api/admin/blog — create
-router.post('/blog', requireAdmin, async (req: AuthRequest, res) => {
+router.post('/blog', requireSupportAdmin, async (req: AuthRequest, res) => {
   try {
     const b = req.body || {};
     if (!b.title) return res.status(400).json({ error: 'Title is required' });
@@ -918,7 +935,7 @@ router.post('/blog', requireAdmin, async (req: AuthRequest, res) => {
 });
 
 // PUT /api/admin/blog/:id — update
-router.put('/blog/:id', requireAdmin, async (req: AuthRequest, res) => {
+router.put('/blog/:id', requireSupportAdmin, async (req: AuthRequest, res) => {
   try {
     const b = req.body || {};
     const fields: string[] = [];
@@ -961,7 +978,7 @@ router.put('/blog/:id', requireAdmin, async (req: AuthRequest, res) => {
 });
 
 // DELETE /api/admin/blog/:id
-router.delete('/blog/:id', requireAdmin, async (req: AuthRequest, res) => {
+router.delete('/blog/:id', requireSupportAdmin, async (req: AuthRequest, res) => {
   try {
     const r = await query('DELETE FROM blog_posts WHERE id = $1 RETURNING id', [req.params.id]);
     if (r.rows.length === 0) return res.status(404).json({ error: 'Post not found' });
@@ -1085,12 +1102,12 @@ router.get('/users/:id/id-documents', requireAdmin, async (req: AuthRequest, res
 });
 
 // ── Platform settings (general) ───────────────────────────────────────────────
-router.get('/settings/general', requireAdmin, async (_req, res) => {
+router.get('/settings/general', requireSupportAdmin, async (_req, res) => {
   try { res.json({ settings: await getGeneral() }); }
   catch (err) { console.error('Get general settings error:', err); res.status(500).json({ error: 'Failed to fetch settings' }); }
 });
 
-router.put('/settings/general', requireAdmin, async (req: AuthRequest, res) => {
+router.put('/settings/general', requireSupportAdmin, async (req: AuthRequest, res) => {
   try {
     const updates = req.body?.settings || req.body || {};
     const applied: Record<string, string> = {};
@@ -1109,7 +1126,7 @@ router.put('/settings/general', requireAdmin, async (req: AuthRequest, res) => {
 });
 
 // ── Support tickets ───────────────────────────────────────────────────────────
-router.get('/tickets', requireAdmin, async (req: AuthRequest, res) => {
+router.get('/tickets', requireSupportAdmin, async (req: AuthRequest, res) => {
   try {
     const { page = '1', status } = req.query as any;
     const pageNum = Math.max(1, parseInt(page, 10));
@@ -1139,7 +1156,7 @@ router.get('/tickets', requireAdmin, async (req: AuthRequest, res) => {
   }
 });
 
-router.put('/tickets/:id', requireAdmin, async (req: AuthRequest, res) => {
+router.put('/tickets/:id', requireSupportAdmin, async (req: AuthRequest, res) => {
   try {
     const { status } = req.body;
     if (!['open', 'in_progress', 'resolved', 'closed'].includes(status)) {

@@ -334,6 +334,16 @@ pool.query(`
   ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider TEXT;
 `).catch(err => console.error('OAuth users auto-migration failed', err));
 
+// Allow the support_admin role (CMS / contact / social / support dashboard) by
+// widening the users.role CHECK constraint. Idempotent.
+pool.query(`
+  DO $$ BEGIN
+    ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+    ALTER TABLE users ADD CONSTRAINT users_role_check
+      CHECK (role IN ('admin','support_admin','family','caregiver','professional','facility'));
+  EXCEPTION WHEN others THEN NULL; END $$;
+`).catch(err => console.error('users.role support_admin auto-migration failed', err));
+
 // Make a HARD delete of a user safe: the remaining FK references to users(id)
 // that are NOT ALREADY cascade/set-null would otherwise block `DELETE FROM users`.
 // Owned data already cascades; these audit/reference columns are converted so

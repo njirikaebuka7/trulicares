@@ -240,6 +240,7 @@ export const admin = {
   blogCreate: (data: any) => post('/admin/blog', data),
   blogUpdate: (id: string, data: any) => put(`/admin/blog/${id}`, data),
   blogDelete: (id: string) => del(`/admin/blog/${id}`),
+  blogUploadImage: (imageData: string) => post('/admin/blog/upload-image', { imageData }),
   // Platform settings (Phase G)
   generalSettings: () => get('/admin/settings/general'),
   updateGeneralSettings: (settings: Record<string, string>) => put('/admin/settings/general', { settings }),

@@ -23,6 +23,25 @@ export default function AdminContent() {
   const [editing, setEditing] = useState<null | 'new' | Post>(null);
   const [form, setForm] = useState<any>(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const handleImageUpload = async (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > 3_000_000) { alert('Image too large (max 3 MB).'); return; }
+    setUploading(true);
+    try {
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const r: any = await adminApi.blogUploadImage(dataUrl);
+      setForm((f: any) => ({ ...f, featuredImage: r.url }));
+    } catch (e: any) {
+      alert(e?.message || 'Image upload failed');
+    } finally { setUploading(false); }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -148,7 +167,6 @@ export default function AdminContent() {
                 { k: 'category', label: 'Category', ph: 'Child Care' },
                 { k: 'authorName', label: 'Author', ph: 'Author name' },
                 { k: 'readTime', label: 'Read time', ph: '5 min read' },
-                { k: 'featuredImage', label: 'Featured image URL', ph: 'https://…' },
                 { k: 'tags', label: 'Tags (comma-separated)', ph: 'nanny, hiring' },
                 { k: 'seoTitle', label: 'SEO title', ph: 'SEO title' },
                 { k: 'seoDescription', label: 'SEO meta description', ph: 'Meta description' },
@@ -159,6 +177,38 @@ export default function AdminContent() {
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-red-400" />
                 </div>
               ))}
+              {/* Featured image: upload (preferred) with preview, or paste a URL */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Featured image</label>
+                <div className="flex items-start gap-3">
+                  <div className="w-28 h-20 shrink-0 rounded-xl border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center">
+                    {form.featuredImage ? (
+                      <img
+                        src={form.featuredImage}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    ) : (
+                      <ImageIcon className="w-6 h-6 text-gray-300" />
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <label className={cn(
+                      'inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold cursor-pointer',
+                      uploading ? 'bg-gray-100 text-gray-400' : 'bg-red-50 text-red-700 hover:bg-red-100'
+                    )}>
+                      {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+                      {uploading ? 'Uploading…' : 'Upload image'}
+                      <input type="file" accept="image/*" className="hidden" disabled={uploading}
+                        onChange={(e) => handleImageUpload(e.target.files?.[0])} />
+                    </label>
+                    <input value={form.featuredImage} onChange={(e) => setForm({ ...form, featuredImage: e.target.value })}
+                      placeholder="…or paste an image URL"
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-red-400" />
+                  </div>
+                </div>
+              </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Excerpt</label>
                 <textarea value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} rows={2}

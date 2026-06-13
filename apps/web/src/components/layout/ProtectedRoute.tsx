@@ -1,7 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 
-type Role = 'family' | 'caregiver' | 'admin' | 'professional' | 'facility';
+type Role = 'family' | 'caregiver' | 'admin' | 'support_admin' | 'professional' | 'facility';
 
 interface Props {
   children: React.ReactNode;

@@ -91,6 +91,16 @@ export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction
   });
 }
 
+// Content + support operations: a super-admin OR a support-admin may perform these.
+export function requireSupportAdmin(req: AuthRequest, res: Response, next: NextFunction) {
+  requireAuth(req, res, () => {
+    if (req.user?.role !== 'admin' && req.user?.role !== 'support_admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    next();
+  });
+}
+
 export function requireCaregiver(req: AuthRequest, res: Response, next: NextFunction) {
   requireAuth(req, res, () => {
     if (req.user?.role !== 'caregiver') {

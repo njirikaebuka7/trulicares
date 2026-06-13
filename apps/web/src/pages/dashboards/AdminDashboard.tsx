@@ -13,13 +13,10 @@ import { get, put, post, del } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/utils/cn';
 import logoImg from '@/assets/logo.png';
-import AdminContent from '@/components/admin/AdminContent';
-import AdminSettings from '@/components/admin/AdminSettings';
-import AdminSupport from '@/components/admin/AdminSupport';
 import AdminNotes from '@/components/admin/AdminNotes';
 import { toast } from '@/components/ui/Toaster';
 
-type Tab = 'Overview' | 'Users' | 'Verification Queue' | 'Reports' | 'Staffing' | 'Analytics' | 'Pricing' | 'Finance' | 'Content' | 'Support' | 'Settings' | 'Audit Log';
+type Tab = 'Overview' | 'Users' | 'Verification Queue' | 'Reports' | 'Staffing' | 'Analytics' | 'Pricing' | 'Finance' | 'Audit Log';
 
 type AdminUser = {
   id: string; name: string; email: string; role: string;
@@ -55,10 +52,7 @@ const navItems: { id: Tab; label: string; mobileLabel: string; icon: React.React
   { id: 'Reports', label: 'Reports', mobileLabel: 'Reports', icon: <Flag className="w-5 h-5" /> },
   { id: 'Pricing', label: 'Pricing', mobileLabel: 'Pricing', icon: <DollarSign className="w-5 h-5" /> },
   { id: 'Finance', label: 'Finance', mobileLabel: 'Finance', icon: <Activity className="w-5 h-5" /> },
-  { id: 'Content', label: 'Content', mobileLabel: 'Content', icon: <FileText className="w-5 h-5" /> },
-  { id: 'Support', label: 'Support', mobileLabel: 'Support', icon: <Mail className="w-5 h-5" /> },
   { id: 'Analytics', label: 'Analytics', mobileLabel: 'Analytics', icon: <BarChart2 className="w-5 h-5" /> },
-  { id: 'Settings', label: 'Settings', mobileLabel: 'Settings', icon: <Shield className="w-5 h-5" /> },
   { id: 'Audit Log', label: 'Audit Log', mobileLabel: 'Audit', icon: <Eye className="w-5 h-5" /> },
 ];
 
@@ -1539,14 +1533,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* ── CONTENT / CMS ── */}
-          {activeTab === 'Content' && <AdminContent />}
-
-          {/* ── SUPPORT ── */}
-          {activeTab === 'Support' && <AdminSupport />}
-
-          {/* ── SETTINGS ── */}
-          {activeTab === 'Settings' && <AdminSettings />}
+          {/* Content, Support & Settings now live in the Support-Admin dashboard. */}
 
           {/* ── FINANCE ── */}
           {activeTab === 'Finance' && (

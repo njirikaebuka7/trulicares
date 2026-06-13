@@ -72,7 +72,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: 'family' | 'caregiver' | 'admin' | 'professional' | 'facility';
+  role: 'family' | 'caregiver' | 'admin' | 'support_admin' | 'professional' | 'facility';
   verified: boolean;
   avatarUrl?: string;
   photoUrl?: string;

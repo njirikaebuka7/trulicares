@@ -30,6 +30,7 @@ import ProfessionalOnboarding from '@/pages/staffing/ProfessionalOnboarding';
 import FacilityOnboarding from '@/pages/staffing/FacilityOnboarding';
 import ProfessionalDashboard from '@/pages/staffing/ProfessionalDashboard';
 import FacilityDashboard from '@/pages/staffing/FacilityDashboard';
+import SupportAdminDashboard from '@/pages/dashboards/SupportAdminDashboard';
 
 export default function App() {
   return (
@@ -78,6 +79,7 @@ export default function App() {
           <Route path="/facility-onboarding" element={<FacilityOnboarding />} />
           <Route path="/professional-dashboard/*" element={<ProtectedRoute requiredRole="professional"><ProfessionalDashboard /></ProtectedRoute>} />
           <Route path="/facility-dashboard/*" element={<ProtectedRoute requiredRole="facility"><FacilityDashboard /></ProtectedRoute>} />
+          <Route path="/support-admin/*" element={<ProtectedRoute requiredRole={['support_admin', 'admin']}><SupportAdminDashboard /></ProtectedRoute>} />
 
           {/* 404 */}
           <Route path="*" element={<NotFound />} />
