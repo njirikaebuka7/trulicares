@@ -1218,8 +1218,8 @@ export default function CaregiverDashboard() {
                               onClick={async () => {
                                 try {
                                   await post(`/conversations/${cgSelectedMsg}/video`, {});
-                                } catch (err) {
-                                  showToast('Failed to start video call', 'error');
+                                } catch {
+                                  showToast('Failed to start video call');
                                 }
                               }}
                               className="w-9 h-9 rounded-full bg-emerald-50 hover:bg-emerald-100 flex items-center justify-center text-emerald-600 transition-colors shrink-0"

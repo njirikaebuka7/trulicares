@@ -7,7 +7,6 @@ import {
   ChevronLeft, Info, MessageCircle
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { professional as proApi, shifts as shiftApi, applications as appApi, wallet as walletApi } from '@/lib/staffingApi';
 import { ProfessionalProfile, Shift } from '@/types/staffing';
 import logoImg from '@/assets/logo.png';
 import Avatar from '@/components/ui/Avatar';
