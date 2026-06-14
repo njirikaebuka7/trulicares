@@ -1,5 +1,6 @@
 import express, { type Express } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { fileURLToPath } from 'url';
 import { join, dirname } from 'path';
 import { existsSync } from 'fs';
@@ -51,6 +52,20 @@ app.post(
 
 // ── Turn.ai webhook MUST be before express.json() (needs raw body for HMAC) ────
 app.use('/api/turn', turnRouter);
+
+// ── Security headers ──────────────────────────────────────────────────────────
+// helmet sets sensible defaults (HSTS, X-Content-Type-Options: nosniff,
+// X-Frame-Options, Referrer-Policy, etc.). CSP is disabled here because this app
+// is a JSON API + an SPA served separately by Vercel — a strict CSP belongs on
+// the frontend, and applying one here risks breaking it. CORP is set to
+// cross-origin so the separately-hosted frontend can read API responses/assets.
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 
 // ── Global middleware ─────────────────────────────────────────────────────────
 // Lock CORS to known origins. The web app calls /api/* same-origin (proxied by
