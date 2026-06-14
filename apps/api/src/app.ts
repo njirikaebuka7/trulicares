@@ -1,6 +1,7 @@
 import express, { type Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import { query } from './db.js';
 import { fileURLToPath } from 'url';
 import { join, dirname } from 'path';
 import { existsSync } from 'fs';
@@ -109,9 +110,24 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // ── Health check ──────────────────────────────────────────────────────────────
+// Deep readiness probe: verifies the DB (the critical dependency) so uptime
+// monitors detect real outages. Returns 503 if the DB is unreachable. Redis is
+// optional (graceful in-memory fallback), so a redis miss does NOT fail health.
 app.get('/api/health', async (_req, res) => {
-  const redis = await redisHealthCheck();
-  res.json({ status: 'ok', timestamp: new Date().toISOString(), redis });
+  let dbOk = false;
+  try {
+    await query('SELECT 1');
+    dbOk = true;
+  } catch (err: any) {
+    console.error('Health check: DB unreachable —', err?.message);
+  }
+  const redis = await redisHealthCheck().catch(() => 'error');
+  res.status(dbOk ? 200 : 503).json({
+    status: dbOk ? 'ok' : 'degraded',
+    db: dbOk ? 'ok' : 'down',
+    redis,
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // ── Rate Limiting (Brute Force Defense) ──────────────────────────────────────

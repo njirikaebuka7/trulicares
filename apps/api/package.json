@@ -12,6 +12,7 @@
     "seed": "tsx src/seed.ts",
     "seed:blogs": "tsx src/seedBlogs.ts",
     "seed:support-admin": "tsx src/seedSupportAdmin.ts",
+    "smoke": "tsx src/smoke.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
